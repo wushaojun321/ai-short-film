@@ -4,7 +4,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { PROJECTS } from "@/lib/data";
+import { useProjects } from "@/lib/ProjectsContext";
 import { cn } from "@/lib/utils";
 
 const statusColor: Record<string, string> = {
@@ -19,7 +19,8 @@ export default function Nav() {
   const navigate = useNavigate();
   const location = useLocation();
   const { projectId } = useParams<{ projectId: string }>();
-  const currentProject = PROJECTS.find((p) => p.id === projectId);
+  const { projects } = useProjects();
+  const currentProject = projects.find((p) => p.id === projectId);
   const isHome = location.pathname === "/projects" || location.pathname === "/";
 
   return (
@@ -59,7 +60,7 @@ export default function Nav() {
                   我的项目
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator className="my-1" />
-                {PROJECTS.map((p) => (
+                {projects.map((p) => (
                   <DropdownMenuItem
                     key={p.id}
                     onClick={() => navigate(`/projects/${p.id}`)}

@@ -132,6 +132,7 @@ export interface EpisodeDetail {
   currentStep: EpisodeStep;
   shots: Shot[];
   continuityNotes?: string;
+  finalVideoUrl?: string;
 }
 
 export const EPISODE_DETAILS: EpisodeDetail[] = [

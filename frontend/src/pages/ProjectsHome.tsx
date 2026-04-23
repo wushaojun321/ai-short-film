@@ -2,7 +2,8 @@ import { useNavigate } from "react-router-dom";
 import { Plus, ChevronRight, AlertTriangle, CheckCircle2, Clock, Play, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { PROJECTS, Project } from "@/lib/data";
+import { Project } from "@/lib/data";
+import { useProjects } from "@/lib/ProjectsContext";
 import { cn } from "@/lib/utils";
 
 const initStatusConfig: Record<Project["initStatus"], {
@@ -145,8 +146,10 @@ function EmptyState() {
 
 export default function ProjectsHome() {
   const navigate = useNavigate();
-  const initialized = PROJECTS.filter((p) => p.initStatus === "initialized").length;
-  const inProgress  = PROJECTS.filter((p) => ["assets_confirmed", "episodes_confirmed", "script_uploaded"].includes(p.initStatus)).length;
+  const { projects, loading, error } = useProjects();
+
+  const initialized = projects.filter((p) => p.initStatus === "initialized").length;
+  const inProgress  = projects.filter((p) => ["assets_confirmed", "episodes_confirmed", "script_uploaded"].includes(p.initStatus)).length;
 
   return (
     <div className="min-h-screen bg-elev/40">
@@ -169,7 +172,7 @@ export default function ProjectsHome() {
                     <span className="tabular-nums font-medium">{inProgress}</span> 个初始化中
                   </div>
                 )}
-                {PROJECTS.length === 0 && (
+                {!loading && projects.length === 0 && (
                   <span className="text-sm text-muted">点击右侧按钮创建第一个项目</span>
                 )}
               </div>
@@ -184,12 +187,26 @@ export default function ProjectsHome() {
 
       {/* 项目网格 */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {PROJECTS.length > 0
-            ? PROJECTS.map((p) => <ProjectCard key={p.id} project={p} />)
-            : <EmptyState />
-          }
-        </div>
+        {error && (
+          <div className="mb-6 px-4 py-3 rounded-xl bg-danger-soft text-danger text-sm flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            {error}
+          </div>
+        )}
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white rounded-2xl border border-line p-5 animate-pulse h-52" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {projects.length > 0
+              ? projects.map((p) => <ProjectCard key={p.id} project={p} />)
+              : <EmptyState />
+            }
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   CheckCircle2, RefreshCw, Loader2, Play, Volume2,
-  Film, Layers, Clock, Tag, Edit3, Check, MessageSquare,
+  Film, Layers, Clock, Tag, Edit3, Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,10 +12,13 @@ import {
 } from "@/components/ui/dialog";
 import { EpisodeStep, EpisodeDetail, Shot, ShotState } from "@/lib/data";
 import { cn } from "@/lib/utils";
+import { generateAPI, shotAPI, pollTask } from "@/lib/api";
 
 interface StepContentProps {
   step: EpisodeStep;
   episode: EpisodeDetail;
+  projectId: string;
+  onShotsUpdate: () => void;
 }
 
 // ─── 分镜状态配置 ────────────────────────────────────────────
@@ -97,10 +100,11 @@ interface ApprovalBarProps {
   onRegenerate?: () => void;
   regenerateLabel?: string;
   allApproved?: boolean;
+  approving?: boolean;
 }
 
 function ApprovalBar({
-  approved, total, onApproveAll, onRegenerate, regenerateLabel, allApproved,
+  approved, total, onApproveAll, onRegenerate, regenerateLabel, allApproved, approving,
 }: ApprovalBarProps) {
   return (
     <div className="flex items-center gap-4 mb-5 py-3 px-4 bg-soft rounded-xl border border-line">
@@ -133,9 +137,11 @@ function ApprovalBar({
         <Button
           size="sm"
           onClick={onApproveAll}
-          disabled={allApproved}
+          disabled={allApproved || approving}
         >
-          {allApproved ? (
+          {approving ? (
+            <><Loader2 className="w-3.5 h-3.5 animate-spin" />提交中…</>
+          ) : allApproved ? (
             <><Check className="w-3.5 h-3.5" />已全部通过</>
           ) : (
             <><CheckCircle2 className="w-3.5 h-3.5" />全部审批通过</>
@@ -146,9 +152,25 @@ function ApprovalBar({
   );
 }
 
+// ─── 生成中全屏遮罩 ──────────────────────────────────────────
+
+function GeneratingOverlay({ message }: { message: string }) {
+  return (
+    <div className="fixed inset-0 bg-white/60 backdrop-blur-sm z-50 flex items-center justify-center">
+      <div className="bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center gap-4">
+        <Loader2 className="w-10 h-10 text-brand animate-spin" />
+        <p className="text-sm font-medium text-text">{message}</p>
+        <p className="text-xs text-muted">请稍候，通常需要 10–60 秒</p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Step 1：分镜脚本 ────────────────────────────────────────
 
-function StepScript({ episode }: { episode: EpisodeDetail }) {
+function StepScript({
+  episode, projectId, onShotsUpdate,
+}: { episode: EpisodeDetail; projectId: string; onShotsUpdate: () => void }) {
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(episode.shots.length > 0);
   const [shots, setShots] = useState(episode.shots);
@@ -157,13 +179,22 @@ function StepScript({ episode }: { episode: EpisodeDetail }) {
   const [regenDialog, setRegenDialog] = useState(false);
   const [regenLoading, setRegenLoading] = useState(false);
   const [approved, setApproved] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     setGenerating(true);
-    setTimeout(() => {
-      setGenerating(false);
+    setError(null);
+    try {
+      const task = await generateAPI.shotScript(episode.id);
+      await pollTask(task.id, () => {});
+      onShotsUpdate();
       setGenerated(true);
-    }, 1800);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "生成失败");
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const handleStartEdit = (shot: Shot) => {
@@ -176,22 +207,36 @@ function StepScript({ episode }: { episode: EpisodeDetail }) {
     setEditingId(null);
   };
 
-  const handleRegen = (feedback: string) => {
+  const handleRegen = async (feedback: string) => {
     setRegenLoading(true);
-    setTimeout(() => {
-      // Mock：轻微更新描述模拟重新生成
-      setShots((prev) => prev.map((s) => ({
-        ...s,
-        description: s.description + "（已按意见调整）",
-        version: `v${parseInt(s.version.replace("v", "") || "1") + 1}`,
-      })));
-      setRegenLoading(false);
+    setError(null);
+    try {
+      const task = await generateAPI.shotScript(episode.id);
+      await pollTask(task.id, () => {});
+      onShotsUpdate();
       setRegenDialog(false);
       setApproved(false);
-    }, 2200);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "重新生成失败");
+    } finally {
+      setRegenLoading(false);
+    }
   };
 
-  const handleApproveAll = () => setApproved(true);
+  const handleApproveAll = async () => {
+    setApproving(true);
+    setError(null);
+    try {
+      const reviews = shots.map((s) => ({ shot_id: s.id, approved: true }));
+      await shotAPI.batchReview(projectId, episode.id, reviews);
+      setApproved(true);
+      onShotsUpdate();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "审批失败");
+    } finally {
+      setApproving(false);
+    }
+  };
 
   // 空状态：未生成
   if (!generated) {
@@ -212,14 +257,19 @@ function StepScript({ episode }: { episode: EpisodeDetail }) {
             <p className="text-xs text-muted">{episode.continuityNotes}</p>
           </div>
         )}
+        {error && <p className="text-sm text-red-500">{error}</p>}
         <Button onClick={handleGenerate} disabled={generating}>
           {generating
             ? <><Loader2 className="w-4 h-4 animate-spin" />生成中…</>
             : "生成分镜脚本"}
         </Button>
+        {generating && <GeneratingOverlay message="AI 正在生成分镜脚本…" />}
       </div>
     );
   }
+
+  // 同步 shots 到最新 episode.shots（外部更新后）
+  const displayShots = episode.shots.length > 0 ? episode.shots : shots;
 
   return (
     <div>
@@ -231,19 +281,26 @@ function StepScript({ episode }: { episode: EpisodeDetail }) {
         </div>
       )}
 
+      {error && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3">
+          <p className="text-xs text-red-600">{error}</p>
+        </div>
+      )}
+
       {/* 审批操作栏 */}
       <ApprovalBar
-        approved={approved ? shots.length : 0}
-        total={shots.length}
+        approved={approved ? displayShots.length : 0}
+        total={displayShots.length}
         onApproveAll={handleApproveAll}
         onRegenerate={() => setRegenDialog(true)}
         regenerateLabel="打回重新生成"
         allApproved={approved}
+        approving={approving}
       />
 
       {/* 脚本列表 */}
       <div className="space-y-3">
-        {shots.map((shot, idx) => {
+        {displayShots.map((shot, idx) => {
           const cfg = shotStateCfg[shot.state];
           const isEditing = editingId === shot.id;
 
@@ -336,23 +393,22 @@ function StepScript({ episode }: { episode: EpisodeDetail }) {
       />
 
       {/* 全局生成中遮罩 */}
-      {regenLoading && (
-        <div className="fixed inset-0 bg-white/60 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center gap-4">
-            <Loader2 className="w-10 h-10 text-brand animate-spin" />
-            <p className="text-sm font-medium text-text">AI 正在重新生成分镜脚本…</p>
-            <p className="text-xs text-muted">请稍候，通常需要 10–30 秒</p>
-          </div>
-        </div>
-      )}
+      {regenLoading && <GeneratingOverlay message="AI 正在重新生成分镜脚本…" />}
     </div>
   );
 }
 
 // ─── Step 2：分镜剧照（含审批）────────────────────────────────
 
-function StepImages({ episode }: { episode: EpisodeDetail }) {
-  const [shots, setShots] = useState(
+type ShotImageState = Shot & {
+  imageApproved: boolean;
+  loadingRegen: boolean;
+};
+
+function StepImages({
+  episode, projectId, onShotsUpdate,
+}: { episode: EpisodeDetail; projectId: string; onShotsUpdate: () => void }) {
+  const [shots, setShots] = useState<ShotImageState[]>(
     episode.shots.map((s) => ({
       ...s,
       imageApproved: s.state === "approved",
@@ -361,38 +417,73 @@ function StepImages({ episode }: { episode: EpisodeDetail }) {
   );
   const [regenTarget, setRegenTarget] = useState<string | null>(null);
   const [allApproved, setAllApproved] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const approvedCount = shots.filter((s) => s.imageApproved || allApproved).length;
 
-  const handleRegen = (shotId: string, _feedback: string) => {
+  const handleRegen = async (shotId: string, _feedback: string) => {
     setShots((prev) => prev.map((s) =>
       s.id === shotId ? { ...s, loadingRegen: true } : s
     ));
     setRegenTarget(null);
-    setTimeout(() => {
+    setError(null);
+    try {
+      const task = await generateAPI.shotImage(shotId);
+      await pollTask(task.id, () => {});
+      onShotsUpdate();
       setShots((prev) => prev.map((s) =>
-        s.id === shotId
-          ? { ...s, loadingRegen: false, imageUrl: s.imageUrl ?? "/previews/regen.svg", imageApproved: false }
-          : s
+        s.id === shotId ? { ...s, loadingRegen: false, imageApproved: false } : s
       ));
-    }, 1800);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "重新生成失败");
+      setShots((prev) => prev.map((s) =>
+        s.id === shotId ? { ...s, loadingRegen: false } : s
+      ));
+    }
   };
 
-  const handleApprove = (shotId: string) => {
-    setShots((prev) => prev.map((s) =>
-      s.id === shotId ? { ...s, imageApproved: true } : s
-    ));
+  const handleApprove = async (shotId: string) => {
+    setError(null);
+    try {
+      await shotAPI.review(projectId, episode.id, shotId, { approved: true });
+      setShots((prev) => prev.map((s) =>
+        s.id === shotId ? { ...s, imageApproved: true } : s
+      ));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "审批失败");
+    }
   };
 
-  const handleApproveAll = () => setAllApproved(true);
+  const handleApproveAll = async () => {
+    setApproving(true);
+    setError(null);
+    try {
+      const reviews = shots.map((s) => ({ shot_id: s.id, approved: true }));
+      await shotAPI.batchReview(projectId, episode.id, reviews);
+      setAllApproved(true);
+      onShotsUpdate();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "批量审批失败");
+    } finally {
+      setApproving(false);
+    }
+  };
 
   return (
     <div>
+      {error && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3">
+          <p className="text-xs text-red-600">{error}</p>
+        </div>
+      )}
+
       <ApprovalBar
         approved={approvedCount}
         total={shots.length}
         onApproveAll={handleApproveAll}
         allApproved={allApproved}
+        approving={approving}
       />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
@@ -411,8 +502,12 @@ function StepImages({ episode }: { episode: EpisodeDetail }) {
                     <Loader2 className="w-6 h-6 text-brand animate-spin" />
                   </div>
                 ) : shot.imageUrl ? (
-                  <div className="w-full h-full bg-gradient-to-br from-soft to-line flex items-center justify-center relative">
-                    <span className="text-xs text-muted">镜头 {idx + 1}</span>
+                  <div className="w-full h-full relative overflow-hidden">
+                    <img
+                      src={shot.imageUrl}
+                      alt={`镜头 ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
                     {isApproved && (
                       <div className="absolute inset-0 bg-brand/10 flex items-center justify-center">
                         <CheckCircle2 className="w-10 h-10 text-brand drop-shadow" />
@@ -479,9 +574,17 @@ function StepImages({ episode }: { episode: EpisodeDetail }) {
 
 // ─── Step 3：分镜视频（含审批）──────────────────────────────
 
-function StepVideos({ episode }: { episode: EpisodeDetail }) {
+type ShotVideoState = Shot & {
+  videoApproved: boolean;
+  videoGenerated: boolean;
+  loadingRegen: boolean;
+};
+
+function StepVideos({
+  episode, projectId, onShotsUpdate,
+}: { episode: EpisodeDetail; projectId: string; onShotsUpdate: () => void }) {
   const [selected, setSelected] = useState(0);
-  const [shots, setShots] = useState(
+  const [shots, setShots] = useState<ShotVideoState[]>(
     episode.shots.map((s) => ({
       ...s,
       videoApproved: s.state === "approved",
@@ -491,39 +594,74 @@ function StepVideos({ episode }: { episode: EpisodeDetail }) {
   );
   const [regenTarget, setRegenTarget] = useState<string | null>(null);
   const [allApproved, setAllApproved] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const approvedCount = shots.filter((s) => s.videoApproved || allApproved).length;
   const shot = shots[selected];
 
-  const handleRegen = (shotId: string, _feedback: string) => {
+  const handleRegen = async (shotId: string, _feedback: string) => {
     setShots((prev) => prev.map((s) =>
       s.id === shotId ? { ...s, loadingRegen: true } : s
     ));
     setRegenTarget(null);
-    setTimeout(() => {
+    setError(null);
+    try {
+      const task = await generateAPI.shotVideo(shotId);
+      await pollTask(task.id, () => {});
+      onShotsUpdate();
       setShots((prev) => prev.map((s) =>
-        s.id === shotId
-          ? { ...s, loadingRegen: false, videoGenerated: true, videoApproved: false }
-          : s
+        s.id === shotId ? { ...s, loadingRegen: false, videoGenerated: true, videoApproved: false } : s
       ));
-    }, 2000);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "重新生成失败");
+      setShots((prev) => prev.map((s) =>
+        s.id === shotId ? { ...s, loadingRegen: false } : s
+      ));
+    }
   };
 
-  const handleApprove = (shotId: string) => {
-    setShots((prev) => prev.map((s) =>
-      s.id === shotId ? { ...s, videoApproved: true } : s
-    ));
+  const handleApprove = async (shotId: string) => {
+    setError(null);
+    try {
+      await shotAPI.review(projectId, episode.id, shotId, { approved: true });
+      setShots((prev) => prev.map((s) =>
+        s.id === shotId ? { ...s, videoApproved: true } : s
+      ));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "审批失败");
+    }
   };
 
-  const handleApproveAll = () => setAllApproved(true);
+  const handleApproveAll = async () => {
+    setApproving(true);
+    setError(null);
+    try {
+      const reviews = shots.map((s) => ({ shot_id: s.id, approved: true }));
+      await shotAPI.batchReview(projectId, episode.id, reviews);
+      setAllApproved(true);
+      onShotsUpdate();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "批量审批失败");
+    } finally {
+      setApproving(false);
+    }
+  };
 
   return (
     <div>
+      {error && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3">
+          <p className="text-xs text-red-600">{error}</p>
+        </div>
+      )}
+
       <ApprovalBar
         approved={approvedCount}
         total={shots.length}
         onApproveAll={handleApproveAll}
         allApproved={allApproved}
+        approving={approving}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -580,6 +718,12 @@ function StepVideos({ episode }: { episode: EpisodeDetail }) {
                     <Loader2 className="w-8 h-8 text-brand animate-spin" />
                     <p className="text-xs text-muted">重新生成中…</p>
                   </div>
+                ) : shot.videoUrl ? (
+                  <video
+                    src={shot.videoUrl}
+                    controls
+                    className="w-full h-full object-cover rounded-2xl"
+                  />
                 ) : shot.videoGenerated ? (
                   <div className="w-full h-full bg-gradient-to-b from-slate-800 to-slate-900 flex items-center justify-center">
                     <div className="text-center">
@@ -594,7 +738,7 @@ function StepVideos({ episode }: { episode: EpisodeDetail }) {
                   </div>
                 )}
                 {/* 通过标记遮罩 */}
-                {(shot.videoApproved || allApproved) && (
+                {(shot.videoApproved || allApproved) && !shot.videoUrl && (
                   <div className="absolute inset-0 bg-brand/20 flex items-center justify-center">
                     <CheckCircle2 className="w-14 h-14 text-brand drop-shadow-lg" />
                   </div>
@@ -709,23 +853,39 @@ function StepDubbing({ episode }: { episode: EpisodeDetail }) {
 
 // ─── Step 5：合并 ────────────────────────────────────────────
 
-function StepMerge({ episode }: { episode: EpisodeDetail }) {
+function StepMerge({
+  episode, onShotsUpdate,
+}: { episode: EpisodeDetail; onShotsUpdate: () => void }) {
   const [merging, setMerging] = useState(false);
   const [progress, setProgress] = useState(0);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleMerge = () => {
+  const handleMerge = async () => {
     setMerging(true);
+    setError(null);
+    // Animate progress while polling
     let p = 0;
-    const timer = setInterval(() => {
-      p += 10;
+    const animTimer = setInterval(() => {
+      p = Math.min(p + 3, 90);
       setProgress(p);
-      if (p >= 100) {
-        clearInterval(timer);
-        setMerging(false);
-        setDone(true);
-      }
-    }, 200);
+    }, 500);
+
+    try {
+      const task = await generateAPI.mergeEpisode(episode.id);
+      await pollTask(task.id, (t) => {
+        if (t.progress > 0) setProgress(Math.max(p, t.progress));
+      }, 3000, 600000);
+      clearInterval(animTimer);
+      setProgress(100);
+      setDone(true);
+      onShotsUpdate();
+    } catch (e: unknown) {
+      clearInterval(animTimer);
+      setError(e instanceof Error ? e.message : "合并失败");
+    } finally {
+      setMerging(false);
+    }
   };
 
   const totalDuration = episode.shots.reduce((s, sh) => s + sh.duration, 0);
@@ -744,6 +904,12 @@ function StepMerge({ episode }: { episode: EpisodeDetail }) {
         </p>
       </div>
 
+      {error && (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-3 text-center">
+          <p className="text-xs text-red-600">{error}</p>
+        </div>
+      )}
+
       {done ? (
         <div className="text-center">
           <CheckCircle2 className="w-12 h-12 text-brand mx-auto mb-3" />
@@ -754,7 +920,7 @@ function StepMerge({ episode }: { episode: EpisodeDetail }) {
         <div>
           <div className="h-2 bg-soft rounded-full overflow-hidden mb-2">
             <div
-              className="h-full bg-brand transition-all duration-200 rounded-full"
+              className="h-full bg-brand transition-all duration-500 rounded-full"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -799,27 +965,41 @@ function StepDone({ episode }: { episode: EpisodeDetail }) {
         </div>
       </div>
 
-      <div className="aspect-[9/16] max-w-[160px] mx-auto bg-soft rounded-2xl border border-line flex items-center justify-center mb-6">
-        <div className="text-center">
-          <Play className="w-8 h-8 text-muted mx-auto mb-1" />
-          <p className="text-xs text-muted">成片预览</p>
+      {episode.finalVideoUrl ? (
+        <div className="mb-6">
+          <video
+            src={episode.finalVideoUrl}
+            controls
+            className="max-w-[200px] mx-auto rounded-2xl border border-line"
+          />
         </div>
-      </div>
+      ) : (
+        <div className="aspect-[9/16] max-w-[160px] mx-auto bg-soft rounded-2xl border border-line flex items-center justify-center mb-6">
+          <div className="text-center">
+            <Play className="w-8 h-8 text-muted mx-auto mb-1" />
+            <p className="text-xs text-muted">成片预览</p>
+          </div>
+        </div>
+      )}
 
-      <Button>下载成片</Button>
+      {episode.finalVideoUrl && (
+        <a href={episode.finalVideoUrl} download>
+          <Button>下载成片</Button>
+        </a>
+      )}
     </div>
   );
 }
 
 // ─── 主组件 ───────────────────────────────────────────────────
 
-export default function StepContent({ step, episode }: StepContentProps) {
+export default function StepContent({ step, episode, projectId, onShotsUpdate }: StepContentProps) {
   const stepComponents: Record<EpisodeStep, React.ReactNode> = {
-    storyboard_script:  <StepScript episode={episode} />,
-    storyboard_images:  <StepImages episode={episode} />,
-    storyboard_videos:  <StepVideos episode={episode} />,
+    storyboard_script:  <StepScript episode={episode} projectId={projectId} onShotsUpdate={onShotsUpdate} />,
+    storyboard_images:  <StepImages episode={episode} projectId={projectId} onShotsUpdate={onShotsUpdate} />,
+    storyboard_videos:  <StepVideos episode={episode} projectId={projectId} onShotsUpdate={onShotsUpdate} />,
     dubbing:            <StepDubbing episode={episode} />,
-    merge:              <StepMerge episode={episode} />,
+    merge:              <StepMerge episode={episode} onShotsUpdate={onShotsUpdate} />,
     done:               <StepDone episode={episode} />,
   };
 
