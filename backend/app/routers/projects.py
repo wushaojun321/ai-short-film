@@ -1,0 +1,146 @@
+from fastapi import APIRouter, HTTPException, UploadFile, File
+from beanie import PydanticObjectId
+from app.models.project import Project, ProjectInitStatus
+from app.models.episode import Episode, EpisodeStatus
+from app.schemas.project import ProjectCreate, ProjectUpdate, ParseScriptRequest, ConfirmEpisodesRequest
+from app.services import project_service
+import app.services.storage_service as storage_service
+
+router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+@router.get("")
+async def list_projects():
+    return await project_service.list_projects()
+
+
+@router.post("", status_code=201)
+async def create_project(data: ProjectCreate):
+    return await project_service.create_project(data)
+
+
+@router.get("/{project_id}")
+async def get_project(project_id: PydanticObjectId):
+    project = await project_service.get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    return project
+
+
+@router.patch("/{project_id}")
+async def update_project(project_id: PydanticObjectId, data: ProjectUpdate):
+    project = await project_service.get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    return await project_service.update_project(project, data)
+
+
+@router.delete("/{project_id}", status_code=204)
+async def delete_project(project_id: PydanticObjectId):
+    project = await project_service.get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    await project_service.delete_project(project)
+
+
+@router.post("/{project_id}/upload-script")
+async def upload_script(
+    project_id: PydanticObjectId,
+    file: UploadFile = File(...),
+):
+    """Upload script file; stores to MinIO and updates init_status → script_uploaded."""
+    project = await project_service.get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    content = await file.read()
+    filename = f"projects/{project_id}/script/{file.filename}"
+    url = await storage_service.upload_bytes(
+        data=content,
+        filename=filename,
+        content_type=file.content_type or "application/octet-stream",
+    )
+
+    # Try to decode as text for later LLM processing
+    script_text: str | None = None
+    try:
+        script_text = content.decode("utf-8")
+    except Exception:
+        pass
+
+    await project.set({
+        "script_file_url": url,
+        "script_text": script_text,
+        "init_status": ProjectInitStatus.script_uploaded,
+    })
+    return {"script_file_url": url, "init_status": ProjectInitStatus.script_uploaded}
+
+
+@router.post("/{project_id}/parse-script")
+async def parse_script(project_id: PydanticObjectId, data: ParseScriptRequest):
+    """Enqueue async LLM task to parse script into episode plan (Phase 2 stub)."""
+    project = await project_service.get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    if project.init_status not in (
+        ProjectInitStatus.script_uploaded,
+        ProjectInitStatus.episodes_confirmed,
+    ):
+        raise HTTPException(400, f"Cannot parse script in status: {project.init_status}")
+
+    await project.set({"parse_notes": data.parse_notes})
+    return {"task_id": "stub-parse-script", "status": "queued"}
+
+
+@router.post("/{project_id}/confirm-episodes")
+async def confirm_episodes(project_id: PydanticObjectId, data: ConfirmEpisodesRequest):
+    """Confirm episode plan, create Episode documents, advance init_status → episodes_confirmed."""
+    project = await project_service.get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    for ep_data in data.episodes:
+        ep_id = ep_data.get("id")
+        if ep_id:
+            try:
+                episode = await Episode.get(PydanticObjectId(ep_id))
+            except Exception:
+                episode = None
+            if episode:
+                await episode.set({
+                    "title": ep_data.get("title", episode.title),
+                    "summary": ep_data.get("summary", episode.summary),
+                    "word_count": ep_data.get("word_count", episode.word_count),
+                    "estimated_duration": ep_data.get("estimated_duration", episode.estimated_duration),
+                })
+                continue
+
+        episode = Episode(
+            project_id=project.id,
+            number=ep_data.get("number", 0),
+            title=ep_data.get("title", ""),
+            summary=ep_data.get("summary", ""),
+            word_count=ep_data.get("word_count", 0),
+            estimated_duration=ep_data.get("estimated_duration", 0),
+            status=EpisodeStatus.not_started,
+        )
+        await episode.insert()
+
+    await project_service.advance_init_status(project, ProjectInitStatus.episodes_confirmed)
+    return {"init_status": ProjectInitStatus.episodes_confirmed}
+
+
+@router.post("/{project_id}/confirm-assets")
+async def confirm_assets(project_id: PydanticObjectId):
+    """Advance init_status → initialized."""
+    project = await project_service.get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    if project.init_status not in (
+        ProjectInitStatus.episodes_confirmed,
+        ProjectInitStatus.assets_confirmed,
+    ):
+        raise HTTPException(400, f"Cannot confirm assets in status: {project.init_status}")
+
+    await project_service.advance_init_status(project, ProjectInitStatus.initialized)
+    return {"init_status": ProjectInitStatus.initialized}
