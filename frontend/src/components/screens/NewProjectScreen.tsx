@@ -211,14 +211,16 @@ function Phase1({
 function PhaseWaiting({
   taskRecordId,
   onDone,
+  onRetry,
 }: {
   taskRecordId: string;
   onDone: (episodes: EpisodeDraft[]) => void;
+  onRetry: () => void;
 }) {
   const [logs, setLogs] = useState<string[]>([]);
   const [finished, setFinished] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<EpisodeDraft[] | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
 
   // 显示模拟日志（视觉体验）
@@ -236,21 +238,35 @@ function PhaseWaiting({
       taskRecordId,
       () => {},
       2000,
-      120000,
+      180000,
     ).then((task) => {
-      // 从任务结果里提取 episodes
       const raw = (task.result as Record<string, unknown>);
       const eps = raw?.episodes as Array<Record<string, unknown>> | undefined;
       if (eps && Array.isArray(eps)) {
-        setResult(eps.map((e, i) => ({
+        const result = eps.map((e, i) => ({
           number: (e.number as number) ?? i + 1,
           title: (e.title as string) ?? `第${i + 1}集`,
           wordCount: (e.word_count as number) ?? 0,
           estimatedDuration: (e.estimated_duration as number) ?? 120,
           summary: (e.summary as string) ?? "",
-        })));
+        }));
+        setFinished(true);
+        // 自动跳转：1 秒倒计时
+        setCountdown(1);
+        const tick = setInterval(() => {
+          setCountdown((c) => {
+            if (c === null || c <= 1) {
+              clearInterval(tick);
+              onDone(result);
+              return null;
+            }
+            return c - 1;
+          });
+        }, 1000);
+      } else {
+        setError("解析结果格式异常，请重试");
+        setFinished(true);
       }
-      setFinished(true);
     }).catch((err) => {
       setError(err?.message ?? "解析失败");
       setFinished(true);
@@ -323,9 +339,20 @@ function PhaseWaiting({
 
       <div className="flex justify-between items-center">
         <p className="text-xs text-muted">{logs.length} 条处理日志</p>
-        <Button onClick={() => result && onDone(result)} disabled={!finished || !!error || !result}>
-          {finished ? <>查看分集规划 <ChevronRight className="w-4 h-4" /></> : <><Loader2 className="w-4 h-4 animate-spin" />等待解析完成…</>}
-        </Button>
+        {error ? (
+          <Button onClick={onRetry} variant="outline">
+            <RefreshCw className="w-4 h-4" />重新上传剧本
+          </Button>
+        ) : finished ? (
+          <span className="text-sm text-brand font-medium flex items-center gap-1.5">
+            <Check className="w-4 h-4" />
+            {countdown !== null ? `${countdown}秒后自动进入分集规划…` : "跳转中…"}
+          </span>
+        ) : (
+          <span className="text-sm text-muted flex items-center gap-1.5">
+            <Loader2 className="w-4 h-4 animate-spin" />解析中，请稍候…
+          </span>
+        )}
       </div>
     </div>
   );
@@ -679,6 +706,7 @@ export default function NewProjectScreen({
           <PhaseWaiting
             taskRecordId={taskRecordId}
             onDone={(eps) => { setEpisodes(eps); setPhase(2); }}
+            onRetry={() => setPhase(1)}
           />
         )}
         {phase === 2 && (

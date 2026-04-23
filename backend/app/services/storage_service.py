@@ -1,5 +1,6 @@
 """Tencent Cloud COS object storage service."""
 import io
+import os
 import uuid
 from pathlib import Path
 from qcloud_cos import CosConfig, CosS3Client
@@ -11,6 +12,8 @@ def _get_client() -> CosS3Client:
         Region=settings.cos_region,
         SecretId=settings.cos_secret_id,
         SecretKey=settings.cos_secret_key,
+        # COS 是腾讯云，大陆直连无需代理，强制绕过
+        Proxies={"http": "", "https": ""},
     )
     return CosS3Client(config)
 
@@ -67,7 +70,8 @@ async def upload_file(
 async def upload_from_url(source_url: str, object_key: str) -> str:
     """Download a URL and re-upload to COS (for expiring Seedream URLs)."""
     import httpx
-    async with httpx.AsyncClient() as http:
+    # 火山引擎图片链接是国内地址，不走代理
+    async with httpx.AsyncClient(proxy=None) as http:
         resp = await http.get(source_url, follow_redirects=True, timeout=120)
         resp.raise_for_status()
         content_type = resp.headers.get("content-type", "application/octet-stream")
