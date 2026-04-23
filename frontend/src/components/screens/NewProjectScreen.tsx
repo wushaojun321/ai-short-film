@@ -107,8 +107,7 @@ function Phase1({
       setDialogOpen(false);
       onSubmit(task.id);
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { detail?: string } } };
-      setError(e?.response?.data?.detail ?? "提交失败，请重试");
+      setError(err instanceof Error ? err.message : "提交失败，请重试");
     } finally {
       setSubmitting(false);
     }
@@ -370,8 +369,7 @@ function Phase2({
       })));
       onNext();
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { detail?: string } } };
-      setError(e?.response?.data?.detail ?? "确认失败，请重试");
+      setError(err instanceof Error ? err.message : "确认失败，请重试");
     } finally {
       setSubmitting(false);
     }
@@ -550,8 +548,7 @@ function Phase3({ projectId, onFinish }: { projectId: string; onFinish: () => vo
       await projectAPI.confirmAssets(projectId);
       onFinish();
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { detail?: string } } };
-      setError(e?.response?.data?.detail ?? "确认失败");
+      setError(err instanceof Error ? err.message : "确认失败");
     } finally {
       setSubmitting(false);
     }

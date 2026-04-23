@@ -7,9 +7,38 @@ const client = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+// 将后端返回的 _id 统一映射为 id（Beanie/MongoDB 默认序列化为 _id）
+function normalizeIds(data: unknown): unknown {
+  if (Array.isArray(data)) return data.map(normalizeIds);
+  if (data && typeof data === "object") {
+    const obj = data as Record<string, unknown>;
+    const result: Record<string, unknown> = {};
+    for (const key of Object.keys(obj)) {
+      const val = normalizeIds(obj[key]);
+      result[key === "_id" ? "id" : key] = val;
+    }
+    return result;
+  }
+  return data;
+}
+
+// 将 FastAPI 422 detail 数组转成可读字符串
+function extractErrorMessage(err: unknown): string {
+  const e = err as { response?: { data?: { detail?: unknown } }; message?: string };
+  const detail = e?.response?.data?.detail;
+  if (Array.isArray(detail)) {
+    return detail.map((d: { msg?: string; loc?: string[] }) =>
+      d.loc ? `${d.loc.slice(-1)[0]}: ${d.msg}` : d.msg ?? "错误"
+    ).join("; ");
+  }
+  if (typeof detail === "string") return detail;
+  return e?.message ?? "请求失败";
+}
+
 client.interceptors.response.use(
-  (res) => res.data,
-  (err) => Promise.reject(err)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (res) => normalizeIds(res.data) as any,
+  (err) => Promise.reject(new Error(extractErrorMessage(err)))
 );
 
 // ─── 类型（与后端对齐） ───────────────────────────────────────
