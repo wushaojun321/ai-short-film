@@ -2,16 +2,18 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install system deps
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Use Tencent mirror for faster apt downloads in China
+RUN sed -i 's|deb.debian.org|mirrors.tencent.com|g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update && apt-get install -y --no-install-recommends \
     curl ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv for fast dependency installation
-RUN pip install --no-cache-dir uv
+RUN pip install --no-cache-dir -i https://mirrors.tencent.com/pypi/simple/ uv
 
-# Install all Python dependencies
+# Install all Python dependencies (using Tencent PyPI mirror)
 RUN uv pip install --system --no-cache \
+    --index-url https://mirrors.tencent.com/pypi/simple/ \
     "fastapi>=0.115.0" \
     "uvicorn[standard]>=0.30.0" \
     "beanie>=1.26.0" \
