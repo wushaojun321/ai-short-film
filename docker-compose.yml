@@ -1,4 +1,11 @@
 services:
+  v2ray:
+    image: v2fly/v2fly-core:latest
+    volumes:
+      - ./v2ray/config.json:/etc/v2ray/config.json:ro
+    command: run -c /etc/v2ray/config.json
+    restart: unless-stopped
+
   api:
     build:
       context: ./backend
@@ -10,11 +17,12 @@ services:
     environment:
       MONGODB_URL: mongodb://mongodb:27017/ai_short_film
       REDIS_URL: redis://redis:6379/0
+      HTTP_PROXY: http://v2ray:10801
+      HTTPS_PROXY: http://v2ray:10801
     depends_on:
-      mongodb:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - v2ray
+      - mongodb
+      - redis
     restart: unless-stopped
 
   worker-llm:
@@ -27,11 +35,12 @@ services:
     environment:
       MONGODB_URL: mongodb://mongodb:27017/ai_short_film
       REDIS_URL: redis://redis:6379/0
+      HTTP_PROXY: http://v2ray:10801
+      HTTPS_PROXY: http://v2ray:10801
     depends_on:
-      mongodb:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - v2ray
+      - mongodb
+      - redis
     restart: unless-stopped
 
   worker-image:
@@ -44,11 +53,12 @@ services:
     environment:
       MONGODB_URL: mongodb://mongodb:27017/ai_short_film
       REDIS_URL: redis://redis:6379/0
+      HTTP_PROXY: http://v2ray:10801
+      HTTPS_PROXY: http://v2ray:10801
     depends_on:
-      mongodb:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - v2ray
+      - mongodb
+      - redis
     restart: unless-stopped
 
   worker-video:
@@ -61,11 +71,12 @@ services:
     environment:
       MONGODB_URL: mongodb://mongodb:27017/ai_short_film
       REDIS_URL: redis://redis:6379/0
+      HTTP_PROXY: http://v2ray:10801
+      HTTPS_PROXY: http://v2ray:10801
     depends_on:
-      mongodb:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - v2ray
+      - mongodb
+      - redis
     restart: unless-stopped
 
   worker-merge:
@@ -78,11 +89,12 @@ services:
     environment:
       MONGODB_URL: mongodb://mongodb:27017/ai_short_film
       REDIS_URL: redis://redis:6379/0
+      HTTP_PROXY: http://v2ray:10801
+      HTTPS_PROXY: http://v2ray:10801
     depends_on:
-      mongodb:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - v2ray
+      - mongodb
+      - redis
     restart: unless-stopped
 
   mongodb:

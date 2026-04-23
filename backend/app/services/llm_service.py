@@ -1,14 +1,19 @@
 """OpenRouter LLM service with instructor for structured output."""
 from __future__ import annotations
 import json
+import os
+import httpx
 from openai import AsyncOpenAI
 from app.config import settings
 
 
 def get_client() -> AsyncOpenAI:
+    proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
+    http_client = httpx.AsyncClient(proxy=proxy) if proxy else None
     return AsyncOpenAI(
         api_key=settings.openrouter_api_key,
         base_url=settings.openrouter_base_url,
+        http_client=http_client,
     )
 
 
