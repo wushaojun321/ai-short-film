@@ -187,7 +187,7 @@ function StepScript({
     setError(null);
     try {
       const task = await generateAPI.shotScript(episode.id);
-      await pollTask(task.id, () => {});
+      await pollTask(task.record_id, () => {});
       onShotsUpdate();
       setGenerated(true);
     } catch (e: unknown) {
@@ -212,7 +212,7 @@ function StepScript({
     setError(null);
     try {
       const task = await generateAPI.shotScript(episode.id);
-      await pollTask(task.id, () => {});
+      await pollTask(task.record_id, () => {});
       onShotsUpdate();
       setRegenDialog(false);
       setApproved(false);
@@ -430,7 +430,7 @@ function StepImages({
     setError(null);
     try {
       const task = await generateAPI.shotImage(shotId);
-      await pollTask(task.id, () => {});
+      await pollTask(task.record_id, () => {});
       onShotsUpdate();
       setShots((prev) => prev.map((s) =>
         s.id === shotId ? { ...s, loadingRegen: false, imageApproved: false } : s
@@ -608,7 +608,7 @@ function StepVideos({
     setError(null);
     try {
       const task = await generateAPI.shotVideo(shotId);
-      await pollTask(task.id, () => {});
+      await pollTask(task.record_id, () => {});
       onShotsUpdate();
       setShots((prev) => prev.map((s) =>
         s.id === shotId ? { ...s, loadingRegen: false, videoGenerated: true, videoApproved: false } : s
@@ -873,7 +873,7 @@ function StepMerge({
 
     try {
       const task = await generateAPI.mergeEpisode(episode.id);
-      await pollTask(task.id, (t) => {
+      await pollTask(task.record_id, (t) => {
         if (t.progress > 0) setProgress(Math.max(p, t.progress));
       }, 3000, 600000);
       clearInterval(animTimer);

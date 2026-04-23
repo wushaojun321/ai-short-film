@@ -109,6 +109,12 @@ export interface ApiAsset {
   updated_at: string;
 }
 
+// generate 接口统一返回 { task_id, record_id }
+export interface ApiGenResponse {
+  task_id: string;
+  record_id: string;
+}
+
 export interface ApiTaskRecord {
   id: string;
   project_id?: string;
@@ -224,26 +230,27 @@ export const assetAPI = {
 // ─── Generate API ─────────────────────────────────────────────
 
 export const generateAPI = {
-  parseScript: (projectId: string, data: { target_episodes: number; min_duration: number; parse_notes?: string }): Promise<ApiTaskRecord> =>
+  parseScript: (projectId: string, data: { target_episodes: number; min_duration: number; parse_notes?: string }): Promise<ApiGenResponse> =>
     client.post(`/generate/projects/${projectId}/parse-script`, data),
 
-  shotScript: (episodeId: string): Promise<ApiTaskRecord> =>
+  shotScript: (episodeId: string): Promise<ApiGenResponse> =>
     client.post(`/generate/episodes/${episodeId}/shot-script`),
 
-  assetImage: (assetId: string): Promise<ApiTaskRecord> =>
+  assetImage: (assetId: string): Promise<ApiGenResponse> =>
     client.post(`/generate/assets/${assetId}/image`),
 
-  shotImage: (shotId: string): Promise<ApiTaskRecord> =>
+  shotImage: (shotId: string): Promise<ApiGenResponse> =>
     client.post(`/generate/shots/${shotId}/image`),
 
-  shotVideo: (shotId: string): Promise<ApiTaskRecord> =>
+  shotVideo: (shotId: string): Promise<ApiGenResponse> =>
     client.post(`/generate/shots/${shotId}/video`),
 
-  mergeEpisode: (episodeId: string): Promise<ApiTaskRecord> =>
+  mergeEpisode: (episodeId: string): Promise<ApiGenResponse> =>
     client.post(`/generate/episodes/${episodeId}/merge`),
 
-  getTaskProgress: (recordId: string): Promise<ApiTaskRecord> =>
-    client.get(`/generate/tasks/${recordId}/progress`),
+  // 普通 GET 轮询（不是 SSE）
+  getTask: (recordId: string): Promise<ApiTaskRecord> =>
+    client.get(`/tasks/${recordId}`),
 };
 
 // ─── 任务轮询工具 ─────────────────────────────────────────────
@@ -258,7 +265,7 @@ export function pollTask(
     const start = Date.now();
     const timer = setInterval(async () => {
       try {
-        const task = await generateAPI.getTaskProgress(recordId);
+        const task = await generateAPI.getTask(recordId);
         onProgress(task);
         if (task.status === "success") {
           clearInterval(timer);

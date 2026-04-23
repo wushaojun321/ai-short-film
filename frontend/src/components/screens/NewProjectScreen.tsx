@@ -105,7 +105,7 @@ function Phase1({
         parse_notes: form.notes,
       });
       setDialogOpen(false);
-      onSubmit(task.id);
+      onSubmit(task.record_id);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "提交失败，请重试");
     } finally {
