@@ -10,8 +10,6 @@ services:
     environment:
       MONGODB_URL: mongodb://mongodb:27017/ai_short_film
       REDIS_URL: redis://redis:6379/0
-    volumes:
-      - ./backend:/app
     depends_on:
       mongodb:
         condition: service_healthy
@@ -29,8 +27,6 @@ services:
     environment:
       MONGODB_URL: mongodb://mongodb:27017/ai_short_film
       REDIS_URL: redis://redis:6379/0
-    volumes:
-      - ./backend:/app
     depends_on:
       mongodb:
         condition: service_healthy
@@ -48,8 +44,6 @@ services:
     environment:
       MONGODB_URL: mongodb://mongodb:27017/ai_short_film
       REDIS_URL: redis://redis:6379/0
-    volumes:
-      - ./backend:/app
     depends_on:
       mongodb:
         condition: service_healthy
@@ -67,8 +61,6 @@ services:
     environment:
       MONGODB_URL: mongodb://mongodb:27017/ai_short_film
       REDIS_URL: redis://redis:6379/0
-    volumes:
-      - ./backend:/app
     depends_on:
       mongodb:
         condition: service_healthy
@@ -86,8 +78,6 @@ services:
     environment:
       MONGODB_URL: mongodb://mongodb:27017/ai_short_film
       REDIS_URL: redis://redis:6379/0
-    volumes:
-      - ./backend:/app
     depends_on:
       mongodb:
         condition: service_healthy
