@@ -4,21 +4,15 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { projectAPI } from "@/lib/api";
-import { transformProject } from "@/lib/transforms";
-import type { Project } from "@/lib/data";
-import NewProjectScreen from "@/components/screens/NewProjectScreen";
 import { useProjects } from "@/lib/ProjectsContext";
 
 export default function NewProjectPage() {
   const navigate = useNavigate();
   const { reload } = useProjects();
-  const [project, setProject] = useState<Project | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // 创建项目表单
   const [title, setTitle] = useState("");
   const [genre, setGenre] = useState("古装");
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleCreate = async () => {
     if (!title.trim()) return;
@@ -26,30 +20,13 @@ export default function NewProjectPage() {
     setError(null);
     try {
       const data = await projectAPI.create({ title: title.trim(), genre });
-      const p = transformProject(data);
-      setProject(p);
       reload();
+      navigate(`/projects/${data.id}`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "创建失败");
-    } finally {
       setCreating(false);
     }
   };
-
-  const handleProjectUpdate = async () => {
-    if (!project) return;
-    try {
-      const data = await projectAPI.get(project.id);
-      setProject(transformProject(data));
-      reload();
-    } catch {
-      // ignore
-    }
-  };
-
-  if (project) {
-    return <NewProjectScreen project={project} onProjectUpdate={handleProjectUpdate} />;
-  }
 
   return (
     <div className="max-w-md mx-auto py-16 px-6">
@@ -83,7 +60,7 @@ export default function NewProjectPage() {
           </Button>
           <Button onClick={handleCreate} disabled={creating || !title.trim()}>
             {creating
-              ? <><Loader2 className="w-4 h-4 animate-spin" />创建中…</>
+              ? <><Loader2 className="w-4 h-4 animate-spin mr-1" />创建中…</>
               : "创建项目"}
           </Button>
         </div>

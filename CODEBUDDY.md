@@ -113,6 +113,10 @@ AssetStatus = "已生成" | "待确认" | "需重生" | "缺失"
 
 服务器通过 `ssh film` 访问，使用 Docker Compose 部署，代码在 `/root/ai-short-film`。
 
+> **⚠️ 部署注意**：所有 worker 容器（worker-image、worker-llm 等）共享后端 Python 模型代码（如 `AssetStatus` 枚举）。
+> 若只 build `api` 而不 build worker，worker 容器仍使用旧枚举，读取新状态值时 Pydantic 会报 ValidationError，导致任务静默失败。
+> **任何涉及模型/枚举变更时，必须同时 build 并重启所有 worker。**
+
 ```bash
 # 标准部署流程（代码已推到 gitee 后执行）
 ssh film "cd /root/ai-short-film && git pull && docker compose build api worker-llm worker-image worker-video worker-merge && docker compose up -d"
