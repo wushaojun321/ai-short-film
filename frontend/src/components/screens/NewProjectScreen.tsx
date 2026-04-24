@@ -684,30 +684,25 @@ function Phase3({ projectId, onFinish }: { projectId: string; onFinish: () => vo
       const list = await loadAssets();
       if (cancelled) return;
 
-      // 首次进入（或 pollKey 重置）：自动触发所有没有预览图的资产生成
+      // 触发所有没有预览图且未在队列/生成中的资产（后端有防重复保护）
       if (!autoGenStartedRef.current) {
         autoGenStartedRef.current = true;
-        const needGen = list.filter((a) => !a.preview_url && a.status !== "generating" && a.status !== "queued");
+        const needGen = list.filter(
+          (a) => !a.preview_url && a.status !== "generating" && a.status !== "queued"
+        );
         for (const a of needGen) {
           try { await generateAPI.assetImage(a.id); } catch { /* 忽略单个失败 */ }
         }
-        if (needGen.length > 0) {
-          // 触发后重新加载，用最新列表判断是否需要轮询
-          const refreshed = await assetAPI.list(projectId).catch(() => list);
-          if (!cancelled) {
-            setAssets(refreshed);
-            if (refreshed.some((a) => a.status === "generating" || a.status === "queued")) {
-              scheduleNextPoll(tick);
-            }
-          }
-          return;
-        }
       }
 
-      // 如果还有 generating 状态的资产，每 3 秒刷新一次
-      const stillGenerating = list.some((a) => a.status === "generating" || a.status === "queued");
-      if (stillGenerating && !cancelled) {
-        scheduleNextPoll(tick);
+      // 只要还有没有预览图的资产，就继续轮询（不管是 pending/queued/generating）
+      const refreshed = await assetAPI.list(projectId).catch(() => list);
+      if (!cancelled) {
+        setAssets(refreshed);
+        const stillPending = refreshed.some((a) => !a.preview_url);
+        if (stillPending) {
+          scheduleNextPoll(tick);
+        }
       }
     };
 

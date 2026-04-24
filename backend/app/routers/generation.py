@@ -86,6 +86,10 @@ async def enqueue_asset_image(asset_id: PydanticObjectId):
     if not asset:
         raise HTTPException(404, "Asset not found")
 
+    # 防止重复入队：已在队列或生成中时直接返回
+    if asset.status in (AssetStatus.queued, AssetStatus.generating):
+        return {"task_id": None, "record_id": None, "skipped": True, "reason": "already queued or generating"}
+
     from app.tasks.image_tasks import gen_asset_image_task
     from app.models.task_record import TaskRecord, TaskStatus
     from datetime import datetime
