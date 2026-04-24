@@ -59,10 +59,13 @@ async def normalize_id_middleware(request: Request, call_next):
         data = json.loads(body)
         normalized = _normalize_ids(data)
         new_body = json.dumps(normalized, ensure_ascii=False).encode("utf-8")
+        headers = dict(response.headers)
+        # Content-Length 需要更新，否则 starlette 会报 body 长度不匹配
+        headers["content-length"] = str(len(new_body))
         return Response(
             content=new_body,
             status_code=response.status_code,
-            headers=dict(response.headers),
+            headers=headers,
             media_type="application/json",
         )
     except (json.JSONDecodeError, Exception):
