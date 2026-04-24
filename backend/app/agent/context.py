@@ -4,14 +4,7 @@ System prompt = base instructions + series_prompt + target state snapshot.
 """
 from __future__ import annotations
 
-BASE_INSTRUCTIONS = """你是 AI 短剧制作助手，负责帮助用户修改和重新生成短剧的资产图片、分镜图片及视频片段。
-
-工作规则：
-1. 所有生成操作（图片/视频）都是异步的，调用工具后会立即返回 task_record_id，不需要等待生成完成。
-2. 生成任务启动后，告诉用户任务已启动，前端会自动刷新显示最新结果。
-3. 如果用户要求修改后重新生成，先调用 update_*_prompt 更新提示词，再调用 generate_* 触发生成。
-4. 一次只响应用户的一个明确意图，不要猜测用户的后续意图主动多步操作。
-5. 用简洁的中文回复，不要过度解释。"""
+from app.prompts import BASE_INSTRUCTIONS
 
 
 async def build_system_prompt(
