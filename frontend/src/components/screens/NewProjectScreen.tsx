@@ -653,13 +653,68 @@ function Phase3({ projectId, onFinish }: { projectId: string; onFinish: () => vo
   const [seriesPrompt, setSeriesPrompt] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const autoGenStartedRef = useRef(false);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 手动触发重新轮询（用户点了重新生成时 +1）
+  const [pollKey, setPollKey] = useState(0);
 
-  const loadAssets = () => {
-    assetAPI.list(projectId).then(setAssets);
-    projectAPI.get(projectId).then((p) => { if (p.series_prompt) setSeriesPrompt(p.series_prompt); });
+  const loadAssets = async () => {
+    const [list, proj] = await Promise.all([
+      assetAPI.list(projectId),
+      projectAPI.get(projectId),
+    ]);
+    setAssets(list);
+    if (proj.series_prompt) setSeriesPrompt(proj.series_prompt);
+    return list;
   };
 
-  useEffect(() => { loadAssets(); }, [projectId]);
+  const scheduleNextPoll = (tickFn: () => void) => {
+    pollTimerRef.current = setTimeout(tickFn, 3000);
+  };
+
+  // 自动触发批量生成 + 轮询
+  useEffect(() => {
+    let cancelled = false;
+    if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+
+    const tick = async () => {
+      const list = await loadAssets();
+      if (cancelled) return;
+
+      // 首次进入（或 pollKey 重置）：自动触发所有没有预览图的资产生成
+      if (!autoGenStartedRef.current) {
+        autoGenStartedRef.current = true;
+        const needGen = list.filter((a) => !a.preview_url && a.status !== "generating");
+        for (const a of needGen) {
+          try { await generateAPI.assetImage(a.id); } catch { /* 忽略单个失败 */ }
+        }
+        if (needGen.length > 0) {
+          // 触发后重新加载，用最新列表判断是否需要轮询
+          const refreshed = await assetAPI.list(projectId).catch(() => list);
+          if (!cancelled) {
+            setAssets(refreshed);
+            if (refreshed.some((a) => a.status === "generating")) {
+              scheduleNextPoll(tick);
+            }
+          }
+          return;
+        }
+      }
+
+      // 如果还有 generating 状态的资产，每 3 秒刷新一次
+      const stillGenerating = list.some((a) => a.status === "generating");
+      if (stillGenerating && !cancelled) {
+        scheduleNextPoll(tick);
+      }
+    };
+
+    tick();
+
+    return () => {
+      cancelled = true;
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    };
+  }, [projectId, pollKey]);
 
   const tabs = [...new Set(assets.map((a) => a.asset_type))].filter((t) => ["character", "scene", "prop"].includes(t));
   const currentAssets = assets.filter((a) => a.asset_type === tab);
@@ -723,7 +778,7 @@ function Phase3({ projectId, onFinish }: { projectId: string; onFinish: () => vo
           <TabsContent value={tab}>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {currentAssets.map((a) => (
-                <AssetCard key={a.id} asset={a} projectId={projectId} onUpdate={loadAssets} />
+                <AssetCard key={a.id} asset={a} projectId={projectId} onUpdate={() => setPollKey((k) => k + 1)} />
               ))}
             </div>
           </TabsContent>
