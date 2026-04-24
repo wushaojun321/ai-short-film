@@ -33,10 +33,6 @@ def get_sts_credentials(duration_seconds: int = 43200) -> dict:
     """
     from sts.sts import Sts  # qcloud-python-sts
 
-    # 只授权对当前 bucket 的读权限
-    bucket_name, appid = settings.cos_bucket.rsplit("-", 1)
-    resource = f"qcs::cos:{settings.cos_region}:uid/{appid}:{settings.cos_bucket}/*"
-
     sts = Sts({
         "url": "https://sts.tencentcloudapi.com/",
         "domain": "sts.tencentcloudapi.com",
@@ -45,8 +41,8 @@ def get_sts_credentials(duration_seconds: int = 43200) -> dict:
         "duration_seconds": duration_seconds,
         "bucket": settings.cos_bucket,
         "region": settings.cos_region,
+        "allow_prefix": "*",
         "allow_actions": ["name/cos:GetObject", "name/cos:HeadObject"],
-        "resource": [resource],
     })
     resp = sts.get_credential()
     cred = resp["credentials"]
