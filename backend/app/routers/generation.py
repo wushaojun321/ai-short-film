@@ -73,6 +73,7 @@ async def enqueue_shot_script(episode_id: PydanticObjectId):
 @router.post("/assets/{asset_id}/image")
 async def enqueue_asset_image(asset_id: PydanticObjectId):
     """Enqueue image generation for an asset."""
+    from app.models.asset import AssetStatus
     asset = await Asset.get(asset_id)
     if not asset:
         raise HTTPException(404, "Asset not found")
@@ -82,6 +83,10 @@ async def enqueue_asset_image(asset_id: PydanticObjectId):
     from datetime import datetime
 
     task = gen_asset_image_task.delay(str(asset_id))
+
+    # 立即标记为生成中，不等 worker 真正开始
+    await asset.set({"status": AssetStatus.generating})
+
     record = TaskRecord(
         celery_task_id=task.id,
         task_type="gen_asset_image",
