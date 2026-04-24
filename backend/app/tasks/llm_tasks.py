@@ -23,15 +23,23 @@ async def _parse_script_async(celery_id: str, project_id: str):
     from app.services.prompt_service import render
     from app.models.prompt_config import PromptConfigScope
 
+    async def log(msgs: list[str], progress: int):
+        """Append log lines and update progress atomically."""
+        if record:
+            current = record.logs or []
+            await record.set({"logs": current + msgs, "progress": progress})
+
     try:
         project = await Project.get(PydanticObjectId(project_id))
         if not project or not project.script_text:
             raise ValueError("Project or script not found")
 
-        # Update task record progress
         record = await TaskRecord.find_one(TaskRecord.celery_task_id == celery_id)
-        if record:
-            await record.set({"progress": 10})
+        script_len = len(project.script_text)
+        await log([
+            f"[init] 项目加载完成：{project.title}",
+            f"[init] 剧本长度：{script_len} 字，目标集数：{project.target_episode_count}",
+        ], 10)
 
         system_prompt, user_prompt, _ = await render(
             PromptConfigScope.script_parse,
@@ -42,21 +50,23 @@ async def _parse_script_async(celery_id: str, project_id: str):
                 "parse_notes": project.parse_notes or "",
             },
         )
-
-        if record:
-            await record.set({"progress": 30})
+        await log([
+            "[prompt] Prompt 渲染完成，发送 LLM 请求…",
+        ], 20)
 
         result = await llm_service.chat_json(system_prompt, user_prompt)
-
-        if record:
-            await record.set({"progress": 70})
+        await log([
+            "✓ LLM 响应完成，开始解析结果…",
+        ], 65)
 
         # Save series_prompt
         if "series_prompt" in result:
             await project.set({"series_prompt": result["series_prompt"]})
+            await log(["[series] 剧集全局提示词已保存"], 68)
 
         # Create episodes
         episodes_data = result.get("episodes", [])
+        created_eps = 0
         for ep_data in episodes_data:
             existing = await Episode.find_one(
                 Episode.project_id == project.id,
@@ -73,6 +83,8 @@ async def _parse_script_async(celery_id: str, project_id: str):
                     status=EpisodeStatus.not_started,
                 )
                 await ep.insert()
+                created_eps += 1
+        await log([f"[episodes] 已创建 {created_eps} 集（共 {len(episodes_data)} 集）"], 78)
 
         # Create assets
         assets_data = result.get("assets", {})
@@ -81,7 +93,9 @@ async def _parse_script_async(celery_id: str, project_id: str):
             "scenes": AssetType.scene,
             "props": AssetType.prop,
         }
+        asset_counts: dict[str, int] = {}
         for key, asset_type in type_map.items():
+            count = 0
             for a in assets_data.get(key, []):
                 existing_asset = await Asset.find_one(
                     Asset.project_id == project.id,
@@ -96,16 +110,21 @@ async def _parse_script_async(celery_id: str, project_id: str):
                         status=AssetStatus.pending,
                     )
                     await asset.insert()
+                    count += 1
+            if count:
+                asset_counts[key] = count
+        asset_summary = "、".join(f"{v} 个{k}" for k, v in asset_counts.items()) if asset_counts else "无新资产"
+        await log([f"[assets] 资产入库：{asset_summary}"], 90)
 
         await project.set({"init_status": ProjectInitStatus.episodes_confirmed})
-
-        if record:
-            await record.set({"progress": 100})
+        await log(["✓ 分集规划已确认，项目状态更新完成"], 100)
 
         await finish_task_record(celery_id, result={"episodes": len(episodes_data)})
         return result
 
     except Exception as e:
+        if record:
+            await record.set({"logs": (record.logs or []) + [f"[error] {e}"]})
         await finish_task_record(celery_id, error=str(e))
         raise
 

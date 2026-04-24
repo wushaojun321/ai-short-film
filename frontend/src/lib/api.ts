@@ -122,6 +122,7 @@ export interface ApiTaskRecord {
   target_id?: string;
   status: string;
   progress: number;
+  logs?: string[];
   result?: Record<string, unknown>;
   error?: string;
   started_at: string;
@@ -251,6 +252,9 @@ export const generateAPI = {
   // 普通 GET 轮询（不是 SSE）
   getTask: (recordId: string): Promise<ApiTaskRecord> =>
     client.get(`/tasks/${recordId}`),
+
+  listTasks: (projectId: string, taskType?: string): Promise<ApiTaskRecord[]> =>
+    client.get(`/tasks`, { params: { project_id: projectId, task_type: taskType, limit: 5 } }),
 };
 
 // ─── 任务轮询工具 ─────────────────────────────────────────────

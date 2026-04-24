@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Upload, FileText, ChevronRight, Check, Loader2,
-  Edit2, Clock, Hash, Sparkles, Terminal, RefreshCw, AlertTriangle,
+  Edit2, Clock, Hash, Sparkles, Terminal, RefreshCw, AlertTriangle, Activity,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,9 +14,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
-import { AssetStatus, PARSE_LOG_LINES } from "@/lib/data";
+import { AssetStatus } from "@/lib/data";
 import type { Project } from "@/lib/data";
-import { projectAPI, assetAPI, generateAPI, pollTask, type ApiAsset } from "@/lib/api";
+import { projectAPI, assetAPI, generateAPI, episodeAPI, pollTask, type ApiAsset, type ApiTaskRecord } from "@/lib/api";
 import { useProjects } from "@/lib/ProjectsContext";
 import { cn } from "@/lib/utils";
 
@@ -218,28 +218,36 @@ function PhaseWaiting({
   onRetry: () => void;
 }) {
   const [logs, setLogs] = useState<string[]>([]);
+  const [progress, setProgress] = useState(0);
   const [finished, setFinished] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
+  const seenLogsRef = useRef<number>(0);
 
-  // 显示模拟日志（视觉体验）
-  useEffect(() => {
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    PARSE_LOG_LINES.forEach(({ delay, text }) => {
-      timers.push(setTimeout(() => setLogs((prev) => [...prev, text]), delay));
-    });
-    return () => timers.forEach(clearTimeout);
-  }, []);
-
-  // 实际轮询任务状态
+  // 轮询，实时追加新日志
   useEffect(() => {
     pollTask(
       taskRecordId,
-      () => {},
+      (task: ApiTaskRecord) => {
+        setProgress(task.progress ?? 0);
+        const incoming = task.logs ?? [];
+        const newLines = incoming.slice(seenLogsRef.current);
+        if (newLines.length > 0) {
+          seenLogsRef.current = incoming.length;
+          setLogs((prev) => [...prev, ...newLines]);
+        }
+      },
       2000,
       180000,
     ).then((task) => {
+      // 确保最终日志全部显示
+      const finalLogs = task.logs ?? [];
+      if (finalLogs.length > seenLogsRef.current) {
+        setLogs((prev) => [...prev, ...finalLogs.slice(seenLogsRef.current)]);
+        seenLogsRef.current = finalLogs.length;
+      }
+
       const raw = (task.result as Record<string, unknown>);
       const eps = raw?.episodes as Array<Record<string, unknown>> | undefined;
       if (eps && Array.isArray(eps)) {
@@ -250,6 +258,7 @@ function PhaseWaiting({
           estimatedDuration: (e.estimated_duration as number) ?? 120,
           summary: (e.summary as string) ?? "",
         }));
+        setProgress(100);
         setFinished(true);
         // 自动跳转：1 秒倒计时
         setCountdown(1);
@@ -298,6 +307,25 @@ function PhaseWaiting({
         </div>
       </div>
 
+      {/* 进度条 */}
+      <div className="mb-4">
+        <div className="flex justify-between text-xs text-muted mb-1.5">
+          <span className="flex items-center gap-1">
+            <Activity className="w-3 h-3" />处理进度
+          </span>
+          <span className="font-mono tabular-nums">{progress}%</span>
+        </div>
+        <div className="h-1.5 rounded-full bg-soft overflow-hidden">
+          <div
+            className={cn(
+              "h-full rounded-full transition-all duration-700",
+              error ? "bg-danger" : "bg-brand"
+            )}
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+
       <div className="rounded-xl border border-line bg-slate-950 overflow-hidden mb-6 shadow-md">
         <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 border-b border-slate-800">
           <div className="flex gap-1.5">
@@ -317,17 +345,22 @@ function PhaseWaiting({
                 </span>}
           </div>
         </div>
-        <div className="p-4 h-72 overflow-y-auto font-mono">
+        <div className="p-4 h-64 overflow-y-auto font-mono">
+          {logs.length === 0 && !finished && (
+            <div className="text-xs text-slate-600 italic">等待任务启动…</div>
+          )}
           {logs.map((line, i) => (
             <div key={i} className={cn(
-              "text-xs leading-relaxed mb-0.5 animate-fade-in",
-              line.startsWith("✓") ? "text-green-400 font-semibold mt-1" : "text-slate-400"
+              "text-xs leading-relaxed mb-0.5",
+              line.startsWith("✓") ? "text-green-400 font-semibold mt-1"
+                : line.startsWith("[error]") ? "text-red-400"
+                : "text-slate-400"
             )}>
               <span className="text-slate-600 mr-2 select-none tabular-nums">{String(i + 1).padStart(2, "0")}</span>
               {line}
             </div>
           ))}
-          {!finished && (
+          {!finished && logs.length > 0 && (
             <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
               <span className="text-slate-600 mr-2 select-none">{String(logs.length + 1).padStart(2, "0")}</span>
               <span className="inline-block w-2 h-3.5 bg-slate-500 animate-pulse rounded-sm" />
@@ -338,7 +371,7 @@ function PhaseWaiting({
       </div>
 
       <div className="flex justify-between items-center">
-        <p className="text-xs text-muted">{logs.length} 条处理日志</p>
+        <p className="text-xs text-muted">{logs.length} 条日志</p>
         {error ? (
           <Button onClick={onRetry} variant="outline">
             <RefreshCw className="w-4 h-4" />重新上传剧本
@@ -667,23 +700,90 @@ export default function NewProjectScreen({
   const navigate = useNavigate();
   const { reload } = useProjects();
 
-  // 根据后端 init_status 决定从哪个阶段进入
-  const initPhase = (): Phase => {
-    if (project.initStatus === "episodes_confirmed" || project.initStatus === "assets_confirmed") return 3;
-    if (project.initStatus === "script_uploaded") return 1;
-    return 1;
-  };
-
-  const [phase, setPhase] = useState<Phase>(initPhase);
+  const [phase, setPhase] = useState<Phase | null>(null); // null = 初始化中
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [taskRecordId, setTaskRecordId] = useState<string>("");
   const [episodes, setEpisodes] = useState<EpisodeDraft[]>([]);
+
+  // 异步初始化：根据 init_status + 最近任务决定从哪个阶段恢复
+  useEffect(() => {
+    async function resolvePhase() {
+      const status = project.initStatus;
+
+      if (status === "episodes_confirmed" || status === "assets_confirmed") {
+        setPhase(3);
+        return;
+      }
+
+      if (status === "script_uploaded") {
+        // 查最近的 parse_script 任务
+        try {
+          const tasks = await generateAPI.listTasks(project.id, "parse_script");
+          const latest = tasks[0];
+          if (latest) {
+            if (latest.status === "running" || latest.status === "pending") {
+              // 任务还在跑，继续轮询
+              setTaskRecordId(latest.id);
+              setPhase(1.5);
+              return;
+            }
+            if (latest.status === "success") {
+              // 任务已完成，从 result 恢复分集数据
+              const raw = latest.result as Record<string, unknown> | undefined;
+              // result 只存了 count，需要从 episodes API 加载
+              const eps = raw?.episodes as Array<Record<string, unknown>> | undefined;
+              if (eps && Array.isArray(eps) && eps.length > 0) {
+                setEpisodes(eps.map((e, i) => ({
+                  number: (e.number as number) ?? i + 1,
+                  title: (e.title as string) ?? `第${i + 1}集`,
+                  wordCount: (e.word_count as number) ?? 0,
+                  estimatedDuration: (e.estimated_duration as number) ?? 120,
+                  summary: (e.summary as string) ?? "",
+                })));
+                setPhase(2);
+                return;
+              }
+              // result 里没有完整 episodes，从 episode API 加载
+              const apiEps = await episodeAPI.list(project.id);
+              if (apiEps.length > 0) {
+                setEpisodes(apiEps.map((e) => ({
+                  number: e.number,
+                  title: e.title,
+                  wordCount: e.word_count,
+                  estimatedDuration: e.estimated_duration,
+                  summary: e.summary,
+                })));
+                setPhase(2);
+                return;
+              }
+            }
+          }
+        } catch {
+          // 查任务失败，降级到 Phase 1
+        }
+        setPhase(1);
+        return;
+      }
+
+      // not_started 或其他
+      setPhase(1);
+    }
+    resolvePhase();
+  }, [project.id, project.initStatus]);
 
   const handleFinish = async () => {
     reload();
     onProjectUpdate();
     navigate(`/projects/${project.id}`);
   };
+
+  if (phase === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-muted" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">

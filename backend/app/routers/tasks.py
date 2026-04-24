@@ -15,8 +15,11 @@ async def get_task(task_id: PydanticObjectId):
 
 
 @router.get("")
-async def list_tasks(project_id: str | None = None, limit: int = 50):
-    query = TaskRecord.find()
+async def list_tasks(project_id: str | None = None, task_type: str | None = None, limit: int = 50):
+    conditions = []
     if project_id:
-        query = TaskRecord.find(TaskRecord.project_id == PydanticObjectId(project_id))
+        conditions.append(TaskRecord.project_id == PydanticObjectId(project_id))
+    if task_type:
+        conditions.append(TaskRecord.task_type == task_type)
+    query = TaskRecord.find(*conditions) if conditions else TaskRecord.find()
     return await query.sort("-created_at").limit(limit).to_list()

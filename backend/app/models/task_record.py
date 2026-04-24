@@ -21,6 +21,7 @@ class TaskRecord(Document):
     target_id: Optional[PydanticObjectId] = None
     status: TaskStatus = TaskStatus.pending
     progress: int = 0
+    logs: list[str] = Field(default_factory=list)
     result: Optional[dict] = None
     error: Optional[str] = None
     started_at: Optional[datetime] = None
