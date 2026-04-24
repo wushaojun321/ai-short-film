@@ -19,8 +19,6 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
     from app.models.project import Project
     from app.models.task_record import TaskRecord
     from app.services import image_service
-    from app.services.prompt_service import render
-    from app.models.prompt_config import PromptConfigScope
     from datetime import datetime
 
     try:
@@ -39,20 +37,23 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
         project = await Project.get(asset.project_id)
         series_prompt = (project.series_prompt or "") if project else ""
 
-        system_prompt, user_prompt, _ = await render(
-            PromptConfigScope.asset_prompt_gen,
-            {
-                "series_prompt": series_prompt,
-                "asset_name": asset.name,
-                "asset_type": asset.asset_type,
-                "asset_description": asset.prompt,
-            },
-        )
+        # Build prompt directly from asset description + type hint + series style
+        type_hint_map = {
+            "character": "人物形象，全身照，白色背景",
+            "scene": "场景环境，宽幅构图，电影感照明",
+            "prop": "道具特写，白色背景，产品摄影风格",
+            "template": "",
+        }
+        asset_type_str = asset.asset_type.value if hasattr(asset.asset_type, "value") else str(asset.asset_type)
+        type_hint = type_hint_map.get(asset_type_str, "")
 
-        # Merge series_prompt into generation prompt for visual consistency
-        full_prompt = f"{system_prompt}\n\n{user_prompt}" if user_prompt else system_prompt
-        if series_prompt and series_prompt not in full_prompt:
-            full_prompt = f"{series_prompt}\n\n{full_prompt}"
+        parts = []
+        if series_prompt:
+            parts.append(series_prompt)
+        parts.append(asset.prompt)
+        if type_hint:
+            parts.append(type_hint)
+        full_prompt = "，".join(parts)
 
         if record:
             await record.set({"progress": 30})
