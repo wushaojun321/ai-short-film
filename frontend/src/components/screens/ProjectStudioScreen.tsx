@@ -1,8 +1,10 @@
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
+import { Images } from "lucide-react";
 import EpisodeSidebar from "@/components/EpisodeSidebar";
 import EpisodeStepBar from "@/components/EpisodeStepBar";
 import StepContent from "@/components/StepContent";
+import { Button } from "@/components/ui/button";
 import { Project, EpisodeDetail, EpisodeStep, STEP_ORDER } from "@/lib/data";
 import { episodeAPI, shotAPI } from "@/lib/api";
 import { transformEpisode, transformShot } from "@/lib/transforms";
@@ -14,6 +16,7 @@ interface ProjectStudioScreenProps {
 
 export default function ProjectStudioScreen({ project }: ProjectStudioScreenProps) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [episodes, setEpisodes] = useState<EpisodeDetail[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -100,22 +103,33 @@ export default function ProjectStudioScreen({ project }: ProjectStudioScreenProp
                     <p className="text-sm text-sub mt-1">{activeEpisode.summary}</p>
                   )}
                 </div>
-                <div className="flex gap-4 text-right shrink-0 ml-4">
-                  {activeEpisode.estimatedDuration > 0 && (
-                    <div>
-                      <div className="text-sm font-semibold text-text">
-                        {Math.floor(activeEpisode.estimatedDuration / 60)}:
-                        {(activeEpisode.estimatedDuration % 60).toString().padStart(2, "0")}
+                <div className="flex items-center gap-3 shrink-0 ml-4">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex items-center gap-1.5 text-xs"
+                    onClick={() => navigate(`/projects/${project.id}?view=assets`)}
+                  >
+                    <Images className="w-3.5 h-3.5" />
+                    资产库
+                  </Button>
+                  <div className="flex gap-4 text-right">
+                    {activeEpisode.estimatedDuration > 0 && (
+                      <div>
+                        <div className="text-sm font-semibold text-text">
+                          {Math.floor(activeEpisode.estimatedDuration / 60)}:
+                          {(activeEpisode.estimatedDuration % 60).toString().padStart(2, "0")}
+                        </div>
+                        <div className="text-xs text-muted">预估时长</div>
                       </div>
-                      <div className="text-xs text-muted">预估时长</div>
-                    </div>
-                  )}
-                  {activeEpisode.shots.length > 0 && (
-                    <div>
-                      <div className="text-sm font-semibold text-text">{activeEpisode.shots.length}</div>
-                      <div className="text-xs text-muted">分镜数</div>
-                    </div>
-                  )}
+                    )}
+                    {activeEpisode.shots.length > 0 && (
+                      <div>
+                        <div className="text-sm font-semibold text-text">{activeEpisode.shots.length}</div>
+                        <div className="text-xs text-muted">分镜数</div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

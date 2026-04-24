@@ -712,7 +712,7 @@ function AssetCard({
   );
 }
 
-function Phase3({ projectId, onFinish }: { projectId: string; onFinish: () => void }) {
+export function Phase3({ projectId, onFinish, manageMode = false }: { projectId: string; onFinish: () => void; manageMode?: boolean }) {
   const [tab, setTab] = useState("character");
   const [assets, setAssets] = useState<ApiAsset[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -771,10 +771,20 @@ function Phase3({ projectId, onFinish }: { projectId: string; onFinish: () => vo
   const generatingCount = assets.filter((a) => a.status === "generating" || a.status === "queued").length;
 
   const handleFinish = async () => {
+    if (!manageMode) {
+      // 拦截：有资产仍在生成中或尚未生成图片
+      const notReady = assets.filter(
+        (a) => a.status === "generating" || a.status === "queued" || !a.preview_url
+      );
+      if (notReady.length > 0) {
+        setError(`还有 ${notReady.length} 个资产尚未生成完毕，请等待生成完成后再确认。`);
+        return;
+      }
+    }
     setSubmitting(true);
     setError(null);
     try {
-      await projectAPI.confirmAssets(projectId);
+      if (!manageMode) await projectAPI.confirmAssets(projectId);
       onFinish();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "确认失败");
@@ -834,10 +844,16 @@ function Phase3({ projectId, onFinish }: { projectId: string; onFinish: () => vo
 
       <div className="flex items-center justify-between">
         <p className="text-sm text-sub">
-          {pendingCount > 0 ? `还有 ${pendingCount} 个资产未确认，仍可继续初始化。` : "所有资产已确认，可以开始制作。"}
+          {manageMode
+            ? (pendingCount > 0 ? `${pendingCount} 个资产未确认。` : "所有资产已确认。")
+            : (pendingCount > 0 ? `还有 ${pendingCount} 个资产未确认，仍可继续初始化。` : "所有资产已确认，可以开始制作。")}
         </p>
-        <Button onClick={handleFinish} disabled={submitting}>
-          {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />初始化中…</> : <>完成初始化，开始制作 <ChevronRight className="w-4 h-4" /></>}
+        <Button onClick={handleFinish} disabled={submitting} variant={manageMode ? "outline" : "default"}>
+          {submitting
+            ? <><Loader2 className="w-4 h-4 animate-spin" />处理中…</>
+            : manageMode
+              ? "关闭"
+              : <>完成初始化，开始制作 <ChevronRight className="w-4 h-4" /></>}
         </Button>
       </div>
     </div>
