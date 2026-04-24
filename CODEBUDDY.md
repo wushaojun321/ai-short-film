@@ -138,10 +138,10 @@ normalize_id_middleware  { id: "507f...", title: "..." }  ← 后端统一处理
 
 ```bash
 # 标准部署流程（代码已推到 gitee 后执行）
-ssh film "cd /root/ai-short-film && git pull && docker compose build api worker-llm worker-image worker-video worker-merge && docker compose up -d"
+ssh film "cd /root/ai-short-film && git pull && docker compose build && docker compose up -d"
 
-# 仅重启不重新 build
-ssh film "cd /root/ai-short-film && docker compose restart api worker-llm worker-image worker-video worker-merge"
+# 仅重启不重新 build（配置变更时）
+ssh film "cd /root/ai-short-film && docker compose restart"
 
 # 查看日志
 ssh film "cd /root/ai-short-film && docker compose logs -f api"
@@ -152,7 +152,8 @@ ssh film "cd /root/ai-short-film && docker compose ps"
 ```
 
 **服务清单：**
-- `api` — FastAPI 主进程，端口 8000
+- `frontend` — nginx，80/443，前端静态文件 + API 反代（含 SSL）
+- `api` — FastAPI 主进程，仅容器内访问
 - `worker-llm` — Celery LLM 队列，并发 2
 - `worker-image` — Celery 图像队列，并发 4
 - `worker-video` — Celery 视频队列，并发 2
