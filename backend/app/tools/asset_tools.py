@@ -80,9 +80,9 @@ async def generate_asset_image(asset_id: str, prompt_override: str | None = None
     )
     await record.insert()
 
-    # Mark generating immediately so frontend shows loading
+    # Mark queued immediately; worker will change to generating when it starts
     await asset.set({
-        "status": AssetStatus.generating,
+        "status": AssetStatus.queued,
         "generation_task_id": str(record.id),
     })
 

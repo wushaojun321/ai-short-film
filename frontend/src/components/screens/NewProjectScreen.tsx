@@ -537,7 +537,8 @@ function Phase2({
 // ─── Phase 3：资产审核 ─────────────────────────────────────
 
 const ASSET_STATUS_ZH: Record<string, AssetStatus> = {
-  pending: "待确认", approved: "已生成", need_regen: "需重生", missing: "缺失", generating: "生成中",
+  pending: "待确认", approved: "已生成", need_regen: "需重生", missing: "缺失",
+  generating: "生成中", queued: "排队中",
 };
 
 function AssetCard({
@@ -552,7 +553,8 @@ function AssetCard({
   const [loading, setLoading] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
   const { cosUrl } = useCos();
-  const isGenerating = asset.status === "generating";
+  const isQueued = asset.status === "queued";
+  const isGenerating = asset.status === "generating" || isQueued;
   const status: AssetStatus = ASSET_STATUS_ZH[asset.status] ?? "缺失";
 
   const statusConfig: Record<AssetStatus, { label: string; variant: "success" | "warning" | "destructive" | "secondary" }> = {
@@ -561,6 +563,7 @@ function AssetCard({
     "需重生": { label: "需重生", variant: "destructive" },
     "缺失":   { label: "缺失",   variant: "secondary" },
     "生成中": { label: "生成中", variant: "secondary" },
+    "排队中": { label: "排队中", variant: "secondary" },
   };
   const cfg = statusConfig[status];
 
@@ -592,7 +595,7 @@ function AssetCard({
           {isGenerating ? (
             <div className="w-full h-full flex flex-col items-center justify-center gap-2">
               <Loader2 className="w-6 h-6 animate-spin text-brand" />
-              <span className="text-xs text-muted">生成中…</span>
+              <span className="text-xs text-muted">{isQueued ? "排队等待…" : "生成中…"}</span>
             </div>
           ) : asset.preview_url ? (
             <img src={cosUrl(asset.preview_url)} alt={asset.name} className="w-full h-full object-cover" />
@@ -619,7 +622,7 @@ function AssetCard({
           <div className="mt-3 flex gap-2">
             <Button size="sm" variant="outline" className="flex-1 text-xs min-w-0" onClick={handleRegen} disabled={loading || isGenerating}>
               {loading || isGenerating
-                ? <><Loader2 className="w-3 h-3 animate-spin shrink-0" /><span className="truncate">{isGenerating ? "生成中" : "处理中"}</span></>
+                ? <><Loader2 className="w-3 h-3 animate-spin shrink-0" /><span className="truncate">{isQueued ? "排队中" : "生成中"}</span></>
                 : <><RefreshCw className="w-3 h-3 shrink-0" /><span className="truncate">重新生成</span></>}
             </Button>
             {asset.status !== "approved" && !isGenerating && (
@@ -684,7 +687,7 @@ function Phase3({ projectId, onFinish }: { projectId: string; onFinish: () => vo
       // 首次进入（或 pollKey 重置）：自动触发所有没有预览图的资产生成
       if (!autoGenStartedRef.current) {
         autoGenStartedRef.current = true;
-        const needGen = list.filter((a) => !a.preview_url && a.status !== "generating");
+        const needGen = list.filter((a) => !a.preview_url && a.status !== "generating" && a.status !== "queued");
         for (const a of needGen) {
           try { await generateAPI.assetImage(a.id); } catch { /* 忽略单个失败 */ }
         }
@@ -693,7 +696,7 @@ function Phase3({ projectId, onFinish }: { projectId: string; onFinish: () => vo
           const refreshed = await assetAPI.list(projectId).catch(() => list);
           if (!cancelled) {
             setAssets(refreshed);
-            if (refreshed.some((a) => a.status === "generating")) {
+            if (refreshed.some((a) => a.status === "generating" || a.status === "queued")) {
               scheduleNextPoll(tick);
             }
           }
@@ -702,7 +705,7 @@ function Phase3({ projectId, onFinish }: { projectId: string; onFinish: () => vo
       }
 
       // 如果还有 generating 状态的资产，每 3 秒刷新一次
-      const stillGenerating = list.some((a) => a.status === "generating");
+      const stillGenerating = list.some((a) => a.status === "generating" || a.status === "queued");
       if (stillGenerating && !cancelled) {
         scheduleNextPoll(tick);
       }

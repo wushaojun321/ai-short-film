@@ -84,8 +84,8 @@ async def enqueue_asset_image(asset_id: PydanticObjectId):
 
     task = gen_asset_image_task.delay(str(asset_id))
 
-    # 立即标记为生成中，不等 worker 真正开始
-    await asset.set({"status": AssetStatus.generating})
+    # 入队后立即标记为 queued，worker 开始执行时自动改为 generating
+    await asset.set({"status": AssetStatus.queued})
 
     record = TaskRecord(
         celery_task_id=task.id,

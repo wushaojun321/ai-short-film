@@ -26,7 +26,7 @@ export type ShotState =
   | "review_failed" // 审批未通过
   | "approved";     // 已审批通过
 
-export type AssetStatus = "已生成" | "待确认" | "需重生" | "缺失" | "生成中";
+export type AssetStatus = "已生成" | "待确认" | "需重生" | "缺失" | "生成中" | "排队中";
 
 // ─── 步骤定义 ────────────────────────────────────────────────
 

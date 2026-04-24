@@ -14,7 +14,8 @@ class AssetType(str, Enum):
 
 class AssetStatus(str, Enum):
     pending    = "pending"
-    generating = "generating"  # image generating in background
+    queued     = "queued"     # task enqueued, waiting for worker
+    generating = "generating"  # worker picked up, actively generating
     approved   = "approved"
     need_regen = "need_regen"
     missing    = "missing"
