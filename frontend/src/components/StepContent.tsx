@@ -27,10 +27,13 @@ const shotStateCfg: Record<ShotState, {
   label: string;
   variant: "success" | "warning" | "secondary" | "outline";
 }> = {
-  approved:    { label: "已通过",   variant: "success" },
-  rendered:    { label: "待审批",   variant: "warning" },
-  asset_ready: { label: "资产就绪", variant: "secondary" },
-  planned:     { label: "待生成",   variant: "outline" },
+  approved:      { label: "已通过",   variant: "success" },
+  rendered:      { label: "待审批",   variant: "warning" },
+  review_failed: { label: "未通过",   variant: "warning" },
+  rendering:     { label: "视频生成中", variant: "secondary" },
+  asset_ready:   { label: "资产就绪", variant: "secondary" },
+  generating:    { label: "图片生成中", variant: "secondary" },
+  planned:       { label: "待生成",   variant: "outline" },
 };
 
 // ─── 共用：重新生成意见弹窗 ──────────────────────────────────
@@ -497,9 +500,10 @@ function StepImages({
             )}>
               {/* 图片预览区 */}
               <div className="aspect-[9/16] bg-soft relative">
-                {shot.loadingRegen ? (
-                  <div className="w-full h-full flex items-center justify-center">
+                {(shot.loadingRegen || shot.state === "generating") ? (
+                  <div className="w-full h-full flex items-center justify-center flex-col gap-2">
                     <Loader2 className="w-6 h-6 text-brand animate-spin" />
+                    <span className="text-2xs text-muted">生成中…</span>
                   </div>
                 ) : shot.imageUrl ? (
                   <div className="w-full h-full relative overflow-hidden">
@@ -680,7 +684,7 @@ function StepVideos({
               >
                 {/* 缩略图 */}
                 <div className="w-10 h-14 rounded-lg bg-soft shrink-0 flex items-center justify-center border border-line overflow-hidden">
-                  {s.loadingRegen ? (
+                  {(s.loadingRegen || s.state === "rendering") ? (
                     <Loader2 className="w-4 h-4 text-brand animate-spin" />
                   ) : s.videoGenerated ? (
                     <div className="w-full h-full bg-gradient-to-b from-soft to-line flex items-center justify-center">
@@ -713,10 +717,10 @@ function StepVideos({
             <div>
               {/* 视频预览 */}
               <div className="aspect-[9/16] max-w-xs mx-auto bg-soft rounded-2xl border border-line flex items-center justify-center mb-4 relative overflow-hidden">
-                {shot.loadingRegen ? (
+                {(shot.loadingRegen || shot.state === "rendering") ? (
                   <div className="flex flex-col items-center gap-2">
                     <Loader2 className="w-8 h-8 text-brand animate-spin" />
-                    <p className="text-xs text-muted">重新生成中…</p>
+                    <p className="text-xs text-muted">{shot.state === "rendering" ? "视频生成中…" : "重新生成中…"}</p>
                   </div>
                 ) : shot.videoUrl ? (
                   <video
@@ -797,55 +801,16 @@ function StepVideos({
 // ─── Step 4：配音 ────────────────────────────────────────────
 
 function StepDubbing({ episode }: { episode: EpisodeDetail }) {
-  const [generating, setGenerating] = useState(false);
-  const [done, setDone] = useState(false);
-
   return (
-    <div>
-      <div className="rounded-xl border border-line p-4 mb-6 bg-soft">
-        <p className="text-xs font-semibold text-sub mb-3">音色设定</p>
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { name: "李云湘", voice: "冷静、低缓、克制、威压感强" },
-            { name: "谢风凌", voice: "低沉、克制、寡言" },
-            { name: "顾文池", voice: "温柔、带笑意、轻讽" },
-            { name: "李睿",   voice: "平静、贵气、藏锋" },
-          ].map((c) => (
-            <div key={c.name} className="bg-white rounded-lg border border-line p-3">
-              <div className="text-xs font-medium text-text">{c.name}</div>
-              <div className="text-xs text-muted mt-0.5">{c.voice}</div>
-            </div>
-          ))}
-        </div>
+    <div className="flex flex-col items-center justify-center py-20 gap-4">
+      <div className="w-14 h-14 rounded-full bg-soft flex items-center justify-center">
+        <Volume2 className="w-7 h-7 text-muted" />
       </div>
-
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-sub">AI 将按音色设定自动生成各角色配音。</p>
-        <Button
-          size="sm"
-          onClick={() => { setGenerating(true); setTimeout(() => { setGenerating(false); setDone(true); }, 2000); }}
-          disabled={generating || done}
-        >
-          {generating
-            ? <><Loader2 className="w-4 h-4 animate-spin" />配音中</>
-            : done ? "配音完成" : "开始配音"}
-        </Button>
-      </div>
-
-      <div className="space-y-2">
-        {episode.shots.slice(0, 5).map((shot, idx) => (
-          <div key={shot.id} className="flex items-center gap-4 p-3 rounded-xl border border-line bg-white">
-            <div className="w-8 h-8 rounded-full bg-soft flex items-center justify-center">
-              <Volume2 className="w-4 h-4 text-muted" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-medium truncate">镜头 {idx + 1} · {shot.duration}s</div>
-            </div>
-            {done
-              ? <Badge variant="success">已配音</Badge>
-              : <Badge variant="secondary">待配音</Badge>}
-          </div>
-        ))}
+      <div className="text-center">
+        <p className="font-medium text-text">配音功能开发中</p>
+        <p className="text-sm text-sub mt-1 max-w-sm">
+          配音模块尚未上线，敬请期待。当前共 {episode.shots.length} 个分镜待配音。
+        </p>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import type { ApiProject, ApiEpisode, ApiShot, ApiAsset } from "./api";
-import type { Project, EpisodeDetail, Shot, ShotState, EpisodeStep } from "./data";
+import type { Project, EpisodeDetail, Shot, ShotState, EpisodeStep, Asset, AssetStatus } from "./data";
 
 // ─── Project ──────────────────────────────────────────────────
 
@@ -10,7 +10,7 @@ export function transformProject(p: ApiProject): Project {
     genre: p.genre,
     format: p.format === "VERTICAL_9_16" ? "VERTICAL 9:16" : p.format,
     episodes: p.target_episode_count,
-    renderedEpisodes: 0,       // 后端暂无，页面自行计算
+    renderedEpisodes: 0,
     stage: initStatusToStage(p.init_status),
     progress: p.progress,
     initStatus: p.init_status as Project["initStatus"],
@@ -64,10 +64,12 @@ export function transformEpisode(e: ApiEpisode): EpisodeDetail {
 
 const SHOT_STATE_MAP: Record<string, ShotState> = {
   planned:        "planned",
+  generating:     "generating",   // 图片生成中
   asset_required: "asset_ready",
   asset_ready:    "asset_ready",
+  rendering:      "rendering",    // 视频生成中
   rendered:       "rendered",
-  review_failed:  "rendered",
+  review_failed:  "review_failed",
   approved:       "approved",
 };
 
@@ -79,36 +81,38 @@ export function transformShot(s: ApiShot): Shot {
     description: s.description,
     assets: s.required_assets.map((a) => a.name),
     state: SHOT_STATE_MAP[s.state] ?? "planned",
-    imageUrl: s.image_url,
-    videoUrl: s.video_url,
+    imageUrl: s.image_url ?? undefined,
+    videoUrl: s.video_url ?? undefined,
     version: s.version,
+    prompt: s.prompt,
   };
 }
 
 // ─── Asset ────────────────────────────────────────────────────
 
-const ASSET_STATUS_MAP: Record<string, string> = {
+const ASSET_STATUS_MAP: Record<string, AssetStatus> = {
   pending:    "待确认",
+  generating: "生成中",
   approved:   "已生成",
   need_regen: "需重生",
   missing:    "缺失",
 };
 
-const ASSET_TYPE_MAP: Record<string, string> = {
+const ASSET_TYPE_MAP: Record<string, "人物" | "场景" | "道具"> = {
   character: "人物",
   scene:     "场景",
   prop:      "道具",
-  template:  "模板",
+  template:  "人物",
 };
 
-export function transformAsset(a: ApiAsset) {
+export function transformAsset(a: ApiAsset): Asset {
   return {
     id: a.id,
     name: a.name,
-    type: (ASSET_TYPE_MAP[a.asset_type] ?? a.asset_type) as "人物" | "场景" | "道具",
-    status: (ASSET_STATUS_MAP[a.status] ?? a.status) as import("./data").AssetStatus,
+    type: ASSET_TYPE_MAP[a.asset_type] ?? "人物",
+    status: ASSET_STATUS_MAP[a.status] ?? "待确认",
     previewUrl: a.preview_url,
     prompt: a.prompt,
-    history: a.versions.map((v) => `v${v.version}`),
+    history: a.versions.map((v, i) => `v${i + 1}`),
   };
 }
