@@ -10,6 +10,7 @@ from app.models.episode import Episode
 from app.models.shot import Shot
 from app.models.asset import Asset
 from app.models.task_record import TaskRecord, TaskStatus
+from app.schemas.project import ParseScriptRequest
 
 router = APIRouter(prefix="/generate", tags=["generation"])
 
@@ -17,13 +18,20 @@ router = APIRouter(prefix="/generate", tags=["generation"])
 # ── Script parsing ────────────────────────────────────────────
 
 @router.post("/projects/{project_id}/parse-script")
-async def enqueue_parse_script(project_id: PydanticObjectId):
+async def enqueue_parse_script(project_id: PydanticObjectId, data: ParseScriptRequest):
     """Enqueue LLM script parsing task."""
     project = await Project.get(project_id)
     if not project:
         raise HTTPException(404, "Project not found")
     if not project.script_text:
         raise HTTPException(400, "Script not uploaded yet")
+
+    # 把解析参数写入 Project，供 worker 读取
+    await project.set({
+        "target_episode_count": data.target_episodes,
+        "min_episode_duration": data.min_duration,
+        "parse_notes": data.parse_notes or "",
+    })
 
     from app.tasks.llm_tasks import parse_script_task
     from app.models.task_record import TaskRecord, TaskStatus

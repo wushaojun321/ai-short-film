@@ -66,6 +66,27 @@ async def _parse_script_async(celery_id: str, project_id: str):
 
         # Create episodes
         episodes_data = result.get("episodes", [])
+        target_count = project.target_episode_count or 1
+
+        # 后端校验：LLM 返回集数与目标不符时补全或截断
+        if len(episodes_data) != target_count:
+            await log([
+                f"[warn] LLM 返回 {len(episodes_data)} 集，目标 {target_count} 集，自动修正…"
+            ], 70)
+            if len(episodes_data) < target_count:
+                # 补全缺少的集数
+                for i in range(len(episodes_data) + 1, target_count + 1):
+                    episodes_data.append({
+                        "number": i,
+                        "title": f"第{i}集",
+                        "summary": f"待补充（第{i}集剧情）",
+                        "word_count": episodes_data[-1].get("word_count", 500) if episodes_data else 500,
+                        "estimated_duration": project.min_episode_duration or 120,
+                    })
+            else:
+                # 截断多余的集数
+                episodes_data = episodes_data[:target_count]
+
         created_eps = 0
         for ep_data in episodes_data:
             existing = await Episode.find_one(
