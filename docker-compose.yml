@@ -53,10 +53,8 @@ services:
     environment:
       MONGODB_URL: mongodb://mongodb:27017/ai_short_film
       REDIS_URL: redis://redis:6379/0
-      HTTP_PROXY: http://v2ray:10801
-      HTTPS_PROXY: http://v2ray:10801
+      # 火山引擎是国内服务，不走代理
     depends_on:
-      - v2ray
       - mongodb
       - redis
     restart: unless-stopped
@@ -71,10 +69,8 @@ services:
     environment:
       MONGODB_URL: mongodb://mongodb:27017/ai_short_film
       REDIS_URL: redis://redis:6379/0
-      HTTP_PROXY: http://v2ray:10801
-      HTTPS_PROXY: http://v2ray:10801
+      # 火山引擎是国内服务，不走代理
     depends_on:
-      - v2ray
       - mongodb
       - redis
     restart: unless-stopped
@@ -89,10 +85,7 @@ services:
     environment:
       MONGODB_URL: mongodb://mongodb:27017/ai_short_film
       REDIS_URL: redis://redis:6379/0
-      HTTP_PROXY: http://v2ray:10801
-      HTTPS_PROXY: http://v2ray:10801
     depends_on:
-      - v2ray
       - mongodb
       - redis
     restart: unless-stopped
