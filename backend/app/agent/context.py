@@ -53,6 +53,7 @@ async def _build_snapshot(target_type: str, target_id: str) -> str:
                 return ""
             return (
                 f"类型：资产（{asset.asset_type}）\n"
+                f"asset_id：{target_id}\n"
                 f"名称：{asset.name}\n"
                 f"当前提示词：{asset.prompt}\n"
                 f"当前状态：{asset.status}\n"
@@ -67,6 +68,7 @@ async def _build_snapshot(target_type: str, target_id: str) -> str:
             assets_str = ", ".join(b.asset_name for b in shot.required_assets) or "无"
             return (
                 f"类型：分镜（{target_type}）\n"
+                f"shot_id：{target_id}\n"
                 f"镜头编号：{shot.shot_code}\n"
                 f"场景描述：{shot.description}\n"
                 f"当前提示词：{shot.prompt}\n"

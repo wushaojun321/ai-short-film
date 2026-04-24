@@ -109,6 +109,37 @@ AssetStatus = "已生成" | "待确认" | "需重生" | "缺失"
 白色风格（#FFFFFF 背景），品牌绿 #0F8A52 保留。
 颜色 token 在 `tailwind.config.js` 中定义，可直接使用 `bg-bg`、`text-sub`、`border-line` 等。
 
+## 部署
+
+服务器通过 `ssh film` 访问，使用 Docker Compose 部署，代码在 `/root/ai-short-film`。
+
+```bash
+# 标准部署流程（代码已推到 gitee 后执行）
+ssh film "cd /root/ai-short-film && git pull && docker compose build api worker-llm worker-image worker-video worker-merge && docker compose up -d"
+
+# 仅重启不重新 build
+ssh film "cd /root/ai-short-film && docker compose restart api worker-llm worker-image worker-video worker-merge"
+
+# 查看日志
+ssh film "cd /root/ai-short-film && docker compose logs -f api"
+ssh film "cd /root/ai-short-film && docker compose logs -f worker-llm"
+
+# 查看服务状态
+ssh film "cd /root/ai-short-film && docker compose ps"
+```
+
+**服务清单：**
+- `api` — FastAPI 主进程，端口 8000
+- `worker-llm` — Celery LLM 队列，并发 2
+- `worker-image` — Celery 图像队列，并发 4
+- `worker-video` — Celery 视频队列，并发 2
+- `worker-merge` — Celery 合并队列，并发 1
+- `mongodb` — MongoDB 7，宿主机端口 27018
+- `redis` — Redis 7，宿主机端口 6380
+- `v2ray` — 代理（供 LLM/API 外网访问）
+
+**环境变量**：`backend/.env`（不入 git）
+
 ## 核心设计原则（来自 workflow-spec.md）
 
 1. 初始化阶段一次性完成：全剧资产图片在初始化时生成，保障后续角色一致性
