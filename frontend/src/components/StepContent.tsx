@@ -13,6 +13,7 @@ import {
 import { EpisodeStep, EpisodeDetail, Shot, ShotState } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { generateAPI, shotAPI, pollTask } from "@/lib/api";
+import { useCos } from "@/lib/CosContext";
 
 interface StepContentProps {
   step: EpisodeStep;
@@ -411,6 +412,7 @@ type ShotImageState = Shot & {
 function StepImages({
   episode, projectId, onShotsUpdate,
 }: { episode: EpisodeDetail; projectId: string; onShotsUpdate: () => void }) {
+  const { cosUrl } = useCos();
   const [shots, setShots] = useState<ShotImageState[]>(
     episode.shots.map((s) => ({
       ...s,
@@ -508,7 +510,7 @@ function StepImages({
                 ) : shot.imageUrl ? (
                   <div className="w-full h-full relative overflow-hidden">
                     <img
-                      src={shot.imageUrl}
+                      src={cosUrl(shot.imageUrl)}
                       alt={`镜头 ${idx + 1}`}
                       className="w-full h-full object-cover"
                     />
@@ -587,6 +589,7 @@ type ShotVideoState = Shot & {
 function StepVideos({
   episode, projectId, onShotsUpdate,
 }: { episode: EpisodeDetail; projectId: string; onShotsUpdate: () => void }) {
+  const { cosUrl } = useCos();
   const [selected, setSelected] = useState(0);
   const [shots, setShots] = useState<ShotVideoState[]>(
     episode.shots.map((s) => ({
@@ -724,7 +727,7 @@ function StepVideos({
                   </div>
                 ) : shot.videoUrl ? (
                   <video
-                    src={shot.videoUrl}
+                    src={cosUrl(shot.videoUrl)}
                     controls
                     className="w-full h-full object-cover rounded-2xl"
                   />

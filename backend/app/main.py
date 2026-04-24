@@ -8,6 +8,7 @@ from app.routers import projects, episodes, shots, assets, tasks
 from app.routers.admin import prompt_configs as admin_prompt_configs
 from app.routers import generation
 from app.routers import conversations
+from app.routers import sts
 
 
 @asynccontextmanager
@@ -41,6 +42,7 @@ app.include_router(tasks.router, prefix=API_PREFIX)
 app.include_router(generation.router, prefix=API_PREFIX)
 app.include_router(conversations.router, prefix=API_PREFIX)
 app.include_router(admin_prompt_configs.router, prefix=API_PREFIX)
+app.include_router(sts.router, prefix=API_PREFIX)
 
 
 @app.get("/health")

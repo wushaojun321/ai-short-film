@@ -300,7 +300,20 @@ export const conversationAPI = {
     client.post(`/conversations/${convId}/chat`, { content }),
 };
 
-// ─── 任务轮询工具 ─────────────────────────────────────────────
+// ─── STS 临时密钥 ──────────────────────────────────────────────
+
+export interface StsToken {
+  tmpSecretId: string;
+  tmpSecretKey: string;
+  sessionToken: string;
+  expiredTime: number; // unix timestamp (seconds)
+  bucket: string;
+  region: string;
+}
+
+export const stsAPI = {
+  getToken: (): Promise<StsToken> => client.get("/sts-token"),
+};
 
 export function pollTask(
   recordId: string,

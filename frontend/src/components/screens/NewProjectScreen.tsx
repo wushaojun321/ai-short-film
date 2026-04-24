@@ -19,6 +19,7 @@ import type { Project } from "@/lib/data";
 import { projectAPI, assetAPI, generateAPI, episodeAPI, pollTask, type ApiAsset, type ApiTaskRecord } from "@/lib/api";
 import AgentDialog from "@/components/AgentDialog";
 import { useProjects } from "@/lib/ProjectsContext";
+import { useCos } from "@/lib/CosContext";
 import { cn } from "@/lib/utils";
 
 type Phase = 1 | 1.5 | 2 | 3;
@@ -550,6 +551,7 @@ function AssetCard({
 }) {
   const [loading, setLoading] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
+  const { cosUrl } = useCos();
   const isGenerating = asset.status === "generating";
   const status: AssetStatus = ASSET_STATUS_ZH[asset.status] ?? "缺失";
 
@@ -593,7 +595,7 @@ function AssetCard({
               <span className="text-xs text-muted">生成中…</span>
             </div>
           ) : asset.preview_url ? (
-            <img src={asset.preview_url} alt={asset.name} className="w-full h-full object-cover" />
+            <img src={cosUrl(asset.preview_url)} alt={asset.name} className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <span className="text-muted text-xs">暂无预览</span>
