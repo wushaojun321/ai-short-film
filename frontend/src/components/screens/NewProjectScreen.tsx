@@ -225,10 +225,12 @@ function Phase1({
 
 function PhaseWaiting({
   taskRecordId,
+  projectId,
   onDone,
   onRetry,
 }: {
   taskRecordId: string;
+  projectId: string;
   onDone: (episodes: EpisodeDraft[]) => void;
   onRetry: () => void;
 }) {
@@ -255,7 +257,7 @@ function PhaseWaiting({
       },
       2000,
       180000,
-    ).then((task) => {
+    ).then(async (task) => {
       // 确保最终日志全部显示
       const finalLogs = task.logs ?? [];
       if (finalLogs.length > seenLogsRef.current) {
@@ -263,25 +265,43 @@ function PhaseWaiting({
         seenLogsRef.current = finalLogs.length;
       }
 
-      const raw = (task.result as Record<string, unknown>);
-      const eps = raw?.episodes as Array<Record<string, unknown>> | undefined;
-      if (eps && Array.isArray(eps)) {
-        const result = eps.map((e, i) => ({
+      setProgress(100);
+      setFinished(true);
+
+      // result.episodes 可能是 count（数字）而非完整数组，统一从 episode API 加载
+      let result: EpisodeDraft[] | null = null;
+      const rawEps = (task.result as Record<string, unknown>)?.episodes;
+      if (Array.isArray(rawEps) && rawEps.length > 0) {
+        result = (rawEps as Array<Record<string, unknown>>).map((e, i) => ({
           number: (e.number as number) ?? i + 1,
           title: (e.title as string) ?? `第${i + 1}集`,
           wordCount: (e.word_count as number) ?? 0,
           estimatedDuration: (e.estimated_duration as number) ?? 120,
           summary: (e.summary as string) ?? "",
         }));
-        setProgress(100);
-        setFinished(true);
-        // 自动跳转：1 秒倒计时
+      }
+      if (!result) {
+        // result 只存了 count，从 episode API 加载真实数据
+        try {
+          const apiEps = await episodeAPI.list(projectId);
+          if (apiEps.length > 0) {
+            result = apiEps.map((e) => ({
+              number: e.number,
+              title: e.title,
+              wordCount: e.word_count,
+              estimatedDuration: e.estimated_duration,
+              summary: e.summary,
+            }));
+          }
+        } catch { /* ignore */ }
+      }
+      if (result && result.length > 0) {
         setCountdown(1);
         const tick = setInterval(() => {
           setCountdown((c) => {
             if (c === null || c <= 1) {
               clearInterval(tick);
-              onDone(result);
+              onDone(result!);
               return null;
             }
             return c - 1;
@@ -289,13 +309,12 @@ function PhaseWaiting({
         }, 1000);
       } else {
         setError("解析结果格式异常，请重试");
-        setFinished(true);
       }
     }).catch((err) => {
       setError(err?.message ?? "解析失败");
       setFinished(true);
     });
-  }, [taskRecordId]);
+  }, [taskRecordId, projectId]);
 
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [logs]);
 
@@ -596,13 +615,13 @@ function AssetCard({
           <p className="text-sm font-medium text-text truncate">{asset.name}</p>
           <p className="text-xs text-muted mt-0.5 line-clamp-2">{asset.prompt}</p>
           <div className="mt-3 flex gap-2">
-            <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={handleRegen} disabled={loading || isGenerating}>
+            <Button size="sm" variant="outline" className="flex-1 text-xs min-w-0" onClick={handleRegen} disabled={loading || isGenerating}>
               {loading || isGenerating
-                ? <><Loader2 className="w-3 h-3 animate-spin" />{isGenerating ? "生成中" : "处理中"}</>
-                : <><RefreshCw className="w-3 h-3" />重新生成</>}
+                ? <><Loader2 className="w-3 h-3 animate-spin shrink-0" /><span className="truncate">{isGenerating ? "生成中" : "处理中"}</span></>
+                : <><RefreshCw className="w-3 h-3 shrink-0" /><span className="truncate">重新生成</span></>}
             </Button>
             {asset.status !== "approved" && !isGenerating && (
-              <Button size="sm" variant="secondary" onClick={handleConfirm} disabled={loading} className="text-xs">
+              <Button size="sm" variant="secondary" onClick={handleConfirm} disabled={loading} className="text-xs shrink-0">
                 <Check className="w-3 h-3" />确认
               </Button>
             )}
@@ -875,6 +894,7 @@ export default function NewProjectScreen({
         {phase === 1.5 && (
           <PhaseWaiting
             taskRecordId={taskRecordId}
+            projectId={project.id}
             onDone={(eps) => { setEpisodes(eps); advanceTo(2); }}
             onRetry={() => advanceTo(1)}
           />
