@@ -76,22 +76,6 @@ async def upload_script(
     return {"script_file_url": url, "init_status": ProjectInitStatus.script_uploaded}
 
 
-@router.post("/{project_id}/parse-script")
-async def parse_script(project_id: PydanticObjectId, data: ParseScriptRequest):
-    """Enqueue async LLM task to parse script into episode plan (Phase 2 stub)."""
-    project = await project_service.get_project(project_id)
-    if not project:
-        raise HTTPException(404, "Project not found")
-    if project.init_status not in (
-        ProjectInitStatus.script_uploaded,
-        ProjectInitStatus.episodes_confirmed,
-    ):
-        raise HTTPException(400, f"Cannot parse script in status: {project.init_status}")
-
-    await project.set({"parse_notes": data.parse_notes})
-    return {"task_id": "stub-parse-script", "status": "queued"}
-
-
 @router.post("/{project_id}/confirm-episodes")
 async def confirm_episodes(project_id: PydanticObjectId, data: ConfirmEpisodesRequest):
     """Confirm episode plan, create Episode documents, advance init_status → episodes_confirmed."""

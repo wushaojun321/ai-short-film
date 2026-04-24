@@ -71,7 +71,7 @@ def main():
     # 1. 创建项目
     print("[1] 创建项目")
     proj = api("post", "/projects", json={"title": "自动化测试项目", "genre": "都市"})
-    pid = proj["_id"]
+    pid = proj["id"]
     ok(f"项目创建成功: {pid}")
 
     # 2. 上传剧本（multipart）
@@ -108,7 +108,7 @@ def main():
     print("[5] 确认分集规划")
     ep_payload = [
         {
-            "id": ep.get("_id") or ep.get("id"),
+            "id": ep.get("id"),
             "number": ep["number"],
             "title": ep["title"],
             "summary": ep.get("summary", ""),
@@ -138,14 +138,14 @@ def main():
     # 7. 触发第一个资产生成，验证状态变为 queued
     print("[7] 触发单个资产生成，验证 queued 状态")
     a0 = next((a for a in assets if not a.get("preview_url")), assets[0])
-    resp = api("post", f"/generate/assets/{a0['_id']}/image")
+    resp = api("post", f"/generate/assets/{a0['id']}/image")
     if resp.get("skipped"):
         print(f"    资产 {a0['name']} 已在队列（上次测试遗留），跳过 queued 验证")
     else:
         ok(f"触发成功，task_id={resp.get('task_id')}")
         time.sleep(1)
         refreshed_list = api("get", f"/projects/{pid}/assets")
-        a0_data = next((a for a in refreshed_list if a["_id"] == a0["_id"]), None)
+        a0_data = next((a for a in refreshed_list if a["id"] == a0["id"]), None)
         if not a0_data:
             fail("无法找到资产")
         if a0_data["status"] not in ("queued", "generating", "pending"):
@@ -155,7 +155,7 @@ def main():
         # 8. 验证防重复入队
         print("[8] 验证防重复入队")
         if a0_data["status"] in ("queued", "generating"):
-            resp2 = api("post", f"/generate/assets/{a0['_id']}/image")
+            resp2 = api("post", f"/generate/assets/{a0['id']}/image")
             if not resp2.get("skipped"):
                 fail(f"应该返回 skipped=True，实际: {resp2}")
             ok("防重复入队生效，返回 skipped=True")
@@ -170,7 +170,7 @@ def main():
     for a in all_assets:
         if not a.get("preview_url"):
             try:
-                r = api("post", f"/generate/assets/{a['_id']}/image")
+                r = api("post", f"/generate/assets/{a['id']}/image")
                 if r.get("skipped"):
                     skipped += 1
                 else:

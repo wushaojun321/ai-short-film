@@ -104,6 +104,25 @@ ShotState = "planned" | "asset_required" | "asset_ready" | "rendered" | "review_
 AssetStatus = "已生成" | "待确认" | "需重生" | "缺失"
 ```
 
+## ID 字段规范（`_id` vs `id`）
+
+Beanie/MongoDB 原生序列化用 `_id`，为保证前后端一致，**所有 API 响应统一输出 `id`**：
+
+- **后端**：`app/main.py` 注册了 `normalize_id_middleware`，拦截所有 JSON 响应，递归将 `_id` 改为 `id`。无需在每个路由单独处理。
+- **前端**：`frontend/src/lib/api.ts` 的 axios 响应拦截器也做了同样转换（`normalizeIds`），作为双重保险。
+- **规则**：前端所有代码一律用 `.id`，禁止用 `._id`。测试脚本、后端直接调 API 的工具也应使用 `id` 字段。
+- **外键**：后端模型中 `project_id`、`episode_id` 等外键字段名不变，不受此规范影响。
+
+```
+MongoDB 文档         { _id: ObjectId, title: "..." }
+        ↓
+FastAPI 序列化       { _id: "507f...", title: "..." }  ← Beanie 默认 by_alias=True
+        ↓
+normalize_id_middleware  { id: "507f...", title: "..." }  ← 后端统一处理
+        ↓
+前端 normalizeIds（双保险）  { id: "507f...", title: "..." }
+```
+
 ## 主题
 
 白色风格（#FFFFFF 背景），品牌绿 #0F8A52 保留。
