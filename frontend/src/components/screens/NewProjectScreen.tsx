@@ -36,27 +36,39 @@ const STEP_NODES = [
   { visual: 3, label: "资产审核" },
 ];
 
-function StepIndicator({ current }: { current: Phase }) {
+function StepIndicator({ current, onJump }: { current: Phase; onJump: (phase: Phase) => void }) {
   const visualCurrent = current < 2 ? 1 : current === 2 ? 2 : 3;
+  const isWaiting = current === 1.5;
   return (
     <div className="flex items-center gap-2 mb-8">
       {STEP_NODES.map((node, idx) => {
         const isDone   = visualCurrent > node.visual;
         const isActive = visualCurrent === node.visual;
+        const canClick = isDone && !isWaiting;
+        const targetPhase = [1, 2, 3][idx] as Phase;
         return (
           <div key={node.visual} className="flex items-center gap-2">
-            <div className={cn(
-              "w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-all",
-              isDone   && "bg-brand text-white",
-              isActive && "bg-brand text-white ring-4 ring-brand/20",
-              !isDone && !isActive && "bg-soft text-muted border border-line",
-            )}>
+            <button
+              onClick={() => canClick && onJump(targetPhase)}
+              disabled={!canClick}
+              className={cn(
+                "w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-all",
+                isDone   && "bg-brand text-white",
+                isActive && "bg-brand text-white ring-4 ring-brand/20",
+                !isDone && !isActive && "bg-soft text-muted border border-line",
+                canClick && "cursor-pointer hover:opacity-80 hover:ring-2 hover:ring-brand/40",
+                !canClick && "cursor-default",
+              )}
+            >
               {isDone ? <Check className="w-3.5 h-3.5" /> : node.visual}
-            </div>
+            </button>
             <span className={cn(
-              "text-sm hidden sm:block",
-              isActive ? "font-semibold text-text" : "text-muted"
-            )}>
+              "text-sm hidden sm:block transition-colors",
+              isActive ? "font-semibold text-text" : "text-muted",
+              canClick && "cursor-pointer hover:text-brand",
+            )}
+              onClick={() => canClick && onJump(targetPhase)}
+            >
               {node.label}
             </span>
             {idx < STEP_NODES.length - 1 && (
@@ -777,6 +789,23 @@ export default function NewProjectScreen({
     navigate(`/projects/${project.id}`);
   };
 
+  // 点击已完成步骤跳转，跳到 Phase 2 时确保有分集数据
+  const handleJump = async (target: Phase) => {
+    if (target === 2 && episodes.length === 0) {
+      try {
+        const apiEps = await episodeAPI.list(project.id);
+        setEpisodes(apiEps.map((e) => ({
+          number: e.number,
+          title: e.title,
+          wordCount: e.word_count,
+          estimatedDuration: e.estimated_duration,
+          summary: e.summary,
+        })));
+      } catch { /* 跳转失败静默处理 */ }
+    }
+    setPhase(target);
+  };
+
   if (phase === null) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -792,7 +821,7 @@ export default function NewProjectScreen({
           <h1 className="text-2xl font-semibold text-text">{project.title}</h1>
           <p className="text-sm text-sub mt-1">完成以下三步后即可开始分集制作。</p>
         </div>
-        <StepIndicator current={phase} />
+        <StepIndicator current={phase} onJump={handleJump} />
 
         {phase === 1 && (
           <Phase1
