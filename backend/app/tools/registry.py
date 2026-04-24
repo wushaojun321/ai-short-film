@@ -16,6 +16,13 @@ from app.tools.shot_tools import (
     update_shot_prompt,
     bind_assets_to_shot,
 )
+from app.tools.project_init_tools import (
+    PROJECT_INIT_TOOLS,
+    create_asset,
+    delete_asset,
+    update_asset,
+    update_episode,
+)
 
 # ── Per-target tool schema lists ───────────────────────────────────────────────
 
@@ -23,9 +30,9 @@ TARGET_TOOLS: dict[str, list[dict]] = {
     ConversationTarget.asset:       ASSET_TOOLS,
     ConversationTarget.shot_image:  SHOT_IMAGE_TOOLS,
     ConversationTarget.shot_video:  SHOT_VIDEO_TOOLS,
-    # episode / project targets get all tools
     ConversationTarget.episode:     ASSET_TOOLS + SHOT_IMAGE_TOOLS + SHOT_VIDEO_TOOLS,
-    ConversationTarget.project:     ASSET_TOOLS + SHOT_IMAGE_TOOLS + SHOT_VIDEO_TOOLS,
+    # project target：初始化阶段使用，可新增/删除/修改资产和分集
+    ConversationTarget.project:     PROJECT_INIT_TOOLS,
     ConversationTarget.shot_script: [],  # LLM-only, no generation tools needed
 }
 
@@ -38,6 +45,11 @@ _DISPATCH: dict[str, callable] = {
     "generate_shot_video":   generate_shot_video,
     "update_shot_prompt":    update_shot_prompt,
     "bind_assets_to_shot":   bind_assets_to_shot,
+    # project init tools
+    "create_asset":          create_asset,
+    "delete_asset":          delete_asset,
+    "update_asset":          update_asset,
+    "update_episode":        update_episode,
 }
 
 

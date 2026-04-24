@@ -82,6 +82,45 @@ async def _build_snapshot(target_type: str, target_id: str) -> str:
                 f"简介：{ep.summary}\n"
                 f"当前步骤：{ep.current_step}"
             )
+
+        if target_type == "project":
+            from app.models.project import Project
+            from app.models.episode import Episode
+            from app.models.asset import Asset
+            project = await Project.get(PydanticObjectId(target_id))
+            if not project:
+                return ""
+
+            # 加载所有分集
+            episodes = await Episode.find(
+                Episode.project_id == project.id
+            ).sort("number").to_list()
+            eps_lines = []
+            for ep in episodes:
+                eps_lines.append(f"  - 第{ep.number}集（id:{ep.id}）：{ep.title} | {ep.summary[:50]}…" if len(ep.summary) > 50 else f"  - 第{ep.number}集（id:{ep.id}）：{ep.title} | {ep.summary}")
+
+            # 加载所有资产，按类型分组
+            assets = await Asset.find(Asset.project_id == project.id).to_list()
+            type_map = {"character": "人物", "scene": "场景", "prop": "道具"}
+            asset_lines = []
+            for asset_type_key, label in type_map.items():
+                typed = [a for a in assets if a.asset_type == asset_type_key]
+                if typed:
+                    asset_lines.append(f"  【{label}】")
+                    for a in typed:
+                        asset_lines.append(f"    - {a.name}（id:{a.id}）| prompt: {a.prompt[:80]}…" if len(a.prompt) > 80 else f"    - {a.name}（id:{a.id}）| prompt: {a.prompt}")
+
+            eps_text = "\n".join(eps_lines) if eps_lines else "  （暂无分集）"
+            assets_text = "\n".join(asset_lines) if asset_lines else "  （暂无资产）"
+
+            return (
+                f"类型：项目（初始化阶段）\n"
+                f"project_id：{target_id}\n"
+                f"项目名称：{project.title}\n"
+                f"当前状态：{project.init_status}\n\n"
+                f"【当前分集列表（共{len(episodes)}集）】\n{eps_text}\n\n"
+                f"【当前资产列表（共{len(assets)}个）】\n{assets_text}"
+            )
     except Exception:
         pass
 

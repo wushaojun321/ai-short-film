@@ -17,6 +17,7 @@ async def _parse_script_async(celery_id: str, project_id: str):
     from beanie import PydanticObjectId
     from app.models.project import Project
     from app.models.episode import Episode, EpisodeStatus
+    from app.models.asset import Asset, AssetType, AssetStatus
     from app.models.task_record import TaskRecord
     from app.services import llm_service
     from app.services.prompt_service import render
@@ -104,21 +105,42 @@ async def _parse_script_async(celery_id: str, project_id: str):
                 )
                 await ep.insert()
                 created_eps += 1
-        await log([f"[episodes] 已创建 {created_eps} 集（共 {len(episodes_data)} 集）"], 85)
+        await log([f"[episodes] 已创建 {created_eps} 集（共 {len(episodes_data)} 集）"], 80)
 
-        # 资产数据不在此处入库，暂存到 task_record.result 中
-        # 待用户在 Phase2 确认分集规划后，由 confirm-episodes 路由负责创建资产
+        # 立即创建 Asset 记录（status=pending，无图），供步骤3 Agent 操作
         assets_data = result.get("assets", {})
-        asset_counts = {
-            k: len(v) for k, v in assets_data.items() if isinstance(v, list)
+        type_map = {
+            "characters": AssetType.character,
+            "scenes": AssetType.scene,
+            "props": AssetType.prop,
         }
-        asset_summary = "、".join(f"{v} 个{k}" for k, v in asset_counts.items()) if asset_counts else "无资产"
-        await log([f"[assets] 已解析资产清单：{asset_summary}（待用户确认分集规划后创建）"], 95)
+        asset_counts: dict[str, int] = {}
+        for key, asset_type in type_map.items():
+            count = 0
+            for a in assets_data.get(key, []):
+                existing_asset = await Asset.find_one(
+                    Asset.project_id == project.id,
+                    Asset.name == a.get("name", ""),
+                )
+                if not existing_asset:
+                    asset_prompt = a.get("prompt") or a.get("description", "")
+                    asset = Asset(
+                        project_id=project.id,
+                        name=a.get("name", ""),
+                        asset_type=asset_type,
+                        prompt=asset_prompt,
+                        status=AssetStatus.pending,
+                    )
+                    await asset.insert()
+                    count += 1
+            if count:
+                asset_counts[key] = count
+        asset_summary = "、".join(f"{v} 个{k}" for k, v in asset_counts.items()) if asset_counts else "无新资产"
+        await log([f"[assets] 资产记录已创建：{asset_summary}（图片待步骤4生成）"], 95)
 
-        # init_status 保持 script_uploaded，等待用户在前端确认分集规划
-        await log(["✓ 剧本解析完成，请确认分集规划后继续"], 100)
+        # init_status 保持 script_uploaded，等待用户在步骤3确认
+        await log(["✓ 剧本解析完成，请在步骤3确认分集与资产后继续"], 100)
 
-        # 将完整 assets 数据存入 result，供 confirm-episodes 路由使用
         await finish_task_record(celery_id, result={
             "episodes": episodes_data,
             "assets": assets_data,
