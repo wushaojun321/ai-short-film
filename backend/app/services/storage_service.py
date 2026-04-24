@@ -44,6 +44,7 @@ async def upload_bytes(
         Body=io.BytesIO(data),
         Key=object_key,
         ContentType=content_type,
+        ACL="public-read",
     )
     return _public_url(object_key)
 
@@ -63,6 +64,7 @@ async def upload_file(
         LocalFilePath=file_path,
         Key=object_key,
         ContentType=content_type,
+        ACL="public-read",
     )
     return _public_url(object_key)
 
@@ -83,6 +85,7 @@ async def upload_from_url(source_url: str, object_key: str) -> str:
         Body=io.BytesIO(data),
         Key=object_key,
         ContentType=content_type,
+        ACL="public-read",
     )
     return _public_url(object_key)
 
