@@ -36,15 +36,17 @@ const STEP_NODES = [
   { visual: 3, label: "资产审核" },
 ];
 
-function StepIndicator({ current, onJump }: { current: Phase; onJump: (phase: Phase) => void }) {
+function StepIndicator({ current, maxReached, onJump }: { current: Phase; maxReached: number; onJump: (phase: Phase) => void }) {
   const visualCurrent = current < 2 ? 1 : current === 2 ? 2 : 3;
   const isWaiting = current === 1.5;
   return (
     <div className="flex items-center gap-2 mb-8">
       {STEP_NODES.map((node, idx) => {
-        const isDone   = visualCurrent > node.visual;
         const isActive = visualCurrent === node.visual;
-        const canClick = isDone && !isWaiting;
+        // 已解锁：历史最高已到达过该步骤，且不是当前步骤
+        const isUnlocked = maxReached >= node.visual && !isActive;
+        const isDone = maxReached > node.visual;
+        const canClick = isUnlocked && !isWaiting;
         const targetPhase = [1, 2, 3][idx] as Phase;
         return (
           <div key={node.visual} className="flex items-center gap-2">
@@ -716,6 +718,14 @@ export default function NewProjectScreen({
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [taskRecordId, setTaskRecordId] = useState<string>("");
   const [episodes, setEpisodes] = useState<EpisodeDraft[]>([]);
+  const [maxReached, setMaxReached] = useState(1);
+
+  // phase 推进时同步 maxReached
+  const advanceTo = (p: Phase) => {
+    const visual = p < 2 ? 1 : p === 2 ? 2 : 3;
+    setMaxReached((prev) => Math.max(prev, visual));
+    setPhase(p);
+  };
 
   // 异步初始化：根据 init_status + 最近任务决定从哪个阶段恢复
   useEffect(() => {
@@ -723,7 +733,7 @@ export default function NewProjectScreen({
       const status = project.initStatus;
 
       if (status === "episodes_confirmed" || status === "assets_confirmed") {
-        setPhase(3);
+        advanceTo(3);
         return;
       }
 
@@ -736,7 +746,7 @@ export default function NewProjectScreen({
             if (latest.status === "running" || latest.status === "pending") {
               // 任务还在跑，继续轮询
               setTaskRecordId(latest.id);
-              setPhase(1.5);
+              advanceTo(1.5);
               return;
             }
             if (latest.status === "success") {
@@ -752,7 +762,7 @@ export default function NewProjectScreen({
                   estimatedDuration: (e.estimated_duration as number) ?? 120,
                   summary: (e.summary as string) ?? "",
                 })));
-                setPhase(2);
+                advanceTo(2);
                 return;
               }
               // result 里没有完整 episodes，从 episode API 加载
@@ -765,7 +775,7 @@ export default function NewProjectScreen({
                   estimatedDuration: e.estimated_duration,
                   summary: e.summary,
                 })));
-                setPhase(2);
+                advanceTo(2);
                 return;
               }
             }
@@ -773,12 +783,12 @@ export default function NewProjectScreen({
         } catch {
           // 查任务失败，降级到 Phase 1
         }
-        setPhase(1);
+        advanceTo(1);
         return;
       }
 
       // not_started 或其他
-      setPhase(1);
+      advanceTo(1);
     }
     resolvePhase();
   }, [project.id, project.initStatus]);
@@ -821,12 +831,12 @@ export default function NewProjectScreen({
           <h1 className="text-2xl font-semibold text-text">{project.title}</h1>
           <p className="text-sm text-sub mt-1">完成以下三步后即可开始分集制作。</p>
         </div>
-        <StepIndicator current={phase} onJump={handleJump} />
+        <StepIndicator current={phase} maxReached={maxReached} onJump={handleJump} />
 
         {phase === 1 && (
           <Phase1
             projectId={project.id}
-            onSubmit={(recordId) => { setTaskRecordId(recordId); setPhase(1.5); }}
+            onSubmit={(recordId) => { setTaskRecordId(recordId); advanceTo(1.5); }}
             uploadedFile={uploadedFile}
             setUploadedFile={setUploadedFile}
           />
@@ -834,8 +844,8 @@ export default function NewProjectScreen({
         {phase === 1.5 && (
           <PhaseWaiting
             taskRecordId={taskRecordId}
-            onDone={(eps) => { setEpisodes(eps); setPhase(2); }}
-            onRetry={() => setPhase(1)}
+            onDone={(eps) => { setEpisodes(eps); advanceTo(2); }}
+            onRetry={() => advanceTo(1)}
           />
         )}
         {phase === 2 && (
@@ -843,7 +853,7 @@ export default function NewProjectScreen({
             projectId={project.id}
             episodes={episodes}
             setEpisodes={setEpisodes}
-            onNext={() => setPhase(3)}
+            onNext={() => advanceTo(3)}
           />
         )}
         {phase === 3 && (
