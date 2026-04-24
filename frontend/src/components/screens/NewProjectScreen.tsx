@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Upload, FileText, ChevronRight, Check, Loader2,
-  Edit2, Clock, Hash, Sparkles, Terminal, RefreshCw, AlertTriangle, Activity, MessageSquare,
+  Edit2, Clock, Hash, Sparkles, Terminal, RefreshCw, AlertTriangle, Activity, MessageSquare, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -551,6 +551,7 @@ function AssetCard({
   onUpdate: () => void;
 }) {
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
   const { cosUrl } = useCos();
   const isQueued = asset.status === "queued";
@@ -585,6 +586,19 @@ function AssetCard({
       onUpdate();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm(`确认删除资产「${asset.name}」？`)) return;
+    setDeleting(true);
+    try {
+      await assetAPI.delete(projectId, asset.id);
+      onUpdate();
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "删除失败");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -630,6 +644,16 @@ function AssetCard({
                 <Check className="w-3 h-3" />确认
               </Button>
             )}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleDelete}
+              disabled={isGenerating || deleting}
+              className="text-xs shrink-0 text-muted hover:text-danger hover:bg-danger/10"
+              title={isGenerating ? "生成中，无法删除" : "删除资产"}
+            >
+              {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+            </Button>
           </div>
         </div>
       </div>

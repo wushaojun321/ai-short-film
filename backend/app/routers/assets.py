@@ -49,6 +49,9 @@ async def delete_asset(project_id: PydanticObjectId, asset_id: PydanticObjectId)
     asset = await asset_service.get_asset(asset_id)
     if not asset:
         raise HTTPException(404, "Asset not found")
+    from app.models.asset import AssetStatus
+    if asset.status in (AssetStatus.queued, AssetStatus.generating):
+        raise HTTPException(409, "资产正在生成中，无法删除，请等待生成完成后再操作")
     await asset_service.delete_asset(asset)
 
 

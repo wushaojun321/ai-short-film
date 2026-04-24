@@ -226,6 +226,9 @@ export const assetAPI = {
 
   regen: (projectId: string, assetId: string): Promise<ApiAsset> =>
     client.post(`/projects/${projectId}/assets/${assetId}/regen`),
+
+  delete: (projectId: string, assetId: string): Promise<void> =>
+    client.delete(`/projects/${projectId}/assets/${assetId}`),
 };
 
 // ─── Generate API ─────────────────────────────────────────────

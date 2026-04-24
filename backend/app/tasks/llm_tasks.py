@@ -123,11 +123,14 @@ async def _parse_script_async(celery_id: str, project_id: str):
                     Asset.name == a.get("name", ""),
                 )
                 if not existing_asset:
+                    # 优先使用 LLM 返回的 prompt 字段（Seedream 专用图像提示词）
+                    # 兼容旧格式：若无 prompt 则回退到 description
+                    asset_prompt = a.get("prompt") or a.get("description", "")
                     asset = Asset(
                         project_id=project.id,
                         name=a.get("name", ""),
                         asset_type=asset_type,
-                        prompt=a.get("description", ""),
+                        prompt=asset_prompt,
                         status=AssetStatus.pending,
                     )
                     await asset.insert()
