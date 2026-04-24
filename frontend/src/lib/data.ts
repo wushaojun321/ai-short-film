@@ -23,7 +23,7 @@ export type ShotState =
   | "rendered"      // 已生成（待审批）
   | "approved";     // 已审批通过
 
-export type AssetStatus = "已生成" | "待确认" | "需重生" | "缺失";
+export type AssetStatus = "已生成" | "待确认" | "需重生" | "缺失" | "生成中";
 
 // ─── 步骤定义 ────────────────────────────────────────────────
 

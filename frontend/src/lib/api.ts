@@ -257,6 +257,49 @@ export const generateAPI = {
     client.get(`/tasks`, { params: { project_id: projectId, task_type: taskType, limit: 5 } }),
 };
 
+// ─── Conversation API ──────────────────────────────────────────
+
+export interface ApiMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
+  created_at: string;
+  task_id?: string;
+}
+
+export interface ApiConversation {
+  id: string;
+  target_type: string;
+  target_id: string;
+  project_id: string;
+  title: string;
+  messages: ApiMessage[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiChatResponse {
+  reply: string;
+  tool_calls_made: Array<{ tool: string; arguments: Record<string, unknown>; result: Record<string, unknown> }>;
+  conversation_id: string;
+}
+
+export const conversationAPI = {
+  create: (data: { target_type: string; target_id: string; project_id: string; title?: string }): Promise<ApiConversation> =>
+    client.post("/conversations", data),
+
+  list: (params: { target_id?: string; project_id?: string }): Promise<ApiConversation[]> =>
+    client.get("/conversations", { params }),
+
+  get: (convId: string): Promise<ApiConversation> =>
+    client.get(`/conversations/${convId}`),
+
+  delete: (convId: string): Promise<void> =>
+    client.delete(`/conversations/${convId}`),
+
+  chat: (convId: string, content: string): Promise<ApiChatResponse> =>
+    client.post(`/conversations/${convId}/chat`, { content }),
+};
+
 // ─── 任务轮询工具 ─────────────────────────────────────────────
 
 export function pollTask(

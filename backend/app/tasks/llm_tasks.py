@@ -142,7 +142,7 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str):
     from beanie import PydanticObjectId
     from app.models.episode import Episode, EpisodeStep
     from app.models.project import Project
-    from app.models.shot import Shot, ShotState
+    from app.models.shot import Shot, ShotState, ShotAssetBinding
     from app.models.asset import Asset
     from app.models.task_record import TaskRecord
     from app.services import llm_service
@@ -182,9 +182,22 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str):
         if record:
             await record.set({"progress": 70})
 
-        # Create shots
+        # Create shots — resolve required_assets by name lookup
         shots_data = result.get("shots", [])
+        # Build asset name→id map once for efficiency
+        asset_map = {a.name: a for a in assets}
         for idx, s in enumerate(shots_data):
+            # Resolve asset bindings from LLM output
+            required_assets: list[ShotAssetBinding] = []
+            for ra in s.get("required_assets", []):
+                name = ra.get("name", "") if isinstance(ra, dict) else str(ra)
+                matched = asset_map.get(name)
+                if matched:
+                    required_assets.append(ShotAssetBinding(
+                        asset_id=matched.id,
+                        asset_name=matched.name,
+                    ))
+
             shot = Shot(
                 project_id=episode.project_id,
                 episode_id=episode.id,
@@ -193,6 +206,7 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str):
                 duration=s.get("duration", 5),
                 description=s.get("description", ""),
                 prompt=s.get("prompt", ""),
+                required_assets=required_assets,
                 state=ShotState.planned,
             )
             await shot.insert()

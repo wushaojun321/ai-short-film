@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   Upload, FileText, ChevronRight, Check, Loader2,
-  Edit2, Clock, Hash, Sparkles, Terminal, RefreshCw, AlertTriangle, Activity,
+  Edit2, Clock, Hash, Sparkles, Terminal, RefreshCw, AlertTriangle, Activity, MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import { Separator } from "@/components/ui/separator";
 import { AssetStatus } from "@/lib/data";
 import type { Project } from "@/lib/data";
 import { projectAPI, assetAPI, generateAPI, episodeAPI, pollTask, type ApiAsset, type ApiTaskRecord } from "@/lib/api";
+import AgentDialog from "@/components/AgentDialog";
 import { useProjects } from "@/lib/ProjectsContext";
 import { cn } from "@/lib/utils";
 
@@ -516,7 +517,7 @@ function Phase2({
 // ─── Phase 3：资产审核 ─────────────────────────────────────
 
 const ASSET_STATUS_ZH: Record<string, AssetStatus> = {
-  pending: "待确认", approved: "已生成", need_regen: "需重生", missing: "缺失",
+  pending: "待确认", approved: "已生成", need_regen: "需重生", missing: "缺失", generating: "生成中",
 };
 
 function AssetCard({
@@ -529,6 +530,8 @@ function AssetCard({
   onUpdate: () => void;
 }) {
   const [loading, setLoading] = useState(false);
+  const [agentOpen, setAgentOpen] = useState(false);
+  const isGenerating = asset.status === "generating";
   const status: AssetStatus = ASSET_STATUS_ZH[asset.status] ?? "缺失";
 
   const statusConfig: Record<AssetStatus, { label: string; variant: "success" | "warning" | "destructive" | "secondary" }> = {
@@ -536,6 +539,7 @@ function AssetCard({
     "待确认": { label: "待确认", variant: "warning" },
     "需重生": { label: "需重生", variant: "destructive" },
     "缺失":   { label: "缺失",   variant: "secondary" },
+    "生成中": { label: "生成中", variant: "secondary" },
   };
   const cfg = statusConfig[status];
 
@@ -561,34 +565,61 @@ function AssetCard({
   };
 
   return (
-    <div className="border border-line rounded-xl overflow-hidden bg-white hover:shadow-card-hover transition-all">
-      <div className="aspect-[4/5] bg-soft relative overflow-hidden">
-        {asset.preview_url ? (
-          <img src={asset.preview_url} alt={asset.name} className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <span className="text-muted text-xs">暂无预览</span>
-          </div>
-        )}
-        <div className="absolute top-2 left-2">
-          <Badge variant={cfg.variant}>{cfg.label}</Badge>
-        </div>
-      </div>
-      <div className="p-3">
-        <p className="text-sm font-medium text-text truncate">{asset.name}</p>
-        <p className="text-xs text-muted mt-0.5 line-clamp-2">{asset.prompt}</p>
-        <div className="mt-3 flex gap-2">
-          <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={handleRegen} disabled={loading}>
-            {loading ? <><Loader2 className="w-3 h-3 animate-spin" />处理中</> : <><RefreshCw className="w-3 h-3" />重新生成</>}
-          </Button>
-          {asset.status !== "approved" && (
-            <Button size="sm" variant="secondary" onClick={handleConfirm} disabled={loading} className="text-xs">
-              <Check className="w-3 h-3" />确认
-            </Button>
+    <>
+      <div className="border border-line rounded-xl overflow-hidden bg-white hover:shadow-card-hover transition-all">
+        <div className="aspect-[4/5] bg-soft relative overflow-hidden">
+          {isGenerating ? (
+            <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+              <Loader2 className="w-6 h-6 animate-spin text-brand" />
+              <span className="text-xs text-muted">生成中…</span>
+            </div>
+          ) : asset.preview_url ? (
+            <img src={asset.preview_url} alt={asset.name} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <span className="text-muted text-xs">暂无预览</span>
+            </div>
           )}
+          <div className="absolute top-2 left-2">
+            <Badge variant={cfg.variant}>{cfg.label}</Badge>
+          </div>
+          {/* AI 修改按钮 */}
+          <button
+            onClick={() => setAgentOpen(true)}
+            className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 hover:bg-brand flex items-center justify-center transition-colors"
+            title="AI 修改"
+          >
+            <MessageSquare className="w-3 h-3 text-white" />
+          </button>
+        </div>
+        <div className="p-3">
+          <p className="text-sm font-medium text-text truncate">{asset.name}</p>
+          <p className="text-xs text-muted mt-0.5 line-clamp-2">{asset.prompt}</p>
+          <div className="mt-3 flex gap-2">
+            <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={handleRegen} disabled={loading || isGenerating}>
+              {loading || isGenerating
+                ? <><Loader2 className="w-3 h-3 animate-spin" />{isGenerating ? "生成中" : "处理中"}</>
+                : <><RefreshCw className="w-3 h-3" />重新生成</>}
+            </Button>
+            {asset.status !== "approved" && !isGenerating && (
+              <Button size="sm" variant="secondary" onClick={handleConfirm} disabled={loading} className="text-xs">
+                <Check className="w-3 h-3" />确认
+              </Button>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+
+      <AgentDialog
+        open={agentOpen}
+        onOpenChange={setAgentOpen}
+        targetType="asset"
+        targetId={asset.id}
+        projectId={projectId}
+        title={`AI 修改 · ${asset.name}`}
+        onTaskStarted={onUpdate}
+      />
+    </>
   );
 }
 

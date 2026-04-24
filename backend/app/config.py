@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_model: str = "openai/gpt-4o"
+    agent_model: str = "openai/gpt-5.4"  # model used for agent tool-calling conversations
 
     # Volcano Engine Ark (Seedream + Seedance)
     ark_api_key: str = ""

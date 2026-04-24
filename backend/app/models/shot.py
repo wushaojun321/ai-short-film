@@ -8,7 +8,9 @@ from pydantic import BaseModel, Field
 class ShotState(str, Enum):
     planned        = "planned"
     asset_required = "asset_required"
+    generating     = "generating"   # image generating
     asset_ready    = "asset_ready"
+    rendering      = "rendering"    # video generating
     rendered       = "rendered"
     review_failed  = "review_failed"
     approved       = "approved"

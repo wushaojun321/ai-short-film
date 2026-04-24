@@ -6,6 +6,11 @@ import httpx
 from openai import AsyncOpenAI
 from app.config import settings
 
+_EXTRA_HEADERS = {
+    "HTTP-Referer": "https://ai-short-film.local",
+    "X-Title": "AI Short Film",
+}
+
 
 def get_client() -> AsyncOpenAI:
     proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
@@ -34,10 +39,7 @@ async def chat_completion(
         ],
         temperature=temperature,
         max_tokens=max_tokens,
-        extra_headers={
-            "HTTP-Referer": "https://ai-short-film.local",
-            "X-Title": "AI Short Film",
-        },
+        extra_headers=_EXTRA_HEADERS,
     )
     return resp.choices[0].message.content or ""
 
@@ -60,10 +62,7 @@ async def chat_json(
         temperature=temperature,
         max_tokens=max_tokens,
         response_format={"type": "json_object"},
-        extra_headers={
-            "HTTP-Referer": "https://ai-short-film.local",
-            "X-Title": "AI Short Film",
-        },
+        extra_headers=_EXTRA_HEADERS,
     )
     content = resp.choices[0].message.content or "{}"
     return json.loads(content)
@@ -82,9 +81,39 @@ async def chat_with_history(
         messages=messages,
         temperature=temperature,
         max_tokens=max_tokens,
-        extra_headers={
-            "HTTP-Referer": "https://ai-short-film.local",
-            "X-Title": "AI Short Film",
-        },
+        extra_headers=_EXTRA_HEADERS,
     )
     return resp.choices[0].message.content or ""
+
+
+async def chat_with_tools(
+    messages: list[dict],
+    tools: list[dict],
+    model: str | None = None,
+    temperature: float = 0.7,
+    max_tokens: int = 2048,
+) -> tuple[str | None, list | None]:
+    """
+    Single LLM call with tool definitions.
+    Returns (text_reply, tool_calls):
+      - If LLM returns tool_calls: (None, tool_calls_list)
+      - If LLM returns text:       (text, None)
+    """
+    client = get_client()
+    resp = await client.chat.completions.create(
+        model=model or settings.agent_model,
+        messages=messages,
+        tools=tools,
+        tool_choice="auto",
+        temperature=temperature,
+        max_tokens=max_tokens,
+        extra_headers=_EXTRA_HEADERS,
+    )
+    choice = resp.choices[0]
+    msg = choice.message
+
+    if choice.finish_reason == "tool_calls" and msg.tool_calls:
+        return None, msg.tool_calls
+
+    return msg.content or "", None
+

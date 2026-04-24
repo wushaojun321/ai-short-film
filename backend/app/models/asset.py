@@ -14,6 +14,7 @@ class AssetType(str, Enum):
 
 class AssetStatus(str, Enum):
     pending    = "pending"
+    generating = "generating"  # image generating in background
     approved   = "approved"
     need_regen = "need_regen"
     missing    = "missing"

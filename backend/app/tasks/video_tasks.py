@@ -28,6 +28,9 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
         if not shot:
             raise ValueError("Shot not found")
 
+        # Mark as rendering immediately so frontend shows loading
+        await shot.set({"state": ShotState.rendering, "generation_task_id": celery_id})
+
         record = await TaskRecord.find_one(TaskRecord.celery_task_id == celery_id)
         if record:
             await record.set({"progress": 5})
@@ -92,5 +95,11 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
         return {"video_url": video_url}
 
     except Exception as e:
+        try:
+            shot = await Shot.get(PydanticObjectId(shot_id))
+            if shot:
+                await shot.set({"state": ShotState.asset_ready})
+        except Exception:
+            pass
         await finish_task_record(celery_id, error=str(e))
         raise
