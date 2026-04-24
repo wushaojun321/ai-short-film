@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Upload, FileText, ChevronRight, Check, Loader2,
-  Edit2, Clock, Hash, Sparkles, Terminal, RefreshCw, AlertTriangle, Activity, MessageSquare, Trash2,
+  Edit2, Clock, Hash, Sparkles, Terminal, RefreshCw, AlertTriangle, Activity, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -568,15 +568,8 @@ function AssetCard({
   };
   const cfg = statusConfig[status];
 
-  const handleRegen = async () => {
-    setLoading(true);
-    try {
-      await assetAPI.regen(projectId, asset.id);
-      await generateAPI.assetImage(asset.id);
-      onUpdate();
-    } finally {
-      setLoading(false);
-    }
+  const handleRegen = () => {
+    setAgentOpen(true);
   };
 
   const handleConfirm = async () => {
@@ -621,27 +614,33 @@ function AssetCard({
           <div className="absolute top-2 left-2">
             <Badge variant={cfg.variant}>{cfg.label}</Badge>
           </div>
-          {/* AI 修改按钮 */}
-          <button
-            onClick={() => setAgentOpen(true)}
-            className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 hover:bg-brand flex items-center justify-center transition-colors"
-            title="AI 修改"
-          >
-            <MessageSquare className="w-3 h-3 text-white" />
-          </button>
         </div>
         <div className="p-3">
           <p className="text-sm font-medium text-text truncate">{asset.name}</p>
           <p className="text-xs text-muted mt-0.5 line-clamp-2">{asset.prompt}</p>
-          <div className="mt-3 flex gap-2">
-            <Button size="sm" variant="outline" className="flex-1 text-xs min-w-0" onClick={handleRegen} disabled={loading || isGenerating}>
+          <div className="mt-3 flex gap-1.5 justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-8 h-8 p-0"
+              onClick={handleRegen}
+              disabled={loading || isGenerating}
+              title={isGenerating ? (isQueued ? "排队中" : "生成中") : "重新生成（AI 对话）"}
+            >
               {loading || isGenerating
-                ? <><Loader2 className="w-3 h-3 animate-spin shrink-0" /><span className="truncate">{isQueued ? "排队中" : "生成中"}</span></>
-                : <><RefreshCw className="w-3 h-3 shrink-0" /><span className="truncate">重新生成</span></>}
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <RefreshCw className="w-3.5 h-3.5" />}
             </Button>
             {asset.status !== "approved" && !isGenerating && (
-              <Button size="sm" variant="secondary" onClick={handleConfirm} disabled={loading} className="text-xs shrink-0">
-                <Check className="w-3 h-3" />确认
+              <Button
+                size="sm"
+                variant="secondary"
+                className="w-8 h-8 p-0"
+                onClick={handleConfirm}
+                disabled={loading}
+                title="确认资产"
+              >
+                <Check className="w-3.5 h-3.5" />
               </Button>
             )}
             <Button
@@ -649,10 +648,10 @@ function AssetCard({
               variant="ghost"
               onClick={handleDelete}
               disabled={isGenerating || deleting}
-              className="text-xs shrink-0 text-muted hover:text-danger hover:bg-danger/10"
+              className="w-8 h-8 p-0 text-muted hover:text-danger hover:bg-danger/10"
               title={isGenerating ? "生成中，无法删除" : "删除资产"}
             >
-              {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+              {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
             </Button>
           </div>
         </div>
