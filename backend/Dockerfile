@@ -23,6 +23,7 @@ RUN uv pip install --system --no-cache \
     "python-multipart>=0.0.9" \
     "aiofiles>=24.1.0" \
     "cos-python-sdk-v5>=1.9.30" \
+    "qcloud-python-sts>=3.0.0" \
     "celery[redis]>=5.4.0" \
     "redis>=5.0.0" \
     "openai>=1.40.0" \
