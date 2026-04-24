@@ -666,6 +666,7 @@ function AssetCard({
         projectId={projectId}
         title={`AI 修改 · ${asset.name}`}
         onTaskStarted={onUpdate}
+        initialPrompt={asset.prompt}
       />
     </>
   );

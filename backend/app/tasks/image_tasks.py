@@ -18,8 +18,11 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
     from app.models.asset import Asset, AssetStatus, AssetVersion
     from app.models.project import Project
     from app.models.task_record import TaskRecord
-    from app.services import image_service
+    from app.services import image_service, llm_service
+    from app.services.prompt_service import render
+    from app.models.prompt_config import PromptConfigScope
     from datetime import datetime
+    import json
 
     try:
         asset = await Asset.get(PydanticObjectId(asset_id))
@@ -31,35 +34,50 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
 
         record = await TaskRecord.find_one(TaskRecord.celery_task_id == celery_id)
         if record:
-            await record.set({"progress": 10})
+            await record.set({"progress": 5, "logs": ["[prompt] 正在用 LLM 优化图像提示词…"]})
 
         # Load series_prompt for style consistency
         project = await Project.get(asset.project_id)
         series_prompt = (project.series_prompt or "") if project else ""
-
-        # Build prompt directly from asset description + type hint + series style
-        type_hint_map = {
-            "character": "人物形象，全身照，白色背景",
-            "scene": "场景环境，宽幅构图，电影感照明",
-            "prop": "道具特写，白色背景，产品摄影风格",
-            "template": "",
-        }
         asset_type_str = asset.asset_type.value if hasattr(asset.asset_type, "value") else str(asset.asset_type)
-        type_hint = type_hint_map.get(asset_type_str, "")
 
-        parts = []
-        if series_prompt:
-            parts.append(series_prompt)
-        parts.append(asset.prompt)
-        if type_hint:
-            parts.append(type_hint)
-        full_prompt = "，".join(parts)
+        # ── Step 1: LLM 优化 asset.prompt → Seedream 专用提示词 ──────────────
+        optimized_prompt = asset.prompt  # 默认回退到原始 prompt
+        try:
+            system_prompt, user_prompt, _ = await render(
+                PromptConfigScope.asset_prompt_gen,
+                {
+                    "asset_description": f"名称：{asset.name}\n类型：{asset_type_str}\n描述：{asset.prompt}",
+                    "style_guide": series_prompt or "写实风格，电影质感",
+                    "negative_prompt_rules": "避免模糊、变形、多余肢体、不自然比例",
+                },
+            )
+            raw = await llm_service.chat_json(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+            )
+            # raw 可能是 dict 或已解析对象
+            if isinstance(raw, str):
+                raw = json.loads(raw)
+            positive = raw.get("positive_prompt", "")
+            if positive:
+                optimized_prompt = positive
+                # 将优化后的提示词存回 asset，用户后续 AI 修改时能看到
+                await asset.set({"prompt": optimized_prompt})
+        except Exception as e:
+            # LLM 优化失败不阻断生图，继续用原始 prompt
+            if record:
+                await record.set({"logs": (record.logs or []) + [f"[prompt] LLM 优化失败，使用原始提示词：{e}"]})
 
         if record:
-            await record.set({"progress": 30})
+            await record.set({"progress": 30, "logs": (record.logs or []) + ["[image] 正在生成图像…"]})
+
+        # ── Step 2: 拼装最终 prompt 发给 Seedream ────────────────────────────
+        # series_prompt 已在 asset_prompt_gen 的 style_guide 里注入，这里不重复拼接
+        full_prompt = optimized_prompt
 
         image_url = await image_service.generate_image(
-            prompt=full_prompt or asset.prompt,
+            prompt=full_prompt,
             size="2048x2048",
         )
 
@@ -68,7 +86,7 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
         new_version = AssetVersion(
             version=version_str,
             url=image_url,
-            prompt=full_prompt or asset.prompt,
+            prompt=full_prompt,
             created_at=datetime.utcnow(),
         )
 

@@ -25,6 +25,8 @@ interface AgentDialogProps {
   title?: string;
   /** 生成任务启动后回调，父组件用来刷新资产/分镜状态 */
   onTaskStarted?: () => void;
+  /** 当前对象的提示词，无历史消息时作为初始上下文展示 */
+  initialPrompt?: string;
 }
 
 // ── 消息气泡 ──────────────────────────────────────────────────
@@ -61,6 +63,7 @@ export default function AgentDialog({
   projectId,
   title = "AI 修改助手",
   onTaskStarted,
+  initialPrompt,
 }: AgentDialogProps) {
   const [conv, setConv] = useState<ApiConversation | null>(null);
   const [messages, setMessages] = useState<ApiMessage[]>([]);
@@ -180,13 +183,25 @@ export default function AgentDialog({
               <Loader2 className="w-5 h-5 animate-spin text-muted" />
             </div>
           ) : messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center gap-3">
-              <Bot className="w-8 h-8 text-muted" />
-              <div>
-                <p className="text-sm font-medium text-text">AI 修改助手</p>
-                <p className="text-xs text-muted mt-1">描述你的修改需求，AI 会自动调用工具完成。</p>
-                <p className="text-xs text-muted mt-0.5">例如：「把提示词里的夜景改成日景，然后重新生成」</p>
-              </div>
+            <div className="h-full flex flex-col gap-3 pt-2">
+              {initialPrompt ? (
+                <>
+                  <div className="rounded-xl border border-line bg-soft p-3">
+                    <p className="text-xs font-medium text-sub mb-1.5">当前提示词</p>
+                    <p className="text-xs text-text leading-relaxed whitespace-pre-wrap break-words">{initialPrompt}</p>
+                  </div>
+                  <p className="text-xs text-muted text-center">描述你的修改需求，AI 会自动更新提示词并重新生成。</p>
+                </>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-center gap-3">
+                  <Bot className="w-8 h-8 text-muted" />
+                  <div>
+                    <p className="text-sm font-medium text-text">AI 修改助手</p>
+                    <p className="text-xs text-muted mt-1">描述你的修改需求，AI 会自动调用工具完成。</p>
+                    <p className="text-xs text-muted mt-0.5">例如：「把提示词里的夜景改成日景，然后重新生成」</p>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <>
