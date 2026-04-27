@@ -176,37 +176,64 @@ async def _gen_shot_image_async(celery_id: str, shot_id: str):
             },
         )
 
-        # ── LLM 优化：将 shot 描述转化为纯视觉 Seedream 提示词（过滤敏感词）──────
-        full_prompt = None
-        try:
-            raw = await llm_service.chat_json(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
+        from app.services import sensitive_word_service
+
+        # ── 重试循环：最多 3 次，遇到敏感词错误时提取词 + 重新生成 prompt ──────
+        MAX_RETRIES = 3
+        image_url = None
+        for attempt in range(MAX_RETRIES):
+            # 每次重试都重新生成 prompt，注入最新黑名单
+            blocked = await sensitive_word_service.get_all_words()
+            blocked_note = (
+                f"\n\n## 以下词语已确认会触发审核，生成提示词时必须完全规避：\n{', '.join(blocked)}"
+                if blocked else ""
             )
-            if isinstance(raw, str):
-                raw = json.loads(raw)
-            full_prompt = raw.get("prompt", "") or None
-        except Exception as e:
+
+            full_prompt = None
+            try:
+                raw = await llm_service.chat_json(
+                    system_prompt=system_prompt + blocked_note,
+                    user_prompt=user_prompt,
+                )
+                if isinstance(raw, str):
+                    raw = json.loads(raw)
+                full_prompt = raw.get("prompt", "") or None
+            except Exception as e:
+                if record:
+                    await record.set({"logs": (record.logs or []) + [f"[prompt] LLM 优化失败：{e}"]})
+
+            if not full_prompt:
+                # 兜底：不含敏感词的纯英文视觉描述
+                full_prompt = (
+                    "cinematic vertical 9:16 shot, realistic film style, "
+                    "indoor scene with people and computer screens showing colorful charts, "
+                    "dramatic lighting"
+                )
+                if record:
+                    await record.set({"logs": (record.logs or []) + ["[prompt] 使用兜底通用提示词"]})
+
             if record:
-                await record.set({"logs": (record.logs or []) + [f"[prompt] LLM 优化失败：{e}"]})
+                attempt_label = f"第 {attempt + 1} 次" if attempt > 0 else ""
+                await record.set({"progress": 30, "logs": (record.logs or []) + [f"[image] {attempt_label}正在生成图像…"]})
 
-        if not full_prompt:
-            # 兜底：不含敏感词的纯英文视觉描述
-            full_prompt = (
-                "cinematic vertical 9:16 shot, realistic film style, "
-                "indoor scene with people and computer screens showing colorful charts, "
-                "dramatic lighting"
-            )
-            if record:
-                await record.set({"logs": (record.logs or []) + ["[prompt] 使用兜底通用提示词"]})
-
-        if record:
-            await record.set({"progress": 30, "logs": (record.logs or []) + ["[image] 正在生成图像…"]})
-
-        image_url = await image_service.generate_image(
-            prompt=full_prompt,
-            size="2048x3640",  # ~9:16 vertical, ≥3.6M pixels
-        )
+            try:
+                image_url = await image_service.generate_image(
+                    prompt=full_prompt,
+                    size="2048x3640",  # ~9:16 vertical, ≥3.6M pixels
+                )
+                break  # 成功，退出重试循环
+            except Exception as gen_err:
+                err_str = str(gen_err)
+                if "SensitiveContent" in err_str:
+                    # 提取并保存敏感词，下次重试时会注入黑名单
+                    words = await sensitive_word_service.extract_and_save(full_prompt, "image")
+                    log_msg = f"[retry {attempt + 1}/{MAX_RETRIES}] 敏感词触发审核，已记录词汇：{words or '(提取失败)'}"
+                    if record:
+                        await record.set({"logs": (record.logs or []) + [log_msg]})
+                    if attempt == MAX_RETRIES - 1:
+                        raise  # 最后一次仍失败，向上抛出
+                    continue  # 重试
+                raise  # 非敏感词错误直接抛出
 
         await shot.set({
             "image_url": image_url,

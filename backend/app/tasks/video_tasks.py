@@ -15,12 +15,14 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
     await init_db()
 
     import asyncio
+    import json as _json
     from beanie import PydanticObjectId
     from app.models.shot import Shot, ShotState
-    from app.models.asset import Asset
+    from app.models.asset import Asset, AssetType
     from app.models.task_record import TaskRecord
-    from app.services import video_service
+    from app.services import video_service, llm_service
     from app.services.prompt_service import render
+    from app.services.storage_service import presign_if_cos
     from app.models.prompt_config import PromptConfigScope
 
     try:
@@ -35,10 +37,7 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
         if record:
             await record.set({"progress": 5})
 
-        # Build video prompt
-        from app.models.asset import Asset, AssetType
-        
-        # Gather asset prompts categorized by type
+        # Build video prompt: gather asset prompts categorized by type
         character_parts = []
         scene_parts = []
         for binding in shot.required_assets:
@@ -63,35 +62,10 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
             },
         )
 
-        # ── LLM 优化：将 shot 描述转化为纯视觉英文提示词（过滤敏感词）──────────
-        from app.services import llm_service
-        import json as _json
-        video_prompt = None
-        try:
-            raw = await llm_service.chat_json(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-            )
-            if isinstance(raw, str):
-                raw = _json.loads(raw)
-            video_prompt = raw.get("prompt", "") or None
-        except Exception as e:
-            if record:
-                await record.set({"logs": (record.logs or []) + [f"[prompt] LLM 优化失败：{e}"]})
+        # ── 重试循环：最多 3 次，遇到敏感词错误时提取词 + 重新生成 prompt ──────
+        from app.services import sensitive_word_service
 
-        if not video_prompt:
-            # 兜底：不含敏感词的纯英文视觉描述
-            video_prompt = (
-                "cinematic vertical 9:16 shot, realistic film style, "
-                "indoor scene with people and computer screens, "
-                "dramatic lighting, high quality"
-            )
-            if record:
-                await record.set({"logs": (record.logs or []) + ["[prompt] 使用兜底通用提示词"]})
-
-        # Gather reference asset images (character images for consistency)
-        # Use pre-signed URLs so Volcano Engine can access private COS objects
-        from app.services.storage_service import presign_if_cos
+        # Gather reference asset images (pre-signed so Volcano Engine can access COS)
         reference_images: list[str] = []
         for binding in shot.required_assets:
             asset = await Asset.find_one(
@@ -101,26 +75,71 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
             if asset and asset.preview_url:
                 reference_images.append(presign_if_cos(asset.preview_url))
 
-        # first_frame also needs to be accessible by Volcano Engine
         first_frame_url = presign_if_cos(shot.image_url) if shot.image_url else None
 
-        if record:
-            await record.set({"progress": 10})
+        MAX_RETRIES = 3
+        result = None
+        for attempt in range(MAX_RETRIES):
+            # 每次重试都重新生成 prompt，注入最新黑名单
+            blocked = await sensitive_word_service.get_all_words()
+            blocked_note = (
+                f"\n\n## 以下词语已确认会触发审核，生成提示词时必须完全规避：\n{', '.join(blocked)}"
+                if blocked else ""
+            )
 
-        # Run sync Seedance generation in thread (blocks for up to 10 min)
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            None,
-            lambda: video_service.generate_video_sync(
-                prompt=video_prompt,
-                first_frame_url=first_frame_url,
-                reference_images=reference_images if reference_images else None,
-                ratio="9:16",
-                duration=shot.duration or 5,
-                resolution="720p",
-                return_last_frame=True,
-            ),
-        )
+            video_prompt = None
+            try:
+                raw = await llm_service.chat_json(
+                    system_prompt=system_prompt + blocked_note,
+                    user_prompt=user_prompt,
+                )
+                if isinstance(raw, str):
+                    raw = _json.loads(raw)
+                video_prompt = raw.get("prompt", "") or None
+            except Exception as e:
+                if record:
+                    await record.set({"logs": (record.logs or []) + [f"[prompt] LLM 优化失败：{e}"]})
+
+            if not video_prompt:
+                # 兜底：不含敏感词的纯英文视觉描述
+                video_prompt = (
+                    "cinematic vertical 9:16 shot, realistic film style, "
+                    "indoor scene with people and computer screens, "
+                    "dramatic lighting, high quality"
+                )
+                if record:
+                    await record.set({"logs": (record.logs or []) + ["[prompt] 使用兜底通用提示词"]})
+
+            if record:
+                attempt_label = f"第 {attempt + 1} 次" if attempt > 0 else ""
+                await record.set({"progress": 10, "logs": (record.logs or []) + [f"[video] {attempt_label}正在生成视频…"]})
+
+            try:
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(
+                    None,
+                    lambda vp=video_prompt: video_service.generate_video_sync(
+                        prompt=vp,
+                        first_frame_url=first_frame_url,
+                        reference_images=reference_images if reference_images else None,
+                        ratio="9:16",
+                        duration=shot.duration or 5,
+                        resolution="720p",
+                        return_last_frame=True,
+                    ),
+                )
+                break  # 成功，退出重试循环
+            except Exception as gen_err:
+                err_str = str(gen_err)
+                if "SensitiveContent" in err_str:
+                    words = await sensitive_word_service.extract_and_save(video_prompt, "video")
+                    log_msg = f"[retry {attempt + 1}/{MAX_RETRIES}] 敏感词触发审核，已记录词汇：{words or '(提取失败)'}"
+                    if record:
+                        await record.set({"logs": (record.logs or []) + [log_msg]})
+                    if attempt == MAX_RETRIES - 1:
+                        raise
+                    continue
+                raise
 
         if record:
             await record.set({"progress": 80})
