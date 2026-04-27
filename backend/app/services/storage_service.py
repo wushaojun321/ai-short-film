@@ -25,6 +25,41 @@ def _public_url(object_key: str) -> str:
     )
 
 
+def get_presigned_url(object_key: str, expires: int = 3600) -> str:
+    """Return a temporary pre-signed URL valid for `expires` seconds (default 1h).
+
+    Works even if the bucket is private — the signed URL embeds auth credentials.
+    Suitable for passing to third-party APIs (e.g. Volcano Seedance) that need to
+    download the image without requiring bucket public access.
+    """
+    client = _get_client()
+    return client.get_presigned_url(
+        Method="GET",
+        Bucket=settings.cos_bucket,
+        Key=object_key,
+        Expired=expires,
+    )
+
+
+def cos_url_to_object_key(url: str) -> str | None:
+    """Extract the COS object key from a full COS URL, or return None if not a COS URL."""
+    import re
+    pattern = (
+        rf"https://{re.escape(settings.cos_bucket)}\.cos\."
+        rf"{re.escape(settings.cos_region)}\.myqcloud\.com/(.+)"
+    )
+    m = re.match(pattern, url)
+    return m.group(1) if m else None
+
+
+def presign_if_cos(url: str, expires: int = 3600) -> str:
+    """If `url` is a COS URL, return a pre-signed version; otherwise return as-is."""
+    key = cos_url_to_object_key(url)
+    if key:
+        return get_presigned_url(key, expires=expires)
+    return url
+
+
 def get_sts_credentials(duration_seconds: int = 43200) -> dict:
     """申请 STS 临时密钥，默认有效期 12 小时（最长 43200 秒）。
 

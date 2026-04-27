@@ -65,6 +65,8 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
         video_prompt = user_prompt or shot.description
 
         # Gather reference asset images (character images for consistency)
+        # Use pre-signed URLs so Volcano Engine can access private COS objects
+        from app.services.storage_service import presign_if_cos
         reference_images: list[str] = []
         for binding in shot.required_assets:
             asset = await Asset.find_one(
@@ -72,7 +74,10 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
                 Asset.name == binding.asset_name,
             )
             if asset and asset.preview_url:
-                reference_images.append(asset.preview_url)
+                reference_images.append(presign_if_cos(asset.preview_url))
+
+        # first_frame also needs to be accessible by Volcano Engine
+        first_frame_url = presign_if_cos(shot.image_url) if shot.image_url else None
 
         if record:
             await record.set({"progress": 10})
@@ -83,7 +88,7 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
             None,
             lambda: video_service.generate_video_sync(
                 prompt=video_prompt,
-                first_frame_url=shot.image_url,
+                first_frame_url=first_frame_url,
                 reference_images=reference_images if reference_images else None,
                 ratio="9:16",
                 duration=shot.duration or 5,
