@@ -146,7 +146,7 @@ function ApprovalBar({
       </div>
       {/* 操作 */}
       <div className="flex items-center gap-2 shrink-0">
-        {onRegenerate && (
+        {onRegenerate && !allApproved && (
           <Button size="sm" variant="outline" onClick={onRegenerate}>
             <RefreshCw className="w-3.5 h-3.5" />
             {regenerateLabel ?? "打回重新生成"}
@@ -1038,7 +1038,7 @@ function StepVideos({
 
 // ─── Step 4：配音 ────────────────────────────────────────────
 
-function StepDubbing({ episode, projectId, onEpisodeUpdate }: { episode: EpisodeDetail; projectId: string; onEpisodeUpdate: () => void }) {
+function StepDubbing({ episode, projectId, onEpisodeUpdate, isPast }: { episode: EpisodeDetail; projectId: string; onEpisodeUpdate: () => void; isPast?: boolean }) {
   const [advancing, setAdvancing] = useState(false);
 
   const handleSkip = async () => {
@@ -1062,9 +1062,11 @@ function StepDubbing({ episode, projectId, onEpisodeUpdate }: { episode: Episode
           配音模块尚未上线，敬请期待。当前共 {episode.shots.length} 个分镜待配音。
         </p>
       </div>
-      <Button variant="outline" onClick={handleSkip} disabled={advancing}>
-        {advancing ? <><Loader2 className="w-4 h-4 animate-spin" />跳过中…</> : "跳过配音，进入合并"}
-      </Button>
+      {!isPast && (
+        <Button variant="outline" onClick={handleSkip} disabled={advancing}>
+          {advancing ? <><Loader2 className="w-4 h-4 animate-spin" />跳过中…</> : "跳过配音，进入合并"}
+        </Button>
+      )}
     </div>
   );
 }
@@ -1072,11 +1074,11 @@ function StepDubbing({ episode, projectId, onEpisodeUpdate }: { episode: Episode
 // ─── Step 5：合并 ────────────────────────────────────────────
 
 function StepMerge({
-  episode, onShotsUpdate, onEpisodeUpdate,
-}: { episode: EpisodeDetail; onShotsUpdate: () => void; onEpisodeUpdate: () => void }) {
+  episode, onShotsUpdate, onEpisodeUpdate, isPast,
+}: { episode: EpisodeDetail; onShotsUpdate: () => void; onEpisodeUpdate: () => void; isPast?: boolean }) {
   const [merging, setMerging] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState(isPast === true);
   const [error, setError] = useState<string | null>(null);
 
   const handleMerge = async () => {
@@ -1219,8 +1221,8 @@ export default function StepContent({ step, episode, projectId, onShotsUpdate, o
     storyboard_script:  <StepScript episode={episode} projectId={projectId} onShotsUpdate={onShotsUpdate} onEpisodeUpdate={onEpisodeUpdate} isPast={isPast} />,
     storyboard_images:  <StepImages episode={episode} projectId={projectId} onShotsUpdate={onShotsUpdate} onEpisodeUpdate={onEpisodeUpdate} isPast={isPast} />,
     storyboard_videos:  <StepVideos episode={episode} projectId={projectId} onShotsUpdate={onShotsUpdate} onEpisodeUpdate={onEpisodeUpdate} isPast={isPast} />,
-    dubbing:            <StepDubbing episode={episode} projectId={projectId} onEpisodeUpdate={onEpisodeUpdate} />,
-    merge:              <StepMerge episode={episode} onShotsUpdate={onShotsUpdate} onEpisodeUpdate={onEpisodeUpdate} />,
+    dubbing:            <StepDubbing episode={episode} projectId={projectId} onEpisodeUpdate={onEpisodeUpdate} isPast={isPast} />,
+    merge:              <StepMerge episode={episode} onShotsUpdate={onShotsUpdate} onEpisodeUpdate={onEpisodeUpdate} isPast={isPast} />,
     done:               <StepDone episode={episode} />,
   };
 
