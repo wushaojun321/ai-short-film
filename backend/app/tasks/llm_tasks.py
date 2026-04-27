@@ -218,6 +218,13 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str):
         if record:
             await record.set({"progress": 70})
 
+        # 重新生成时先删除旧分镜，避免追加导致数量翻倍
+        # 同时回退步骤到 storyboard_script，等用户重新审批后再推进
+        is_regen = episode.current_step != EpisodeStep.storyboard_script
+        if is_regen:
+            await episode.set({"current_step": EpisodeStep.storyboard_script})
+        await Shot.find(Shot.episode_id == episode.id).delete()
+
         # Create shots — LLM may return array or dict with various key names
         if isinstance(result, list):
             shots_data = result
@@ -255,9 +262,13 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str):
             )
             await shot.insert()
 
-        await episode.set({"current_step": EpisodeStep.storyboard_images})
-
         await finish_task_record(celery_id, result={"shots": len(shots_data)})
+
+        # 首次生成：推进到 storyboard_images（等待剧照生成）
+        # 重新生成：步骤已回退到 storyboard_script（见上方），此处无需再改
+        if not is_regen:
+            await episode.set({"current_step": EpisodeStep.storyboard_images})
+
         return result
 
     except Exception as e:

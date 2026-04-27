@@ -287,6 +287,7 @@ function StepScript({
       const task = await generateAPI.shotScript(episode.id);
       await pollTask(task.record_id, () => {});
       onShotsUpdate();
+      onEpisodeUpdate(); // 重新生成会回退 currentStep，需刷新 episode
       setRegenDialog(false);
       setApproved(false);
     } catch (e: unknown) {
