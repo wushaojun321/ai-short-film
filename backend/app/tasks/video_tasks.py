@@ -36,17 +36,35 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
             await record.set({"progress": 5})
 
         # Build video prompt
+        from app.models.asset import Asset, AssetType
+        
+        # Gather asset prompts categorized by type
+        character_parts = []
+        scene_parts = []
+        for binding in shot.required_assets:
+            asset = await Asset.find_one(
+                Asset.project_id == shot.project_id,
+                Asset.name == binding.asset_name,
+            )
+            if asset:
+                if asset.asset_type == AssetType.character:
+                    character_parts.append(f"{binding.asset_name}：{asset.prompt or binding.asset_name}")
+                elif asset.asset_type == AssetType.scene:
+                    scene_parts.append(asset.prompt or binding.asset_name)
+
         system_prompt, user_prompt, _ = await render(
             PromptConfigScope.shot_video_gen,
             {
-                "shot_code": shot.shot_code,
                 "shot_description": shot.description,
-                "shot_prompt": shot.prompt,
+                "character_prompts": "\n".join(character_parts) if character_parts else "无",
+                "scene_prompt": "；".join(scene_parts) if scene_parts else "无",
+                "camera_motion": shot.description,  # description contains camera info
+                "dialogue": shot.prompt or "无",
             },
         )
-        video_prompt = user_prompt or shot.prompt
+        video_prompt = user_prompt or shot.description
 
-        # Gather reference asset images
+        # Gather reference asset images (character images for consistency)
         reference_images: list[str] = []
         for binding in shot.required_assets:
             asset = await Asset.find_one(
