@@ -127,9 +127,10 @@ async def _gen_shot_image_async(celery_id: str, shot_id: str):
     from app.models.shot import Shot, ShotState
     from app.models.project import Project
     from app.models.task_record import TaskRecord
-    from app.services import image_service
+    from app.services import image_service, llm_service
     from app.services.prompt_service import render
     from app.models.prompt_config import PromptConfigScope
+    import json
 
     try:
         shot = await Shot.get(PydanticObjectId(shot_id))
@@ -141,7 +142,7 @@ async def _gen_shot_image_async(celery_id: str, shot_id: str):
 
         record = await TaskRecord.find_one(TaskRecord.celery_task_id == celery_id)
         if record:
-            await record.set({"progress": 10})
+            await record.set({"progress": 5, "logs": ["[prompt] 正在用 LLM 优化图像提示词…"]})
 
         # Load series_prompt
         project = await Project.get(shot.project_id)
@@ -176,12 +177,25 @@ async def _gen_shot_image_async(celery_id: str, shot_id: str):
             },
         )
 
-        full_prompt = user_prompt or shot.description
-        if series_prompt and series_prompt not in full_prompt:
-            full_prompt = f"{series_prompt}\n\n{full_prompt}"
+        # ── LLM 优化：将 shot 描述转化为纯视觉 Seedream 提示词（过滤敏感词）──────
+        full_prompt = shot.description  # 兜底
+        try:
+            raw = await llm_service.chat_json(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+            )
+            if isinstance(raw, str):
+                raw = json.loads(raw)
+            optimized = raw.get("prompt", "")
+            if optimized:
+                full_prompt = optimized
+        except Exception as e:
+            # LLM 优化失败不阻断生图，继续用原始 description
+            if record:
+                await record.set({"logs": (record.logs or []) + [f"[prompt] LLM 优化失败，使用原始描述：{e}"]})
 
         if record:
-            await record.set({"progress": 30})
+            await record.set({"progress": 30, "logs": (record.logs or []) + ["[image] 正在生成图像…"]})
 
         image_url = await image_service.generate_image(
             prompt=full_prompt,
