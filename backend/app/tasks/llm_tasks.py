@@ -87,6 +87,16 @@ async def _parse_script_async(celery_id: str, project_id: str):
                 # 截断多余的集数
                 episodes_data = episodes_data[:target_count]
 
+        def calc_duration(word_count: int, llm_duration: int, min_dur: int) -> int:
+            """字数推算兜底：word_count ÷ 3.5 × 1.4，与 min_dur 取较大值，向上取整到 5 的倍数。
+            若 LLM 返回值在合理范围内（±50% of formula）则尊重 LLM，否则用公式修正。"""
+            import math
+            formula = word_count / 3.5 * 1.4 if word_count > 0 else min_dur
+            lo, hi = formula * 0.5, formula * 1.5
+            chosen = llm_duration if (lo <= llm_duration <= hi and llm_duration > 0) else formula
+            result_sec = max(chosen, min_dur or 30)
+            return int(math.ceil(result_sec / 5) * 5)
+
         created_eps = 0
         for ep_data in episodes_data:
             existing = await Episode.find_one(
@@ -94,13 +104,16 @@ async def _parse_script_async(celery_id: str, project_id: str):
                 Episode.number == ep_data.get("number", 0),
             )
             if not existing:
+                wc = ep_data.get("word_count", 0)
+                llm_dur = ep_data.get("estimated_duration", 0)
+                duration = calc_duration(wc, llm_dur, project.min_episode_duration or 30)
                 ep = Episode(
                     project_id=project.id,
                     number=ep_data.get("number", 0),
                     title=ep_data.get("title", ""),
                     summary=ep_data.get("summary", ""),
-                    word_count=ep_data.get("word_count", 0),
-                    estimated_duration=ep_data.get("estimated_duration", 0),
+                    word_count=wc,
+                    estimated_duration=duration,
                     status=EpisodeStatus.not_started,
                 )
                 await ep.insert()
