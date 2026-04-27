@@ -106,10 +106,14 @@ interface ApprovalBarProps {
   regenerateLabel?: string;
   allApproved?: boolean;
   approving?: boolean;
+  /** 内容尚未全部生成完毕时传 true，禁用审批按钮并显示提示 */
+  notReady?: boolean;
+  notReadyTip?: string;
 }
 
 function ApprovalBar({
   approved, total, onApproveAll, onRegenerate, regenerateLabel, allApproved, approving,
+  notReady, notReadyTip,
 }: ApprovalBarProps) {
   return (
     <div className="flex items-center gap-4 mb-5 py-3 px-4 bg-soft rounded-xl border border-line">
@@ -130,6 +134,9 @@ function ApprovalBar({
             style={{ width: total > 0 ? `${(approved / total) * 100}%` : "0%" }}
           />
         </div>
+        {notReady && notReadyTip && (
+          <p className="text-xs text-muted mt-1">{notReadyTip}</p>
+        )}
       </div>
       {/* 操作 */}
       <div className="flex items-center gap-2 shrink-0">
@@ -142,7 +149,7 @@ function ApprovalBar({
         <Button
           size="sm"
           onClick={onApproveAll}
-          disabled={allApproved || approving}
+          disabled={allApproved || approving || notReady}
         >
           {approving ? (
             <><Loader2 className="w-3.5 h-3.5 animate-spin" />提交中…</>
@@ -541,11 +548,14 @@ function StepImages({
         onApproveAll={handleApproveAll}
         allApproved={allApproved}
         approving={approving}
+        notReady={shots.some((s) => !s.imageUrl || s.loadingRegen || s.state === "generating")}
+        notReadyTip="所有分镜剧照生成完成后方可审批"
       />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
         {shots.map((shot, idx) => {
           const isApproved = shot.imageApproved || allApproved;
+          const isGenerating = shot.loadingRegen || shot.state === "generating";
 
           return (
             <div key={shot.id} className={cn(
@@ -554,7 +564,7 @@ function StepImages({
             )}>
               {/* 图片预览区 */}
               <div className="aspect-[9/16] bg-soft relative">
-                {(shot.loadingRegen || shot.state === "generating") ? (
+                {isGenerating ? (
                   <div className="w-full h-full flex items-center justify-center flex-col gap-2">
                     <Loader2 className="w-6 h-6 text-brand animate-spin" />
                     <span className="text-2xs text-muted">生成中…</span>
@@ -584,35 +594,29 @@ function StepImages({
                 </div>
               </div>
 
-              {/* 操作按钮 */}
-              <div className="p-2 flex gap-1.5">
-                <button
-                  onClick={() => !isApproved && setRegenTarget(shot.id)}
-                  disabled={isApproved || shot.loadingRegen}
-                  className={cn(
-                    "flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                    isApproved
-                      ? "bg-soft text-muted cursor-not-allowed"
-                      : "bg-soft text-sub hover:bg-warn-soft hover:text-warn"
-                  )}
-                >
-                  <RefreshCw className="w-3 h-3" />重新生成
-                </button>
-                <button
-                  onClick={() => !isApproved && handleApprove(shot.id)}
-                  disabled={isApproved || !shot.imageUrl || shot.loadingRegen}
-                  className={cn(
-                    "flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                    isApproved
-                      ? "bg-brand/10 text-brand cursor-default"
-                      : !shot.imageUrl
-                        ? "bg-soft text-muted cursor-not-allowed"
-                        : "bg-soft text-sub hover:bg-brand/10 hover:text-brand"
-                  )}
-                >
-                  <Check className="w-3 h-3" />通过
-                </button>
-              </div>
+              {/* 操作按钮：已通过或生成中时隐藏 */}
+              {!isApproved && !isGenerating && (
+                <div className="p-2 flex gap-1.5">
+                  <button
+                    onClick={() => setRegenTarget(shot.id)}
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-medium transition-colors bg-soft text-sub hover:bg-warn-soft hover:text-warn"
+                  >
+                    <RefreshCw className="w-3 h-3" />重新生成
+                  </button>
+                  <button
+                    onClick={() => shot.imageUrl && handleApprove(shot.id)}
+                    disabled={!shot.imageUrl}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                      shot.imageUrl
+                        ? "bg-soft text-sub hover:bg-brand/10 hover:text-brand"
+                        : "bg-soft text-muted cursor-not-allowed"
+                    )}
+                  >
+                    <Check className="w-3 h-3" />通过
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}
@@ -771,6 +775,8 @@ function StepVideos({
         onApproveAll={handleApproveAll}
         allApproved={allApproved}
         approving={approving}
+        notReady={shots.some((s) => !s.videoUrl || s.loadingRegen || s.state === "rendering")}
+        notReadyTip="所有分镜视频生成完成后方可审批"
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -847,7 +853,7 @@ function StepVideos({
                   </div>
                 )}
                 {/* 通过标记遮罩 */}
-                {(shot.videoApproved || allApproved) && !shot.videoUrl && (
+                {(shot.videoApproved || allApproved) && shot.videoUrl && (
                   <div className="absolute inset-0 bg-brand/20 flex items-center justify-center">
                     <CheckCircle2 className="w-14 h-14 text-brand drop-shadow-lg" />
                   </div>
@@ -858,21 +864,20 @@ function StepVideos({
               <div className="max-w-xs mx-auto">
                 <p className="text-xs text-sub text-center mb-4 px-2 leading-relaxed">{shot.description}</p>
 
-                {/* 操作按钮 */}
-                {!(shot.videoApproved || allApproved) && (
+                {/* 操作按钮：已通过或生成中时隐藏 */}
+                {!(shot.videoApproved || allApproved) && !(shot.loadingRegen || shot.state === "rendering") && (
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
                       className="flex-1"
                       onClick={() => setRegenTarget(shot.id)}
-                      disabled={shot.loadingRegen}
                     >
                       <RefreshCw className="w-4 h-4" />重新生成
                     </Button>
                     <Button
                       className="flex-1"
                       onClick={() => handleApprove(shot.id)}
-                      disabled={!shot.videoGenerated || shot.loadingRegen}
+                      disabled={!shot.videoGenerated}
                     >
                       <Check className="w-4 h-4" />审批通过
                     </Button>
