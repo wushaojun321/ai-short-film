@@ -62,7 +62,32 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
                 "dialogue": shot.prompt or "无",
             },
         )
-        video_prompt = user_prompt or shot.description
+
+        # ── LLM 优化：将 shot 描述转化为纯视觉英文提示词（过滤敏感词）──────────
+        from app.services import llm_service
+        import json as _json
+        video_prompt = None
+        try:
+            raw = await llm_service.chat_json(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+            )
+            if isinstance(raw, str):
+                raw = _json.loads(raw)
+            video_prompt = raw.get("prompt", "") or None
+        except Exception as e:
+            if record:
+                await record.set({"logs": (record.logs or []) + [f"[prompt] LLM 优化失败：{e}"]})
+
+        if not video_prompt:
+            # 兜底：不含敏感词的纯英文视觉描述
+            video_prompt = (
+                "cinematic vertical 9:16 shot, realistic film style, "
+                "indoor scene with people and computer screens, "
+                "dramatic lighting, high quality"
+            )
+            if record:
+                await record.set({"logs": (record.logs or []) + ["[prompt] 使用兜底通用提示词"]})
 
         # Gather reference asset images (character images for consistency)
         # Use pre-signed URLs so Volcano Engine can access private COS objects
