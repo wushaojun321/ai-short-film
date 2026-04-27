@@ -147,6 +147,7 @@ export default function ProjectStudioScreen({ project }: ProjectStudioScreenProp
             </div>
 
             <StepContent
+              key={`${activeEpisode.id}-${activeEpisode.shots.length}`}
               step={activeStep}
               episode={activeEpisode}
               projectId={project.id}
