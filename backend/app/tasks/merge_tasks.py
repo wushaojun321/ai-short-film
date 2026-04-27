@@ -54,7 +54,8 @@ async def _merge_episode_async(celery_id: str, episode_id: str):
                     raise ValueError(f"Shot {shot.shot_code} has no video_url")
 
                 local_path = os.path.join(tmpdir, f"shot_{i:03d}.mp4")
-                await storage_service.download_file(shot.video_url, local_path)
+                from app.services.storage_service import presign_if_cos
+                await storage_service.download_file(presign_if_cos(shot.video_url), local_path)
                 video_paths.append(local_path)
 
                 if record:
