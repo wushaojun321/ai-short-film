@@ -101,7 +101,7 @@ async def chat_with_tools(
     """
     client = get_client()
     resp = await client.chat.completions.create(
-        model=model or settings.agent_model,
+        model=model or settings.openrouter_model,
         messages=messages,
         tools=tools,
         tool_choice="auto",

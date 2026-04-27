@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     # OpenRouter LLM
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    openrouter_model: str = "openai/gpt-4o"
-    agent_model: str = "openai/gpt-5.4"  # model used for agent tool-calling conversations
+    openrouter_model: str = "openai/gpt-5.5"  # 统一模型，.env 里 OPENROUTER_MODEL 覆盖
+    agent_model: str = "openai/gpt-5.5"       # agent_model 直接复用 openrouter_model
 
     # Volcano Engine Ark (Seedream + Seedance)
     ark_api_key: str = ""
