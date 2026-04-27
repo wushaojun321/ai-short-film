@@ -846,9 +846,18 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
         <p className="text-sm text-sub">
           {manageMode
             ? (pendingCount > 0 ? `${pendingCount} 个资产未确认。` : "所有资产已确认。")
-            : (pendingCount > 0 ? `还有 ${pendingCount} 个资产未确认，仍可继续初始化。` : "所有资产已确认，可以开始制作。")}
+            : (generatingCount > 0
+                ? `${generatingCount} 个资产生成中，请等待完成后再确认。`
+                : pendingCount > 0
+                  ? `还有 ${pendingCount} 个资产未确认，仍可继续初始化。`
+                  : "所有资产已确认，可以开始制作。")}
         </p>
-        <Button onClick={handleFinish} disabled={submitting} variant={manageMode ? "outline" : "default"}>
+        <Button
+          onClick={handleFinish}
+          disabled={submitting || (!manageMode && generatingCount > 0)}
+          variant={manageMode ? "outline" : "default"}
+          title={!manageMode && generatingCount > 0 ? `${generatingCount} 个资产仍在生成中，请等待` : undefined}
+        >
           {submitting
             ? <><Loader2 className="w-4 h-4 animate-spin" />处理中…</>
             : manageMode

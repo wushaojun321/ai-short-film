@@ -1,8 +1,9 @@
 import { useState } from "react";
 import {
   CheckCircle2, RefreshCw, Loader2, Play, Volume2,
-  Film, Layers, Clock, Tag, Edit3, Check,
+  Film, Layers, Clock, Tag, Edit3, Check, Bot,
 } from "lucide-react";
+import AgentDialog from "@/components/AgentDialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,7 +11,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
-import { EpisodeStep, EpisodeDetail, Shot, ShotState } from "@/lib/data";
+import { EpisodeStep, EpisodeDetail, Shot, ShotState, getStepIndex } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { generateAPI, shotAPI, episodeAPI, pollTask } from "@/lib/api";
 import { useCos } from "@/lib/CosContext";
@@ -21,6 +22,11 @@ interface StepContentProps {
   projectId: string;
   onShotsUpdate: () => void;
   onEpisodeUpdate: () => void;
+}
+
+/** 当前浏览的步骤是否已经过去（episode 已推进到更后面的步骤） */
+function calcIsPastStep(activeStep: EpisodeStep, currentStep: EpisodeStep): boolean {
+  return getStepIndex(activeStep) < getStepIndex(currentStep);
 }
 
 // ─── 分镜状态配置 ────────────────────────────────────────────
@@ -166,6 +172,60 @@ function ApprovalBar({
 
 // ─── 生成中全屏遮罩 ──────────────────────────────────────────
 
+/** 带 loading 占位的图片组件，防止破碎图标 */
+function LazyImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const [loaded, setLoaded] = useState(false);
+  const [errored, setErrored] = useState(false);
+  return (
+    <div className="relative w-full h-full">
+      {!loaded && !errored && (
+        <div className="absolute inset-0 flex items-center justify-center bg-soft">
+          <Loader2 className="w-5 h-5 text-brand animate-spin" />
+        </div>
+      )}
+      {errored && (
+        <div className="absolute inset-0 flex items-center justify-center bg-soft">
+          <Film className="w-5 h-5 text-line" />
+        </div>
+      )}
+      <img
+        src={src}
+        alt={alt}
+        className={cn(className, !loaded && "opacity-0")}
+        onLoad={() => setLoaded(true)}
+        onError={() => setErrored(true)}
+      />
+    </div>
+  );
+}
+
+/** 带 loading 占位的视频组件，防止破碎图标 */
+function LazyVideo({ src, className }: { src: string; className?: string }) {
+  const [loaded, setLoaded] = useState(false);
+  const [errored, setErrored] = useState(false);
+  return (
+    <div className="relative w-full h-full">
+      {!loaded && !errored && (
+        <div className="absolute inset-0 flex items-center justify-center bg-soft rounded-2xl">
+          <Loader2 className="w-6 h-6 text-brand animate-spin" />
+        </div>
+      )}
+      {errored && (
+        <div className="absolute inset-0 flex items-center justify-center bg-soft rounded-2xl">
+          <Film className="w-6 h-6 text-line" />
+        </div>
+      )}
+      <video
+        src={src}
+        controls
+        className={cn(className, !loaded && "opacity-0")}
+        onLoadedData={() => setLoaded(true)}
+        onError={() => setErrored(true)}
+      />
+    </div>
+  );
+}
+
 function GeneratingOverlay({ message }: { message: string }) {
   return (
     <div className="fixed inset-0 bg-white/60 backdrop-blur-sm z-50 flex items-center justify-center">
@@ -181,8 +241,8 @@ function GeneratingOverlay({ message }: { message: string }) {
 // ─── Step 1：分镜脚本 ────────────────────────────────────────
 
 function StepScript({
-  episode, projectId, onShotsUpdate, onEpisodeUpdate,
-}: { episode: EpisodeDetail; projectId: string; onShotsUpdate: () => void; onEpisodeUpdate: () => void }) {
+  episode, projectId, onShotsUpdate, onEpisodeUpdate, isPast,
+}: { episode: EpisodeDetail; projectId: string; onShotsUpdate: () => void; onEpisodeUpdate: () => void; isPast?: boolean }) {
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(episode.shots.length > 0);
   const [shots, setShots] = useState(episode.shots);
@@ -190,9 +250,10 @@ function StepScript({
   const [editText, setEditText] = useState("");
   const [regenDialog, setRegenDialog] = useState(false);
   const [regenLoading, setRegenLoading] = useState(false);
-  const [approved, setApproved] = useState(false);
+  const [approved, setApproved] = useState(isPast === true);
   const [approving, setApproving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [agentTarget, setAgentTarget] = useState<string | null>(null);
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -366,13 +427,22 @@ function StepScript({
                     <div className="group/desc flex items-start gap-2">
                       <p className="text-xs text-sub leading-relaxed flex-1">{shot.description}</p>
                       {!approved && (
-                        <button
-                          onClick={() => handleStartEdit(shot)}
-                          className="opacity-0 group-hover/desc:opacity-100 transition-opacity shrink-0 p-1 rounded hover:bg-soft text-muted hover:text-primary"
-                          title="编辑描述"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleStartEdit(shot)}
+                            className="opacity-0 group-hover/desc:opacity-100 transition-opacity shrink-0 p-1 rounded hover:bg-soft text-muted hover:text-primary"
+                            title="编辑描述"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setAgentTarget(shot.id)}
+                            className="opacity-0 group-hover/desc:opacity-100 transition-opacity shrink-0 p-1 rounded hover:bg-soft text-muted hover:text-brand"
+                            title="AI 修改"
+                          >
+                            <Bot className="w-3.5 h-3.5" />
+                          </button>
+                        </>
                       )}
                     </div>
                   )}
@@ -406,6 +476,20 @@ function StepScript({
 
       {/* 全局生成中遮罩 */}
       {regenLoading && <GeneratingOverlay message="AI 正在重新生成分镜脚本…" />}
+
+      {/* 单镜 AI 修改对话 */}
+      {agentTarget && (
+        <AgentDialog
+          open={!!agentTarget}
+          onOpenChange={(v) => !v && setAgentTarget(null)}
+          targetType="shot_script"
+          targetId={agentTarget}
+          projectId={projectId}
+          title="AI 修改 · 镜头描述"
+          onTaskStarted={() => { setAgentTarget(null); onShotsUpdate(); }}
+          initialPrompt={displayShots.find((s) => s.id === agentTarget)?.description}
+        />
+      )}
     </div>
   );
 }
@@ -418,18 +502,19 @@ type ShotImageState = Shot & {
 };
 
 function StepImages({
-  episode, projectId, onShotsUpdate, onEpisodeUpdate,
-}: { episode: EpisodeDetail; projectId: string; onShotsUpdate: () => void; onEpisodeUpdate: () => void }) {
+  episode, projectId, onShotsUpdate, onEpisodeUpdate, isPast,
+}: { episode: EpisodeDetail; projectId: string; onShotsUpdate: () => void; onEpisodeUpdate: () => void; isPast?: boolean }) {
   const { cosUrl } = useCos();
   const [shots, setShots] = useState<ShotImageState[]>(
     episode.shots.map((s) => ({
       ...s,
-      imageApproved: s.state === "approved",
+      imageApproved: isPast === true || s.state === "approved",
       loadingRegen: false,
     }))
   );
   const [regenTarget, setRegenTarget] = useState<string | null>(null);
-  const [allApproved, setAllApproved] = useState(false);
+  const [agentTarget, setAgentTarget] = useState<string | null>(null);
+  const [allApproved, setAllApproved] = useState(isPast === true);
   const [approving, setApproving] = useState(false);
   const [batchGenerating, setBatchGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -571,7 +656,7 @@ function StepImages({
                   </div>
                 ) : shot.imageUrl ? (
                   <div className="w-full h-full relative overflow-hidden">
-                    <img
+                    <LazyImage
                       src={cosUrl(shot.imageUrl)}
                       alt={`镜头 ${idx + 1}`}
                       className="w-full h-full object-cover"
@@ -604,6 +689,13 @@ function StepImages({
                     <RefreshCw className="w-3 h-3" />重新生成
                   </button>
                   <button
+                    onClick={() => setAgentTarget(shot.id)}
+                    className="flex items-center justify-center py-1.5 px-2 rounded-lg text-xs transition-colors bg-soft text-sub hover:bg-brand/10 hover:text-brand"
+                    title="AI 修改"
+                  >
+                    <Bot className="w-3 h-3" />
+                  </button>
+                  <button
                     onClick={() => shot.imageUrl && handleApprove(shot.id)}
                     disabled={!shot.imageUrl}
                     className={cn(
@@ -630,6 +722,20 @@ function StepImages({
         onClose={() => setRegenTarget(null)}
         onConfirm={(feedback) => regenTarget && handleRegen(regenTarget, feedback)}
       />
+
+      {/* 单镜 AI 修改对话 */}
+      {agentTarget && (
+        <AgentDialog
+          open={!!agentTarget}
+          onOpenChange={(v) => !v && setAgentTarget(null)}
+          targetType="shot_image"
+          targetId={agentTarget}
+          projectId={projectId}
+          title="AI 修改 · 镜头剧照"
+          onTaskStarted={() => { setAgentTarget(null); onShotsUpdate(); }}
+          initialPrompt={shots.find((s) => s.id === agentTarget)?.prompt || shots.find((s) => s.id === agentTarget)?.description}
+        />
+      )}
     </div>
   );
 }
@@ -643,20 +749,21 @@ type ShotVideoState = Shot & {
 };
 
 function StepVideos({
-  episode, projectId, onShotsUpdate, onEpisodeUpdate,
-}: { episode: EpisodeDetail; projectId: string; onShotsUpdate: () => void; onEpisodeUpdate: () => void }) {
+  episode, projectId, onShotsUpdate, onEpisodeUpdate, isPast,
+}: { episode: EpisodeDetail; projectId: string; onShotsUpdate: () => void; onEpisodeUpdate: () => void; isPast?: boolean }) {
   const { cosUrl } = useCos();
   const [selected, setSelected] = useState(0);
   const [shots, setShots] = useState<ShotVideoState[]>(
     episode.shots.map((s) => ({
       ...s,
-      videoApproved: s.state === "approved",
+      videoApproved: isPast === true || s.state === "approved",
       videoGenerated: !!s.videoUrl,
       loadingRegen: false,
     }))
   );
   const [regenTarget, setRegenTarget] = useState<string | null>(null);
-  const [allApproved, setAllApproved] = useState(false);
+  const [agentTarget, setAgentTarget] = useState<string | null>(null);
+  const [allApproved, setAllApproved] = useState(isPast === true);
   const [approving, setApproving] = useState(false);
   const [batchGenerating, setBatchGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -834,9 +941,8 @@ function StepVideos({
                     <p className="text-xs text-muted">{shot.state === "rendering" ? "视频生成中…" : "重新生成中…"}</p>
                   </div>
                 ) : shot.videoUrl ? (
-                  <video
+                  <LazyVideo
                     src={cosUrl(shot.videoUrl)}
-                    controls
                     className="w-full h-full object-cover rounded-2xl"
                   />
                 ) : shot.videoGenerated ? (
@@ -875,6 +981,14 @@ function StepVideos({
                       <RefreshCw className="w-4 h-4" />重新生成
                     </Button>
                     <Button
+                      variant="outline"
+                      className="w-10 h-10 p-0 shrink-0"
+                      onClick={() => setAgentTarget(shot.id)}
+                      title="AI 修改"
+                    >
+                      <Bot className="w-4 h-4" />
+                    </Button>
+                    <Button
                       className="flex-1"
                       onClick={() => handleApprove(shot.id)}
                       disabled={!shot.videoGenerated}
@@ -904,6 +1018,20 @@ function StepVideos({
         onClose={() => setRegenTarget(null)}
         onConfirm={(feedback) => regenTarget && handleRegen(regenTarget, feedback)}
       />
+
+      {/* 单镜 AI 修改对话 */}
+      {agentTarget && (
+        <AgentDialog
+          open={!!agentTarget}
+          onOpenChange={(v) => !v && setAgentTarget(null)}
+          targetType="shot_video"
+          targetId={agentTarget}
+          projectId={projectId}
+          title="AI 修改 · 镜头视频"
+          onTaskStarted={() => { setAgentTarget(null); onShotsUpdate(); }}
+          initialPrompt={shots.find((s) => s.id === agentTarget)?.prompt || shots.find((s) => s.id === agentTarget)?.description}
+        />
+      )}
     </div>
   );
 }
@@ -1058,11 +1186,10 @@ function StepDone({ episode }: { episode: EpisodeDetail }) {
       </div>
 
       {episode.finalVideoUrl ? (
-        <div className="mb-6">
-          <video
+        <div className="mb-6 max-w-[200px] mx-auto rounded-2xl border border-line overflow-hidden">
+          <LazyVideo
             src={cosUrl(episode.finalVideoUrl)}
-            controls
-            className="max-w-[200px] mx-auto rounded-2xl border border-line"
+            className="w-full rounded-2xl"
           />
         </div>
       ) : (
@@ -1086,10 +1213,12 @@ function StepDone({ episode }: { episode: EpisodeDetail }) {
 // ─── 主组件 ───────────────────────────────────────────────────
 
 export default function StepContent({ step, episode, projectId, onShotsUpdate, onEpisodeUpdate }: StepContentProps) {
+  const isPast = calcIsPastStep(step, episode.currentStep);
+
   const stepComponents: Record<EpisodeStep, React.ReactNode> = {
-    storyboard_script:  <StepScript episode={episode} projectId={projectId} onShotsUpdate={onShotsUpdate} onEpisodeUpdate={onEpisodeUpdate} />,
-    storyboard_images:  <StepImages episode={episode} projectId={projectId} onShotsUpdate={onShotsUpdate} onEpisodeUpdate={onEpisodeUpdate} />,
-    storyboard_videos:  <StepVideos episode={episode} projectId={projectId} onShotsUpdate={onShotsUpdate} onEpisodeUpdate={onEpisodeUpdate} />,
+    storyboard_script:  <StepScript episode={episode} projectId={projectId} onShotsUpdate={onShotsUpdate} onEpisodeUpdate={onEpisodeUpdate} isPast={isPast} />,
+    storyboard_images:  <StepImages episode={episode} projectId={projectId} onShotsUpdate={onShotsUpdate} onEpisodeUpdate={onEpisodeUpdate} isPast={isPast} />,
+    storyboard_videos:  <StepVideos episode={episode} projectId={projectId} onShotsUpdate={onShotsUpdate} onEpisodeUpdate={onEpisodeUpdate} isPast={isPast} />,
     dubbing:            <StepDubbing episode={episode} projectId={projectId} onEpisodeUpdate={onEpisodeUpdate} />,
     merge:              <StepMerge episode={episode} onShotsUpdate={onShotsUpdate} onEpisodeUpdate={onEpisodeUpdate} />,
     done:               <StepDone episode={episode} />,
