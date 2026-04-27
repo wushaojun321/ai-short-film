@@ -147,17 +147,36 @@ async def _gen_shot_image_async(celery_id: str, shot_id: str):
         project = await Project.get(shot.project_id)
         series_prompt = (project.series_prompt or "") if project else ""
 
+        # Build required_assets_prompts from asset bindings
+        from app.models.asset import Asset
+        from app.models.episode import Episode
+        required_assets_prompts = ""
+        if shot.required_assets:
+            asset_ids = [binding.asset_id for binding in shot.required_assets]
+            assets = await Asset.find({"_id": {"$in": asset_ids}}).to_list()
+            asset_map = {a.id: a for a in assets}
+            parts = []
+            for binding in shot.required_assets:
+                a = asset_map.get(binding.asset_id)
+                if a:
+                    parts.append(f"{binding.asset_name}：{a.prompt}")
+            required_assets_prompts = "\n".join(parts)
+
+        # Get episode continuity notes
+        episode = await Episode.get(shot.episode_id)
+        continuity_notes = (episode.continuity_notes or "无") if episode else "无"
+
         system_prompt, user_prompt, _ = await render(
             PromptConfigScope.shot_image_gen,
             {
-                "series_prompt": series_prompt,
-                "shot_code": shot.shot_code,
                 "shot_description": shot.description,
-                "shot_prompt": shot.prompt,
+                "required_assets_prompts": required_assets_prompts or "无",
+                "continuity_notes": continuity_notes,
+                "style_guide": series_prompt or "写实风格，电影质感，竖屏9:16",
             },
         )
 
-        full_prompt = user_prompt or shot.prompt
+        full_prompt = user_prompt or shot.description
         if series_prompt and series_prompt not in full_prompt:
             full_prompt = f"{series_prompt}\n\n{full_prompt}"
 
