@@ -84,7 +84,7 @@ export interface ApiShot {
   duration: number;
   description: string;
   prompt: string;
-  required_assets: Array<{ asset_id: string; name: string; asset_type: string }>;
+  required_assets: Array<{ asset_id: string; asset_name: string }>;
   state: string;
   version: string;
   image_url?: string;

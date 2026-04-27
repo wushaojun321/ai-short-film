@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { EpisodeStep, EpisodeDetail, Shot, ShotState } from "@/lib/data";
 import { cn } from "@/lib/utils";
-import { generateAPI, shotAPI, pollTask } from "@/lib/api";
+import { generateAPI, shotAPI, episodeAPI, pollTask } from "@/lib/api";
 import { useCos } from "@/lib/CosContext";
 
 interface StepContentProps {
@@ -20,6 +20,7 @@ interface StepContentProps {
   episode: EpisodeDetail;
   projectId: string;
   onShotsUpdate: () => void;
+  onEpisodeUpdate: () => void;
 }
 
 // ─── 分镜状态配置 ────────────────────────────────────────────
@@ -173,8 +174,8 @@ function GeneratingOverlay({ message }: { message: string }) {
 // ─── Step 1：分镜脚本 ────────────────────────────────────────
 
 function StepScript({
-  episode, projectId, onShotsUpdate,
-}: { episode: EpisodeDetail; projectId: string; onShotsUpdate: () => void }) {
+  episode, projectId, onShotsUpdate, onEpisodeUpdate,
+}: { episode: EpisodeDetail; projectId: string; onShotsUpdate: () => void; onEpisodeUpdate: () => void }) {
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(episode.shots.length > 0);
   const [shots, setShots] = useState(episode.shots);
@@ -235,14 +236,14 @@ function StepScript({
       await shotAPI.batchReview(projectId, episode.id, reviews);
       setApproved(true);
       onShotsUpdate();
+      await episodeAPI.advanceStep(projectId, episode.id);
+      onEpisodeUpdate();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "审批失败");
     } finally {
       setApproving(false);
     }
   };
-
-  // 空状态：未生成
   if (!generated) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
@@ -410,8 +411,8 @@ type ShotImageState = Shot & {
 };
 
 function StepImages({
-  episode, projectId, onShotsUpdate,
-}: { episode: EpisodeDetail; projectId: string; onShotsUpdate: () => void }) {
+  episode, projectId, onShotsUpdate, onEpisodeUpdate,
+}: { episode: EpisodeDetail; projectId: string; onShotsUpdate: () => void; onEpisodeUpdate: () => void }) {
   const { cosUrl } = useCos();
   const [shots, setShots] = useState<ShotImageState[]>(
     episode.shots.map((s) => ({
@@ -468,6 +469,10 @@ function StepImages({
       await shotAPI.batchReview(projectId, episode.id, reviews);
       setAllApproved(true);
       onShotsUpdate();
+      // 后端: storyboard_images → image_review → storyboard_videos，需推进两步
+      await episodeAPI.advanceStep(projectId, episode.id);
+      await episodeAPI.advanceStep(projectId, episode.id);
+      onEpisodeUpdate();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "批量审批失败");
     } finally {
@@ -587,8 +592,8 @@ type ShotVideoState = Shot & {
 };
 
 function StepVideos({
-  episode, projectId, onShotsUpdate,
-}: { episode: EpisodeDetail; projectId: string; onShotsUpdate: () => void }) {
+  episode, projectId, onShotsUpdate, onEpisodeUpdate,
+}: { episode: EpisodeDetail; projectId: string; onShotsUpdate: () => void; onEpisodeUpdate: () => void }) {
   const { cosUrl } = useCos();
   const [selected, setSelected] = useState(0);
   const [shots, setShots] = useState<ShotVideoState[]>(
@@ -648,6 +653,10 @@ function StepVideos({
       await shotAPI.batchReview(projectId, episode.id, reviews);
       setAllApproved(true);
       onShotsUpdate();
+      // 后端: storyboard_videos → video_review → dubbing，需推进两步
+      await episodeAPI.advanceStep(projectId, episode.id);
+      await episodeAPI.advanceStep(projectId, episode.id);
+      onEpisodeUpdate();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "批量审批失败");
     } finally {
@@ -803,7 +812,19 @@ function StepVideos({
 
 // ─── Step 4：配音 ────────────────────────────────────────────
 
-function StepDubbing({ episode }: { episode: EpisodeDetail }) {
+function StepDubbing({ episode, projectId, onEpisodeUpdate }: { episode: EpisodeDetail; projectId: string; onEpisodeUpdate: () => void }) {
+  const [advancing, setAdvancing] = useState(false);
+
+  const handleSkip = async () => {
+    setAdvancing(true);
+    try {
+      await episodeAPI.advanceStep(projectId, episode.id);
+      onEpisodeUpdate();
+    } finally {
+      setAdvancing(false);
+    }
+  };
+
   return (
     <div className="flex flex-col items-center justify-center py-20 gap-4">
       <div className="w-14 h-14 rounded-full bg-soft flex items-center justify-center">
@@ -815,6 +836,9 @@ function StepDubbing({ episode }: { episode: EpisodeDetail }) {
           配音模块尚未上线，敬请期待。当前共 {episode.shots.length} 个分镜待配音。
         </p>
       </div>
+      <Button variant="outline" onClick={handleSkip} disabled={advancing}>
+        {advancing ? <><Loader2 className="w-4 h-4 animate-spin" />跳过中…</> : "跳过配音，进入合并"}
+      </Button>
     </div>
   );
 }
@@ -822,8 +846,8 @@ function StepDubbing({ episode }: { episode: EpisodeDetail }) {
 // ─── Step 5：合并 ────────────────────────────────────────────
 
 function StepMerge({
-  episode, onShotsUpdate,
-}: { episode: EpisodeDetail; onShotsUpdate: () => void }) {
+  episode, onShotsUpdate, onEpisodeUpdate,
+}: { episode: EpisodeDetail; onShotsUpdate: () => void; onEpisodeUpdate: () => void }) {
   const [merging, setMerging] = useState(false);
   const [progress, setProgress] = useState(0);
   const [done, setDone] = useState(false);
@@ -848,6 +872,7 @@ function StepMerge({
       setProgress(100);
       setDone(true);
       onShotsUpdate();
+      onEpisodeUpdate(); // 后端已把 current_step 设为 done，刷新 episode
     } catch (e: unknown) {
       clearInterval(animTimer);
       setError(e instanceof Error ? e.message : "合并失败");
@@ -906,6 +931,7 @@ function StepMerge({
 // ─── Step 6：完成 ────────────────────────────────────────────
 
 function StepDone({ episode }: { episode: EpisodeDetail }) {
+  const { cosUrl } = useCos();
   const totalDuration = episode.shots.reduce((s, sh) => s + sh.duration, 0);
   const m = Math.floor(totalDuration / 60);
   const sec = totalDuration % 60;
@@ -936,7 +962,7 @@ function StepDone({ episode }: { episode: EpisodeDetail }) {
       {episode.finalVideoUrl ? (
         <div className="mb-6">
           <video
-            src={episode.finalVideoUrl}
+            src={cosUrl(episode.finalVideoUrl)}
             controls
             className="max-w-[200px] mx-auto rounded-2xl border border-line"
           />
@@ -951,7 +977,7 @@ function StepDone({ episode }: { episode: EpisodeDetail }) {
       )}
 
       {episode.finalVideoUrl && (
-        <a href={episode.finalVideoUrl} download>
+        <a href={cosUrl(episode.finalVideoUrl)} download target="_blank" rel="noreferrer">
           <Button>下载成片</Button>
         </a>
       )}
@@ -961,13 +987,13 @@ function StepDone({ episode }: { episode: EpisodeDetail }) {
 
 // ─── 主组件 ───────────────────────────────────────────────────
 
-export default function StepContent({ step, episode, projectId, onShotsUpdate }: StepContentProps) {
+export default function StepContent({ step, episode, projectId, onShotsUpdate, onEpisodeUpdate }: StepContentProps) {
   const stepComponents: Record<EpisodeStep, React.ReactNode> = {
-    storyboard_script:  <StepScript episode={episode} projectId={projectId} onShotsUpdate={onShotsUpdate} />,
-    storyboard_images:  <StepImages episode={episode} projectId={projectId} onShotsUpdate={onShotsUpdate} />,
-    storyboard_videos:  <StepVideos episode={episode} projectId={projectId} onShotsUpdate={onShotsUpdate} />,
-    dubbing:            <StepDubbing episode={episode} />,
-    merge:              <StepMerge episode={episode} onShotsUpdate={onShotsUpdate} />,
+    storyboard_script:  <StepScript episode={episode} projectId={projectId} onShotsUpdate={onShotsUpdate} onEpisodeUpdate={onEpisodeUpdate} />,
+    storyboard_images:  <StepImages episode={episode} projectId={projectId} onShotsUpdate={onShotsUpdate} onEpisodeUpdate={onEpisodeUpdate} />,
+    storyboard_videos:  <StepVideos episode={episode} projectId={projectId} onShotsUpdate={onShotsUpdate} onEpisodeUpdate={onEpisodeUpdate} />,
+    dubbing:            <StepDubbing episode={episode} projectId={projectId} onEpisodeUpdate={onEpisodeUpdate} />,
+    merge:              <StepMerge episode={episode} onShotsUpdate={onShotsUpdate} onEpisodeUpdate={onEpisodeUpdate} />,
     done:               <StepDone episode={episode} />,
   };
 

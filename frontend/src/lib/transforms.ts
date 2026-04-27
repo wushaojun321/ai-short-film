@@ -79,7 +79,7 @@ export function transformShot(s: ApiShot): Shot {
     order: s.order,
     duration: s.duration,
     description: s.description,
-    assets: s.required_assets.map((a) => a.name),
+    assets: s.required_assets.map((a) => a.asset_name),
     state: SHOT_STATE_MAP[s.state] ?? "planned",
     imageUrl: s.image_url ?? undefined,
     videoUrl: s.video_url ?? undefined,

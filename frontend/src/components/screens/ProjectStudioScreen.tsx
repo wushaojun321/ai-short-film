@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Project, EpisodeDetail, EpisodeStep, STEP_ORDER } from "@/lib/data";
 import { episodeAPI, shotAPI } from "@/lib/api";
 import { transformEpisode, transformShot } from "@/lib/transforms";
-
 interface ProjectStudioScreenProps {
   project: Project;
   onProjectUpdate: () => void;
@@ -60,6 +59,19 @@ export default function ProjectStudioScreen({ project }: ProjectStudioScreenProp
     setEpisodes((prev) => prev.map((e) => e.id === ep.id ? updated : e));
     return updated;
   }, [project.id]);
+
+  // 重新加载单个 episode（step 推进后调用）
+  const reloadEpisode = useCallback(async (episodeId: string) => {
+    const raw = await episodeAPI.get(project.id, episodeId);
+    const updated = transformEpisode(raw);
+    setEpisodes((prev) => prev.map((e) => e.id === episodeId ? { ...e, ...updated } : e));
+    // 同步 URL step 到新的 currentStep
+    setSearchParams((prev) => {
+      const p = new URLSearchParams(prev);
+      p.set("step", updated.currentStep);
+      return p;
+    }, { replace: true });
+  }, [project.id, setSearchParams]);
 
   useEffect(() => {
     if (activeEpisode) loadShots(activeEpisode);
@@ -139,6 +151,7 @@ export default function ProjectStudioScreen({ project }: ProjectStudioScreenProp
               episode={activeEpisode}
               projectId={project.id}
               onShotsUpdate={() => loadShots(activeEpisode)}
+              onEpisodeUpdate={() => reloadEpisode(activeEpisode.id)}
             />
           </div>
         </div>
