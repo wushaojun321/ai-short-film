@@ -64,8 +64,11 @@ services:
     environment:
       MONGODB_URL: mongodb://mongodb:27017/ai_short_film
       REDIS_URL: redis://redis:6379/0
-      # 火山引擎是国内服务，不走代理
+      # LLM (OpenRouter) 走代理；火山引擎 Seedream 通过 image_service 显式 proxy=None 跳过代理
+      HTTP_PROXY: http://v2ray:10801
+      HTTPS_PROXY: http://v2ray:10801
     depends_on:
+      - v2ray
       - mongodb
       - redis
     restart: unless-stopped
@@ -80,8 +83,11 @@ services:
     environment:
       MONGODB_URL: mongodb://mongodb:27017/ai_short_film
       REDIS_URL: redis://redis:6379/0
-      # 火山引擎是国内服务，不走代理
+      # LLM (OpenRouter) 走代理；火山引擎 Seedance 通过 video_service 显式 proxy=None 跳过代理
+      HTTP_PROXY: http://v2ray:10801
+      HTTPS_PROXY: http://v2ray:10801
     depends_on:
+      - v2ray
       - mongodb
       - redis
     restart: unless-stopped

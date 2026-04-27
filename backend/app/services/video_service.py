@@ -2,6 +2,7 @@
 from __future__ import annotations
 import time
 import uuid
+import httpx
 from volcenginesdkarkruntime import Ark
 from app.config import settings
 import app.services.storage_service as storage_service
@@ -11,9 +12,11 @@ POLL_TIMEOUT = 600  # 10 minutes
 
 
 def get_ark_client() -> Ark:
+    # 显式传入不走代理的 http_client，火山引擎国内直连
     return Ark(
         base_url=settings.ark_base_url,
         api_key=settings.ark_api_key,
+        http_client=httpx.Client(proxy=None),
     )
 
 

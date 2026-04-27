@@ -52,27 +52,16 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
                     "negative_prompt_rules": "避免模糊、变形、多余肢体、不自然比例",
                 },
             )
-            # 用 Ark（国内直连），避免 worker-image 无代理时 OpenRouter 403
-            from openai import AsyncOpenAI as _AsyncOpenAI
-            from app.config import settings as _settings
-            import json as _json
-            ark_client = _AsyncOpenAI(
-                api_key=_settings.ark_api_key,
-                base_url=_settings.ark_base_url,
+            raw = await llm_service.chat_json(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
             )
-            resp = await ark_client.chat.completions.create(
-                model=_settings.ark_llm_model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                temperature=0.3,
-                response_format={"type": "json_object"},
-            )
-            raw = _json.loads(resp.choices[0].message.content or "{}")
+            if isinstance(raw, str):
+                raw = json.loads(raw)
             positive = raw.get("positive_prompt", "")
             if positive:
                 optimized_prompt = positive
+                # 将优化后的提示词存回 asset，用户后续 AI 修改时能看到
                 await asset.set({"prompt": optimized_prompt})
         except Exception as e:
             # LLM 优化失败不阻断生图，继续用原始 prompt
@@ -137,7 +126,7 @@ async def _gen_shot_image_async(celery_id: str, shot_id: str):
     from app.models.shot import Shot, ShotState
     from app.models.project import Project
     from app.models.task_record import TaskRecord
-    from app.services import image_service
+    from app.services import image_service, llm_service
     from app.services.prompt_service import render
     from app.models.prompt_config import PromptConfigScope
     import json
@@ -187,37 +176,26 @@ async def _gen_shot_image_async(celery_id: str, shot_id: str):
             },
         )
 
-        # ── LLM 优化：用 Ark（国内直连）将 shot 描述转化为纯视觉 Seedream 提示词 ──
-        from openai import AsyncOpenAI as _AsyncOpenAI
-        from app.config import settings as _settings
+        # ── LLM 优化：将 shot 描述转化为纯视觉 Seedream 提示词（过滤敏感词）──────
         full_prompt = None
         try:
-            ark_client = _AsyncOpenAI(
-                api_key=_settings.ark_api_key,
-                base_url=_settings.ark_base_url,
+            raw = await llm_service.chat_json(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
             )
-            resp = await ark_client.chat.completions.create(
-                model=_settings.ark_llm_model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                temperature=0.3,
-                response_format={"type": "json_object"},
-            )
-            raw = resp.choices[0].message.content or "{}"
-            parsed = json.loads(raw)
-            full_prompt = parsed.get("prompt", "") or None
+            if isinstance(raw, str):
+                raw = json.loads(raw)
+            full_prompt = raw.get("prompt", "") or None
         except Exception as e:
             if record:
                 await record.set({"logs": (record.logs or []) + [f"[prompt] LLM 优化失败：{e}"]})
 
         if not full_prompt:
-            # 兜底：构造一个不含敏感词的简单描述
+            # 兜底：不含敏感词的纯英文视觉描述
             full_prompt = (
                 "cinematic vertical 9:16 shot, realistic film style, "
-                "indoor living room scene, two young men, computer screens with colorful charts, "
-                "dramatic lighting, close-up"
+                "indoor scene with people and computer screens showing colorful charts, "
+                "dramatic lighting"
             )
             if record:
                 await record.set({"logs": (record.logs or []) + ["[prompt] 使用兜底通用提示词"]})

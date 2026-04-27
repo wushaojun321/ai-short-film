@@ -1,15 +1,18 @@
 """Volcano Engine Seedream image generation service."""
 from __future__ import annotations
 import uuid
+import httpx
 from volcenginesdkarkruntime import Ark
 from app.config import settings
 import app.services.storage_service as storage_service
 
 
 def get_ark_client() -> Ark:
+    # 显式传入不走代理的 http_client，避免系统 HTTP_PROXY 环境变量影响火山引擎（国内直连）
     return Ark(
         base_url=settings.ark_base_url,
         api_key=settings.ark_api_key,
+        http_client=httpx.Client(proxy=None),
     )
 
 

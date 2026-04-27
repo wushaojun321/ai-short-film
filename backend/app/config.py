@@ -27,7 +27,6 @@ class Settings(BaseSettings):
     ark_base_url: str = "https://ark.cn-beijing.volces.com/api/v3"
     ark_image_model: str = "doubao-seedream-5-0-260128"
     ark_video_model: str = "doubao-seedance-2-0-260128"
-    ark_llm_model: str = "doubao-1-5-pro-32k-250115"
 
 
 settings = Settings()
