@@ -190,12 +190,10 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str):
         system_prompt, user_prompt, _ = await render(
             PromptConfigScope.shot_script_gen,
             {
-                "series_prompt": project.series_prompt or "",
-                "episode_number": episode.number,
-                "episode_title": episode.title,
-                "episode_summary": episode.summary,
+                "episode_script": f"第{episode.number}集《{episode.title}》\n\n{episode.summary}",
+                "continuity_notes": episode.continuity_notes or "无",
                 "asset_list": str(asset_list),
-                "continuity_notes": episode.continuity_notes or "",
+                "series_style": project.series_prompt or "",
             },
         )
 
@@ -207,8 +205,11 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str):
         if record:
             await record.set({"progress": 70})
 
-        # Create shots — resolve required_assets by name lookup
-        shots_data = result.get("shots", [])
+        # Create shots — LLM may return array directly or {"shots": [...]}
+        if isinstance(result, list):
+            shots_data = result
+        else:
+            shots_data = result.get("shots", [])
         # Build asset name→id map once for efficiency
         asset_map = {a.name: a for a in assets}
         for idx, s in enumerate(shots_data):
