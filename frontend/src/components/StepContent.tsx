@@ -424,9 +424,41 @@ function StepImages({
   const [regenTarget, setRegenTarget] = useState<string | null>(null);
   const [allApproved, setAllApproved] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [batchGenerating, setBatchGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const approvedCount = shots.filter((s) => s.imageApproved || allApproved).length;
+  const hasUngenerated = shots.some((s) => !s.imageUrl && !s.loadingRegen);
+
+  const handleBatchGenerate = async () => {
+    const targets = shots.filter((s) => !s.imageUrl && !s.loadingRegen);
+    if (targets.length === 0) return;
+    setBatchGenerating(true);
+    setError(null);
+    // 标记所有待生成的为 loading
+    setShots((prev) => prev.map((s) =>
+      targets.some((t) => t.id === s.id) ? { ...s, loadingRegen: true } : s
+    ));
+    try {
+      await Promise.all(
+        targets.map(async (s) => {
+          try {
+            const task = await generateAPI.shotImage(s.id);
+            await pollTask(task.record_id, () => {});
+          } finally {
+            setShots((prev) => prev.map((p) =>
+              p.id === s.id ? { ...p, loadingRegen: false } : p
+            ));
+          }
+        })
+      );
+      onShotsUpdate();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "批量生成失败");
+    } finally {
+      setBatchGenerating(false);
+    }
+  };
 
   const handleRegen = async (shotId: string, _feedback: string) => {
     setShots((prev) => prev.map((s) =>
@@ -485,6 +517,21 @@ function StepImages({
       {error && (
         <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3">
           <p className="text-xs text-red-600">{error}</p>
+        </div>
+      )}
+
+      {hasUngenerated && (
+        <div className="mb-4 flex items-center justify-between rounded-xl border border-line bg-soft px-4 py-3">
+          <span className="text-xs text-sub">
+            {shots.filter((s) => !s.imageUrl).length} 个分镜尚未生成剧照
+          </span>
+          <Button size="sm" onClick={handleBatchGenerate} disabled={batchGenerating}>
+            {batchGenerating ? (
+              <><Loader2 className="w-3.5 h-3.5 animate-spin" />生成中…</>
+            ) : (
+              <><Play className="w-3.5 h-3.5" />批量生成全部</>
+            )}
+          </Button>
         </div>
       )}
 
@@ -607,10 +654,41 @@ function StepVideos({
   const [regenTarget, setRegenTarget] = useState<string | null>(null);
   const [allApproved, setAllApproved] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [batchGenerating, setBatchGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const approvedCount = shots.filter((s) => s.videoApproved || allApproved).length;
   const shot = shots[selected];
+  const hasUngenerated = shots.some((s) => !s.videoUrl && !s.loadingRegen);
+
+  const handleBatchGenerate = async () => {
+    const targets = shots.filter((s) => !s.videoUrl && !s.loadingRegen);
+    if (targets.length === 0) return;
+    setBatchGenerating(true);
+    setError(null);
+    setShots((prev) => prev.map((s) =>
+      targets.some((t) => t.id === s.id) ? { ...s, loadingRegen: true } : s
+    ));
+    try {
+      await Promise.all(
+        targets.map(async (s) => {
+          try {
+            const task = await generateAPI.shotVideo(s.id);
+            await pollTask(task.record_id, () => {});
+          } finally {
+            setShots((prev) => prev.map((p) =>
+              p.id === s.id ? { ...p, loadingRegen: false, videoGenerated: true } : p
+            ));
+          }
+        })
+      );
+      onShotsUpdate();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "批量生成失败");
+    } finally {
+      setBatchGenerating(false);
+    }
+  };
 
   const handleRegen = async (shotId: string, _feedback: string) => {
     setShots((prev) => prev.map((s) =>
@@ -669,6 +747,21 @@ function StepVideos({
       {error && (
         <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3">
           <p className="text-xs text-red-600">{error}</p>
+        </div>
+      )}
+
+      {hasUngenerated && (
+        <div className="mb-4 flex items-center justify-between rounded-xl border border-line bg-soft px-4 py-3">
+          <span className="text-xs text-sub">
+            {shots.filter((s) => !s.videoUrl).length} 个分镜尚未生成视频
+          </span>
+          <Button size="sm" onClick={handleBatchGenerate} disabled={batchGenerating}>
+            {batchGenerating ? (
+              <><Loader2 className="w-3.5 h-3.5 animate-spin" />生成中…</>
+            ) : (
+              <><Play className="w-3.5 h-3.5" />批量生成全部</>
+            )}
+          </Button>
         </div>
       )}
 
