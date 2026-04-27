@@ -27,34 +27,35 @@ def build_video_content(
 ) -> tuple[list[dict], bool]:
     """Build content list for Seedance 2.0.
 
-    Seedance 2.0 有两种互斥模式：
-    - 首帧模式（role=first_frame）：支持 duration 参数
-    - 多模态参考模式（role=reference_image）：r2v 模式，不支持 duration 参数
+    Seedance 2.0 有图片输入时（i2v/r2v）均不支持 duration 参数，
+    只有纯文生视频（t2v）才支持 duration。
 
-    策略：有 first_frame_url 则用首帧模式（忽略 reference_images），
-    否则用多模态参考模式。
+    策略：first_frame_url 作为 reference_image（seedance 2.0 推荐方式），
+    reference_images 同样作为 reference_image。
+    has_images 为 True 时调用方不应传 duration。
 
-    Returns: (content, is_first_frame_mode)
+    Returns: (content, has_images)
     """
     content: list[dict] = [{"type": "text", "text": prompt}]
+    has_images = False
 
     if first_frame_url:
-        # 首帧模式：分镜剧照作为首帧，支持 duration
         content.append({
             "type": "image_url",
             "image_url": {"url": first_frame_url},
-            "role": "first_frame",
+            "role": "reference_image",
         })
-        return content, True
-    else:
-        # 多模态参考模式：用资产图作参考，不支持 duration
-        for img_url in (reference_images or []):
-            content.append({
-                "type": "image_url",
-                "image_url": {"url": img_url},
-                "role": "reference_image",
-            })
-        return content, False
+        has_images = True
+
+    for img_url in (reference_images or []):
+        content.append({
+            "type": "image_url",
+            "image_url": {"url": img_url},
+            "role": "reference_image",
+        })
+        has_images = True
+
+    return content, has_images
 
 
 def generate_video_sync(
@@ -72,11 +73,11 @@ def generate_video_sync(
     Returns: {"video_url": str, "last_frame_url": str|None, "task_id": str}
     """
     client = get_ark_client()
-    content, is_first_frame_mode = build_video_content(prompt, first_frame_url, reference_images)
+    content, has_images = build_video_content(prompt, first_frame_url, reference_images)
 
-    # r2v（多模态参考）模式不支持 duration 参数
+    # seedance 2.0 有图片输入时（i2v/r2v）不支持 duration，仅 t2v 支持
     extra_params: dict = {"ratio": ratio, "resolution": resolution}
-    if is_first_frame_mode:
+    if not has_images:
         extra_params["duration"] = duration
 
     create_result = client.content_generation.tasks.create(
