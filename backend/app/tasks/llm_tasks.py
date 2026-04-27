@@ -205,11 +205,16 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str):
         if record:
             await record.set({"progress": 70})
 
-        # Create shots — LLM may return array directly or {"shots": [...]}
+        # Create shots — LLM may return array or dict with various key names
         if isinstance(result, list):
             shots_data = result
         else:
-            shots_data = result.get("shots", [])
+            shots_data = (
+                result.get("shots")
+                or result.get("storyboard")
+                or result.get("shot_list")
+                or []
+            )
         # Build asset name→id map once for efficiency
         asset_map = {a.name: a for a in assets}
         for idx, s in enumerate(shots_data):
