@@ -24,25 +24,37 @@ def build_video_content(
     prompt: str,
     first_frame_url: str | None = None,
     reference_images: list[str] | None = None,
-) -> list[dict]:
-    """Build content list for Seedance 2.0."""
+) -> tuple[list[dict], bool]:
+    """Build content list for Seedance 2.0.
+
+    Seedance 2.0 有两种互斥模式：
+    - 首帧模式（role=first_frame）：支持 duration 参数
+    - 多模态参考模式（role=reference_image）：r2v 模式，不支持 duration 参数
+
+    策略：有 first_frame_url 则用首帧模式（忽略 reference_images），
+    否则用多模态参考模式。
+
+    Returns: (content, is_first_frame_mode)
+    """
     content: list[dict] = [{"type": "text", "text": prompt}]
 
     if first_frame_url:
+        # 首帧模式：分镜剧照作为首帧，支持 duration
         content.append({
             "type": "image_url",
             "image_url": {"url": first_frame_url},
-            "role": "reference_image",
+            "role": "first_frame",
         })
-
-    for img_url in (reference_images or []):
-        content.append({
-            "type": "image_url",
-            "image_url": {"url": img_url},
-            "role": "reference_image",
-        })
-
-    return content
+        return content, True
+    else:
+        # 多模态参考模式：用资产图作参考，不支持 duration
+        for img_url in (reference_images or []):
+            content.append({
+                "type": "image_url",
+                "image_url": {"url": img_url},
+                "role": "reference_image",
+            })
+        return content, False
 
 
 def generate_video_sync(
@@ -60,17 +72,20 @@ def generate_video_sync(
     Returns: {"video_url": str, "last_frame_url": str|None, "task_id": str}
     """
     client = get_ark_client()
-    content = build_video_content(prompt, first_frame_url, reference_images)
+    content, is_first_frame_mode = build_video_content(prompt, first_frame_url, reference_images)
+
+    # r2v（多模态参考）模式不支持 duration 参数
+    extra_params: dict = {"ratio": ratio, "resolution": resolution}
+    if is_first_frame_mode:
+        extra_params["duration"] = duration
 
     create_result = client.content_generation.tasks.create(
         model=settings.ark_video_model,
         content=content,
-        ratio=ratio,
-        duration=duration,
-        resolution=resolution,
         generate_audio=generate_audio,
         return_last_frame=return_last_frame,
         watermark=False,
+        **extra_params,
     )
     task_id = create_result.id
 
