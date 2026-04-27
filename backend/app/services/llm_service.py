@@ -13,8 +13,8 @@ _EXTRA_HEADERS = {
 
 
 def get_client() -> AsyncOpenAI:
-    proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
-    http_client = httpx.AsyncClient(proxy=proxy) if proxy else None
+    proxy_url = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
+    http_client = httpx.AsyncClient(proxy=httpx.Proxy(url=proxy_url)) if proxy_url else None
     return AsyncOpenAI(
         api_key=settings.openrouter_api_key,
         base_url=settings.openrouter_base_url,
