@@ -142,7 +142,7 @@ async def _parse_script_async(celery_id: str, project_id: str):
             "[prompt] Prompt 渲染完成，发送 LLM 请求…",
         ], 55)
 
-        result = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=8192)
+        result = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=16384)
         await log([
             "✓ LLM 响应完成，开始解析结果…",
         ], 70)
