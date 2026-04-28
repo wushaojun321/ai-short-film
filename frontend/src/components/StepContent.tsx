@@ -698,7 +698,7 @@ function StepImages({
         onApproveAll={handleApproveAll}
         allApproved={allApproved}
         approving={approving}
-        notReady={shots.some((s) => !s.imageUrl || s.loadingRegen || s.state === "generating")}
+        notReady={shots.length === 0 || shots.some((s) => !s.imageUrl || s.loadingRegen || s.state === "generating")}
         notReadyTip="所有分镜剧照生成完成后方可审批"
       />
 
@@ -957,7 +957,7 @@ function StepVideos({
         onApproveAll={handleApproveAll}
         allApproved={allApproved}
         approving={approving}
-        notReady={shots.some((s) => !s.videoUrl || s.loadingRegen || s.state === "rendering")}
+        notReady={shots.length === 0 || shots.some((s) => !s.videoUrl || s.loadingRegen || s.state === "rendering")}
         notReadyTip="所有分镜视频生成完成后方可审批"
       />
 
