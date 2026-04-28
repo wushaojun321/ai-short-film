@@ -3,6 +3,50 @@ from __future__ import annotations
 from app.celery_app import celery_app
 from app.tasks.base import run_async, finish_task_record
 
+# 超过此字数时启用 Map-Reduce 分段解析
+LONG_SCRIPT_THRESHOLD = 10000
+
+
+def _split_script(text: str, target_episodes: int) -> list[str]:
+    """按目标集数均分剧本，在段落边界切分，每段约 6000 字。"""
+    chunk_size = max(6000, len(text) // max(target_episodes, 1))
+    chunks, pos = [], 0
+    while pos < len(text):
+        end = min(pos + chunk_size, len(text))
+        if end < len(text):
+            boundary = text.rfind('\n\n', pos + int(chunk_size * 0.5), end)
+            if boundary > pos:
+                end = boundary + 2
+        chunks.append(text[pos:end].strip())
+        pos = end
+    return [c for c in chunks if c]
+
+
+def _build_reduce_input(chunks_results: list[dict]) -> str:
+    """将 N 段 map 结果合并为 Reduce 阶段的 script_text。"""
+    lines = []
+    for i, r in enumerate(chunks_results):
+        lines.append(f"=== 第 {i + 1} 段摘要 ===")
+        lines.append(f"情节：{r.get('plot_summary', '')}")
+        chars = r.get('characters', [])
+        if chars:
+            lines.append("人物：" + "；".join(
+                f"{c['name']}（{c.get('description', '')}）" for c in chars
+            ))
+        scenes = r.get('scenes', [])
+        if scenes:
+            lines.append("场景：" + "；".join(
+                f"{s['name']}（{s.get('description', '')}）" for s in scenes
+            ))
+        props = [p for p in r.get('props', []) if int(p.get('significance', 0)) >= 4]
+        if props:
+            lines.append("道具：" + "；".join(p['name'] for p in props))
+        hints = r.get('episode_hints', [])
+        if hints:
+            lines.append("分集建议：" + "；".join(hints))
+        lines.append("")
+    return "\n".join(lines)
+
 
 @celery_app.task(bind=True, name="app.tasks.llm.parse_script", queue="llm")
 def parse_script_task(self, project_id: str):
@@ -41,10 +85,54 @@ async def _parse_script_async(celery_id: str, project_id: str):
             f"[init] 剧本长度：{script_len} 字，目标集数：{project.target_episode_count}",
         ], 10)
 
+        # ── Map-Reduce 分支（长剧本） ─────────────────────────────────────────
+        if script_len >= LONG_SCRIPT_THRESHOLD:
+            import asyncio
+            from app.models.prompt_config import PromptConfigScope as Scope
+
+            await log([
+                f"[map-reduce] 剧本 {script_len} 字，超过 {LONG_SCRIPT_THRESHOLD} 字阈值，启用 Map-Reduce 分段解析…"
+            ], 15)
+
+            chunks = _split_script(project.script_text, project.target_episode_count)
+            total = len(chunks)
+            await log([f"[map-reduce] 切分为 {total} 段，开始并发提取摘要…"], 18)
+
+            # 获取 Map prompt（只取 system_prompt 和 user_prompt_template）
+            map_config = await render(Scope.script_map, {
+                "chunk_index": 1, "total_chunks": total, "chunk_text": "",
+            })
+            map_sys = map_config[0]
+            map_user_tpl = map_config[2].get("user_prompt_template", "")
+
+            sem = asyncio.Semaphore(3)
+            completed = [0]  # 用列表包装以在闭包中修改
+
+            async def map_chunk(chunk: str, idx: int):
+                async with sem:
+                    user_p = map_user_tpl.format(
+                        chunk_index=idx + 1,
+                        total_chunks=total,
+                        chunk_text=chunk,
+                    )
+                    result = await llm_service.chat_json(map_sys, user_p)
+                    completed[0] += 1
+                    pct = 18 + int(completed[0] / total * 32)
+                    await log([f"[map] 第 {idx + 1}/{total} 段提取完成"], pct)
+                    return result
+
+            map_results = await asyncio.gather(*[map_chunk(c, i) for i, c in enumerate(chunks)])
+            await log(["[map-reduce] Map 阶段完成，合并摘要，准备 Reduce…"], 52)
+
+            script_text_for_reduce = _build_reduce_input(list(map_results))
+        else:
+            # 短剧本：直接截断走原有逻辑
+            script_text_for_reduce = project.script_text[:8000]
+
         system_prompt, user_prompt, _ = await render(
             PromptConfigScope.script_parse,
             {
-                "script_text": project.script_text[:8000],  # truncate for token limits
+                "script_text": script_text_for_reduce,
                 "target_episodes": project.target_episode_count,
                 "min_duration": project.min_episode_duration,
                 "parse_notes": project.parse_notes or "",
@@ -52,17 +140,17 @@ async def _parse_script_async(celery_id: str, project_id: str):
         )
         await log([
             "[prompt] Prompt 渲染完成，发送 LLM 请求…",
-        ], 20)
+        ], 55)
 
         result = await llm_service.chat_json(system_prompt, user_prompt)
         await log([
             "✓ LLM 响应完成，开始解析结果…",
-        ], 65)
+        ], 70)
 
         # Save series_prompt
         if "series_prompt" in result:
             await project.set({"series_prompt": result["series_prompt"]})
-            await log(["[series] 剧集全局提示词已保存"], 68)
+            await log(["[series] 剧集全局提示词已保存"], 72)
 
         # Create episodes
         episodes_data = result.get("episodes", [])

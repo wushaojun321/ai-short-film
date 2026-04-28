@@ -18,6 +18,7 @@ class PromptConfigScope(str, Enum):
     shot_video_edit      = "shot_video_edit"
     dubbing_gen          = "dubbing_gen"
     series_overview_edit = "series_overview_edit"
+    script_map           = "script_map"
 
 
 class PromptConfig(Document):

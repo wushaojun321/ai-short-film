@@ -142,7 +142,52 @@ SCRIPT_PARSE = {
 }
 
 # =============================================================================
-# 【初始化阶段 - 分集规划】
+# 【初始化阶段 - 长剧本 Map-Reduce：Map 阶段】
+# 用途：当剧本超过 10000 字时，先将剧本均分为多段，每段独立调用此 prompt 提取轻量摘要
+# 变量：chunk_index（当前段序号）, total_chunks（总段数）, chunk_text（本段剧本文本）
+# 输出：JSON { plot_summary, characters[], scenes[], props[], episode_hints[] }
+# =============================================================================
+SCRIPT_MAP = {
+    "scope": PromptConfigScope.script_map,
+    "name": "剧本分段摘要-Map",
+    "description": "Map-Reduce 长剧本解析的 Map 阶段：提取单段剧本的人物/场景/道具/情节摘要",
+    "system_prompt": """你是专业短剧分析师。请分析给定的剧本片段，提取结构化信息。
+
+严格按以下 JSON 格式输出，不要包含任何额外文字：
+{
+  "plot_summary": "本段情节摘要（200字以内）",
+  "characters": [
+    {
+      "name": "角色名",
+      "description": "外貌/身份/性格简述",
+      "is_recurring": true
+    }
+  ],
+  "scenes": [
+    {
+      "name": "场景名",
+      "description": "场景简述"
+    }
+  ],
+  "props": [
+    {
+      "name": "道具名",
+      "significance": 4
+    }
+  ],
+  "episode_hints": ["这段剧情适合放在第几集的说明"]
+}
+
+注意：
+- characters 只提取有名字的、重要的角色，路人不要
+- scenes 只提取在剧情中有功能意义的场景
+- props 只提取对剧情有关键作用的道具，significance 为 1-5 的整数，4 分及以上才算重要
+- episode_hints 描述本段剧情节点，帮助后续分集规划""",
+    "user_prompt_template": "剧本片段（第 {chunk_index}/{total_chunks} 段）：\n\n{chunk_text}",
+    "variables": ["chunk_index", "total_chunks", "chunk_text"],
+}
+
+
 # 用途：将解析后的剧本拆分为 N 集，生成结构化分集列表供用户审核
 # 变量：script_text（剧本文本）, series_context（剧集背景/世界观）,
 #       target_episodes（目标集数）
@@ -407,6 +452,7 @@ SERIES_OVERVIEW_EDIT = {
 # 按初始化 → 生成 → 编辑 → 其他顺序排列，供 seed_data.py 导入
 DEFAULT_PROMPTS = [
     SCRIPT_PARSE,
+    SCRIPT_MAP,
     EPISODE_SPLIT,
     CONTINUITY_EXTRACT,
     ASSET_PROMPT_GEN,
