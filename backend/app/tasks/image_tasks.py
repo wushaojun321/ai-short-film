@@ -80,7 +80,15 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
                     await record.set({"logs": (record.logs or []) + [f"[prompt] LLM 优化失败：{e}"]})
 
             if not full_prompt:
-                full_prompt = asset.prompt  # 回退到原始 prompt
+                # 兜底：用资产名称构造中性英文 prompt，避免原始 prompt 中可能的敏感词
+                asset_type_label = {"character": "person", "scene": "location", "prop": "object"}.get(asset_type_str, "subject")
+                full_prompt = (
+                    f"portrait photo of a {asset_type_label}, "
+                    "white background, professional photography, "
+                    "detailed, high quality, realistic"
+                )
+                if record:
+                    await record.set({"logs": (record.logs or []) + ["[prompt] 使用兜底安全提示词（LLM 优化失败）"]})
 
             if record:
                 attempt_label = f"第 {attempt + 1} 次" if attempt > 0 else ""

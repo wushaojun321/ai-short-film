@@ -243,7 +243,7 @@ ASSET_PROMPT_GEN = {
 - 场景：明确空间、光线、时间、氛围、视角
 - 道具：明确材质、颜色、状态、细节
 
-输出格式：
+请以 json 格式输出结果：
 {
   "positive_prompt": "正向提示词（中英文均可）",
   "negative_prompt": "反向提示词",
