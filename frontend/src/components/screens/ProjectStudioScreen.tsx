@@ -64,7 +64,11 @@ export default function ProjectStudioScreen({ project }: ProjectStudioScreenProp
   const reloadEpisode = useCallback(async (episodeId: string) => {
     const raw = await episodeAPI.get(project.id, episodeId);
     const updated = transformEpisode(raw);
-    setEpisodes((prev) => prev.map((e) => e.id === episodeId ? { ...e, ...updated } : e));
+    setEpisodes((prev) => prev.map((e) => e.id === episodeId
+      // 保留已加载的 shots，只更新 episode 元信息
+      ? { ...e, ...updated, shots: e.shots }
+      : e
+    ));
     // 同步 URL step 到新的 currentStep
     setSearchParams((prev) => {
       const p = new URLSearchParams(prev);
