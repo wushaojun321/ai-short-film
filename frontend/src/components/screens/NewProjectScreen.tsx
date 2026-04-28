@@ -944,7 +944,7 @@ export default function NewProjectScreen({
 
       if (status === "script_uploaded") {
         try {
-          const tasks = await generateAPI.listTasks(project.id, "parse_script");
+          const tasks = await generateAPI.listTasks({ project_id: project.id, task_type: "parse_script" });
           const latest = tasks[0];
           if (latest) {
             if (latest.status === "running" || latest.status === "pending") {

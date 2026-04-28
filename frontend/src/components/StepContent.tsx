@@ -13,7 +13,8 @@ import {
 } from "@/components/ui/dialog";
 import { EpisodeStep, EpisodeDetail, Shot, ShotState, getStepIndex } from "@/lib/data";
 import { cn } from "@/lib/utils";
-import { generateAPI, shotAPI, episodeAPI, pollTask } from "@/lib/api";
+import { generateAPI, shotAPI, episodeAPI } from "@/lib/api";
+import { useTaskPoller, useShotTasksPoller } from "@/lib/useTaskPoller";
 import { useCos } from "@/lib/CosContext";
 
 interface StepContentProps {
@@ -282,78 +283,42 @@ function GeneratingOverlay({ message }: { message: string }) {
 function StepScript({
   episode, projectId, onShotsUpdate, onEpisodeUpdate, isPast,
 }: { episode: EpisodeDetail; projectId: string; onShotsUpdate: () => void; onEpisodeUpdate: () => void; isPast?: boolean }) {
-  const [generating, setGenerating] = useState(false);
   const [shots, setShots] = useState(episode.shots);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [regenDialog, setRegenDialog] = useState(false);
-  const [regenLoading, setRegenLoading] = useState(false);
   const [approved, setApproved] = useState(isPast === true);
   const [approving, setApproving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [agentTarget, setAgentTarget] = useState<string | null>(null);
-  // 后台运行的任务 record_id（非 null 时轮询）
-  const [pendingRecordId, setPendingRecordId] = useState<string | null>(null);
-  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 直接从 episode prop 派生 generated，不用独立 state（避免 prop 更新后不同步）
+  // 直接从 episode prop 派生 generated，prop 更新后自动同步
   const generated = episode.shots.length > 0;
 
-  // 轮询后台生成任务，完成后刷新数据
-  useEffect(() => {
-    if (!pendingRecordId) return;
-    let cancelled = false;
+  // 统一任务轮询：mount 时自动恢复，startTask 触发新任务
+  const { isRunning, startTask } = useTaskPoller({
+    episodeId: episode.id,
+    taskType: "gen_shot_script",
+    onSuccess: () => {
+      setRegenDialog(false);
+      setApproved(false);
+      onShotsUpdate();
+      onEpisodeUpdate();
+    },
+    onError: (msg) => setError(msg),
+  });
 
-    const poll = async () => {
-      if (cancelled) return;
-      try {
-        const task = await generateAPI.getTask(pendingRecordId);
-        if (task.status === "success") {
-          if (!cancelled) {
-            setPendingRecordId(null);
-            setGenerating(false);
-            setRegenLoading(false);
-            setRegenDialog(false);
-            setApproved(false);
-            onShotsUpdate();
-            onEpisodeUpdate();
-          }
-        } else if (task.status === "failed" || task.status === "cancelled") {
-          if (!cancelled) {
-            setPendingRecordId(null);
-            setGenerating(false);
-            setRegenLoading(false);
-            setError(task.error ?? "生成失败");
-          }
-        } else {
-          pollTimerRef.current = setTimeout(poll, 2000);
-        }
-      } catch (e: unknown) {
-        if (!cancelled) {
-          setPendingRecordId(null);
-          setGenerating(false);
-          setRegenLoading(false);
-          setError(e instanceof Error ? e.message : "轮询失败");
-        }
-      }
-    };
-
-    pollTimerRef.current = setTimeout(poll, 2000);
-    return () => {
-      cancelled = true;
-      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
-    };
-  }, [pendingRecordId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // isRunning 区分是新建还是重新生成（用 generated 判断）
+  const generating = isRunning && !generated;
+  const regenLoading = isRunning && generated;
 
   const handleGenerate = async () => {
-    setGenerating(true);
     setError(null);
     try {
       const task = await generateAPI.shotScript(episode.id);
-      setPendingRecordId(task.record_id);
+      startTask(task.record_id);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "生成失败");
-      setGenerating(false);
     }
   };
 
@@ -368,15 +333,13 @@ function StepScript({
   };
 
   const handleRegen = async (_feedback: string) => {
-    setRegenLoading(true);
     setError(null);
     try {
       const task = await generateAPI.shotScript(episode.id);
-      setPendingRecordId(task.record_id);
-      // 弹窗保持打开，轮询成功后关闭
+      startTask(task.record_id);
+      // 弹窗保持打开，轮询成功后由 onSuccess 关闭
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "重新生成失败");
-      setRegenLoading(false);
     }
   };
 
@@ -602,15 +565,30 @@ function StepImages({
   const [batchGenerating, setBatchGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Mount 时恢复正在生成的 shot loading 状态
+  const { loadingShotIds, trackShot } = useShotTasksPoller({
+    episodeId: episode.id,
+    taskType: "gen_shot_image",
+    onShotDone: (_shotId) => onShotsUpdate(),
+  });
+
+  // 将 loadingShotIds 同步到 shots 的 loadingRegen 字段
+  useEffect(() => {
+    if (loadingShotIds.size === 0) return;
+    setShots((prev) => prev.map((s) => ({
+      ...s,
+      loadingRegen: loadingShotIds.has(s.id) ? true : s.loadingRegen,
+    })));
+  }, [loadingShotIds]);
+
   const approvedCount = shots.filter((s) => s.imageApproved || allApproved).length;
-  const hasUngenerated = shots.some((s) => !s.imageUrl && !s.loadingRegen);
+  const hasUngenerated = shots.some((s) => !s.imageUrl && !s.loadingRegen && !loadingShotIds.has(s.id));
 
   const handleBatchGenerate = async () => {
-    const targets = shots.filter((s) => !s.imageUrl && !s.loadingRegen);
+    const targets = shots.filter((s) => !s.imageUrl && !s.loadingRegen && !loadingShotIds.has(s.id));
     if (targets.length === 0) return;
     setBatchGenerating(true);
     setError(null);
-    // 标记所有待生成的为 loading
     setShots((prev) => prev.map((s) =>
       targets.some((t) => t.id === s.id) ? { ...s, loadingRegen: true } : s
     ));
@@ -619,17 +597,14 @@ function StepImages({
         targets.map(async (s) => {
           try {
             const task = await generateAPI.shotImage(s.id);
-            await pollTask(task.record_id, () => {});
-          } finally {
+            trackShot(task.record_id, s.id);
+          } catch {
             setShots((prev) => prev.map((p) =>
               p.id === s.id ? { ...p, loadingRegen: false } : p
             ));
           }
         })
       );
-      onShotsUpdate();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "批量生成失败");
     } finally {
       setBatchGenerating(false);
     }
@@ -643,11 +618,8 @@ function StepImages({
     setError(null);
     try {
       const task = await generateAPI.shotImage(shotId);
-      await pollTask(task.record_id, () => {});
-      onShotsUpdate();
-      setShots((prev) => prev.map((s) =>
-        s.id === shotId ? { ...s, loadingRegen: false, imageApproved: false } : s
-      ));
+      trackShot(task.record_id, shotId);
+      // trackShot 成功后会调 onShotDone → onShotsUpdate，届时 loadingRegen 清除
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "重新生成失败");
       setShots((prev) => prev.map((s) =>
@@ -852,12 +824,28 @@ function StepVideos({
   const [batchGenerating, setBatchGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Mount 时恢复正在生成的 shot loading 状态
+  const { loadingShotIds, trackShot } = useShotTasksPoller({
+    episodeId: episode.id,
+    taskType: "gen_shot_video",
+    onShotDone: (_shotId) => onShotsUpdate(),
+  });
+
+  // 将 loadingShotIds 同步到 shots 的 loadingRegen 字段
+  useEffect(() => {
+    if (loadingShotIds.size === 0) return;
+    setShots((prev) => prev.map((s) => ({
+      ...s,
+      loadingRegen: loadingShotIds.has(s.id) ? true : s.loadingRegen,
+    })));
+  }, [loadingShotIds]);
+
   const approvedCount = shots.filter((s) => s.videoApproved || allApproved).length;
   const shot = shots[selected];
-  const hasUngenerated = shots.some((s) => !s.videoUrl && !s.loadingRegen);
+  const hasUngenerated = shots.some((s) => !s.videoUrl && !s.loadingRegen && !loadingShotIds.has(s.id));
 
   const handleBatchGenerate = async () => {
-    const targets = shots.filter((s) => !s.videoUrl && !s.loadingRegen);
+    const targets = shots.filter((s) => !s.videoUrl && !s.loadingRegen && !loadingShotIds.has(s.id));
     if (targets.length === 0) return;
     setBatchGenerating(true);
     setError(null);
@@ -869,17 +857,14 @@ function StepVideos({
         targets.map(async (s) => {
           try {
             const task = await generateAPI.shotVideo(s.id);
-            await pollTask(task.record_id, () => {});
-          } finally {
+            trackShot(task.record_id, s.id);
+          } catch {
             setShots((prev) => prev.map((p) =>
-              p.id === s.id ? { ...p, loadingRegen: false, videoGenerated: true } : p
+              p.id === s.id ? { ...p, loadingRegen: false } : p
             ));
           }
         })
       );
-      onShotsUpdate();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "批量生成失败");
     } finally {
       setBatchGenerating(false);
     }
@@ -893,11 +878,7 @@ function StepVideos({
     setError(null);
     try {
       const task = await generateAPI.shotVideo(shotId);
-      await pollTask(task.record_id, () => {});
-      onShotsUpdate();
-      setShots((prev) => prev.map((s) =>
-        s.id === shotId ? { ...s, loadingRegen: false, videoGenerated: true, videoApproved: false } : s
-      ));
+      trackShot(task.record_id, shotId);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "重新生成失败");
       setShots((prev) => prev.map((s) =>
@@ -1160,36 +1141,62 @@ function StepDubbing({ episode, projectId, onEpisodeUpdate, isPast }: { episode:
 function StepMerge({
   episode, onShotsUpdate, onEpisodeUpdate, isPast,
 }: { episode: EpisodeDetail; onShotsUpdate: () => void; onEpisodeUpdate: () => void; isPast?: boolean }) {
-  const [merging, setMerging] = useState(false);
   const [progress, setProgress] = useState(0);
   const [done, setDone] = useState(isPast === true);
   const [error, setError] = useState<string | null>(null);
+  const animTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const handleMerge = async () => {
-    setMerging(true);
-    setError(null);
-    // Animate progress while polling
-    let p = 0;
-    const animTimer = setInterval(() => {
+  // 动画进度：正在合并时每 500ms +3%，最高到 90%
+  const startProgressAnim = () => {
+    let p = progress;
+    animTimerRef.current = setInterval(() => {
       p = Math.min(p + 3, 90);
       setProgress(p);
     }, 500);
+  };
 
-    try {
-      const task = await generateAPI.mergeEpisode(episode.id);
-      await pollTask(task.record_id, (t) => {
-        if (t.progress > 0) setProgress(Math.max(p, t.progress));
-      }, 3000, 600000);
-      clearInterval(animTimer);
+  const stopProgressAnim = () => {
+    if (animTimerRef.current) {
+      clearInterval(animTimerRef.current);
+      animTimerRef.current = null;
+    }
+  };
+
+  // 统一任务轮询：mount 时自动恢复合并进度
+  const { isRunning: merging, startTask } = useTaskPoller({
+    episodeId: episode.id,
+    taskType: "merge_episode",
+    onSuccess: () => {
+      stopProgressAnim();
       setProgress(100);
       setDone(true);
       onShotsUpdate();
-      onEpisodeUpdate(); // 后端已把 current_step 设为 done，刷新 episode
+      onEpisodeUpdate();
+    },
+    onError: (msg) => {
+      stopProgressAnim();
+      setError(msg);
+    },
+    intervalMs: 3000,
+  });
+
+  // mount 时若正在合并，启动进度动画
+  useEffect(() => {
+    if (merging && progress === 0) {
+      startProgressAnim();
+    }
+    return stopProgressAnim;
+  }, [merging]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleMerge = async () => {
+    setError(null);
+    startProgressAnim();
+    try {
+      const task = await generateAPI.mergeEpisode(episode.id);
+      startTask(task.record_id);
     } catch (e: unknown) {
-      clearInterval(animTimer);
+      stopProgressAnim();
       setError(e instanceof Error ? e.message : "合并失败");
-    } finally {
-      setMerging(false);
     }
   };
 

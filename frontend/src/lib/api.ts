@@ -118,6 +118,7 @@ export interface ApiGenResponse {
 export interface ApiTaskRecord {
   id: string;
   project_id?: string;
+  episode_id?: string;
   task_type: string;
   target_id?: string;
   status: string;
@@ -256,8 +257,8 @@ export const generateAPI = {
   getTask: (recordId: string): Promise<ApiTaskRecord> =>
     client.get(`/tasks/${recordId}`),
 
-  listTasks: (projectId: string, taskType?: string): Promise<ApiTaskRecord[]> =>
-    client.get(`/tasks`, { params: { project_id: projectId, task_type: taskType, limit: 5 } }),
+  listTasks: (params: { project_id?: string; episode_id?: string; task_type?: string; limit?: number }): Promise<ApiTaskRecord[]> =>
+    client.get(`/tasks`, { params: { ...params, limit: params.limit ?? 5 } }),
 };
 
 // ─── Conversation API ──────────────────────────────────────────

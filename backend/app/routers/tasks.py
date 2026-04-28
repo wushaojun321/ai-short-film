@@ -15,10 +15,12 @@ async def get_task(task_id: PydanticObjectId):
 
 
 @router.get("")
-async def list_tasks(project_id: str | None = None, task_type: str | None = None, limit: int = 50):
+async def list_tasks(project_id: str | None = None, episode_id: str | None = None, task_type: str | None = None, limit: int = 50):
     conditions = []
     if project_id:
         conditions.append(TaskRecord.project_id == PydanticObjectId(project_id))
+    if episode_id:
+        conditions.append(TaskRecord.episode_id == PydanticObjectId(episode_id))
     if task_type:
         conditions.append(TaskRecord.task_type == task_type)
     query = TaskRecord.find(*conditions) if conditions else TaskRecord.find()
