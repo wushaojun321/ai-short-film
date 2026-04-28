@@ -53,24 +53,22 @@ interface RegenerateDialogProps {
   description?: string;
   onClose: () => void;
   onConfirm: (feedback: string) => void;
-  loading?: boolean;
 }
 
 function RegenerateDialog({
-  open, title, description, onClose, onConfirm, loading,
+  open, title, description, onClose, onConfirm,
 }: RegenerateDialogProps) {
   const [feedback, setFeedback] = useState("");
 
   const handleConfirm = () => {
     onConfirm(feedback);
     setFeedback("");
+    onClose();
   };
 
   const handleClose = () => {
-    if (!loading) {
-      setFeedback("");
-      onClose();
-    }
+    setFeedback("");
+    onClose();
   };
 
   return (
@@ -82,21 +80,19 @@ function RegenerateDialog({
         </DialogHeader>
         <div className="py-2">
           <label className="text-xs font-medium text-sub mb-1.5 block">
-            修改意见 / 重新生成要求
+            修改意见 / 重新生成要求（选填）
           </label>
           <Textarea
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
-            placeholder="请描述需要调整的方向，AI 将参考此意见重新生成…"
+            placeholder="可描述需要调整的方向，AI 将参考此意见重新生成…"
             rows={4}
             autoFocus
           />
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose} disabled={loading}>取消</Button>
-          <Button onClick={handleConfirm} disabled={loading || !feedback.trim()}>
-            {loading ? <><Loader2 className="w-4 h-4 animate-spin" />生成中…</> : "确认重新生成"}
-          </Button>
+          <Button variant="outline" onClick={handleClose}>取消</Button>
+          <Button onClick={handleConfirm}>确认重新生成</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -518,9 +514,8 @@ function StepScript({
         open={regenDialog}
         title="打回重新生成分镜脚本"
         description="AI 将重新生成本集全部分镜脚本，请描述需要调整的方向。"
-        onClose={() => !regenLoading && setRegenDialog(false)}
+        onClose={() => setRegenDialog(false)}
         onConfirm={handleRegen}
-        loading={regenLoading}
       />
 
       {/* 单镜 AI 修改对话 */}
