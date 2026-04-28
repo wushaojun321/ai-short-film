@@ -283,7 +283,6 @@ function StepScript({
   episode, projectId, onShotsUpdate, onEpisodeUpdate, isPast,
 }: { episode: EpisodeDetail; projectId: string; onShotsUpdate: () => void; onEpisodeUpdate: () => void; isPast?: boolean }) {
   const [generating, setGenerating] = useState(false);
-  const [generated, setGenerated] = useState(episode.shots.length > 0);
   const [shots, setShots] = useState(episode.shots);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
@@ -296,6 +295,9 @@ function StepScript({
   // 后台运行的任务 record_id（非 null 时轮询）
   const [pendingRecordId, setPendingRecordId] = useState<string | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 直接从 episode prop 派生 generated，不用独立 state（避免 prop 更新后不同步）
+  const generated = episode.shots.length > 0;
 
   // 轮询后台生成任务，完成后刷新数据
   useEffect(() => {
@@ -311,11 +313,10 @@ function StepScript({
             setPendingRecordId(null);
             setGenerating(false);
             setRegenLoading(false);
+            setRegenDialog(false);
+            setApproved(false);
             onShotsUpdate();
             onEpisodeUpdate();
-            setGenerated(true);
-            setApproved(false);
-            setRegenDialog(false);
           }
         } else if (task.status === "failed" || task.status === "cancelled") {
           if (!cancelled) {
