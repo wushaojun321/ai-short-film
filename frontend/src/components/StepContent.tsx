@@ -158,7 +158,7 @@ function ApprovalBar({
         <Button
           size="sm"
           onClick={onApproveAll}
-          disabled={allApproved || approving || notReady}
+          disabled={allApproved || approving || notReady || regenerating}
         >
           {approving ? (
             <><Loader2 className="w-3.5 h-3.5 animate-spin" />提交中…</>
