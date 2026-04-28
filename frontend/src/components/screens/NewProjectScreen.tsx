@@ -628,6 +628,13 @@ function AssetCard({
   const [agentOpen, setAgentOpen] = useState(false);
   const [lightbox, setLightbox] = useState(false);
   const { cosUrl } = useCos();
+
+  useEffect(() => {
+    if (!lightbox) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setLightbox(false); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [lightbox]);
   const isQueued = asset.status === "queued";
   const isGenerating = asset.status === "generating" || isQueued;
   const status: AssetStatus = ASSET_STATUS_ZH[asset.status] ?? "缺失";

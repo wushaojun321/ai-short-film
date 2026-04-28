@@ -174,6 +174,11 @@ function ApprovalBar({
 
 /** 全屏图片预览 Lightbox */
 function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
   return (
     <div
       className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center"
