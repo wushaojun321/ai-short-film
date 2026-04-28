@@ -65,7 +65,23 @@ async def chat_json(
         extra_headers=_EXTRA_HEADERS,
     )
     content = resp.choices[0].message.content or "{}"
-    return json.loads(content)
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        # LLM output was truncated — salvage complete objects from a partial JSON array
+        import re
+        # Find all complete {...} objects inside the truncated content
+        salvaged = re.findall(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)?\}', content, re.DOTALL)
+        if salvaged:
+            complete = []
+            for s in salvaged:
+                try:
+                    complete.append(json.loads(s))
+                except json.JSONDecodeError:
+                    pass
+            if complete:
+                return complete  # type: ignore[return-value]
+        raise
 
 
 async def chat_with_history(
