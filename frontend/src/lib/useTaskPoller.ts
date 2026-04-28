@@ -46,7 +46,7 @@ export function useTaskPoller({
 
   // 轮询逻辑：recordId + isRunning 变化时触发
   useEffect(() => {
-    if (!recordId || !isRunning) return;
+    if (!recordId || !isRunning || recordId === "pending") return;
     let cancelled = false;
 
     const poll = async () => {

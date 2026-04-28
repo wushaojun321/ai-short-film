@@ -291,6 +291,9 @@ function StepScript({
   // 直接从 episode prop 派生 generated，prop 更新后自动同步
   const generated = episode.shots.length > 0;
 
+  // 是否是重新生成模式（任务运行中 且 之前已有分镜）
+  const [wasGenerated, setWasGenerated] = useState(generated);
+
   // 统一任务轮询：mount 时自动恢复，startTask 触发新任务
   const { isRunning, startTask } = useTaskPoller({
     episodeId: episode.id,
@@ -298,18 +301,20 @@ function StepScript({
     onSuccess: () => {
       setRegenDialog(false);
       setApproved(false);
+      setWasGenerated(false);
       onShotsUpdate();
       onEpisodeUpdate();
     },
-    onError: (msg) => setError(msg),
+    onError: (msg) => { setWasGenerated(false); setError(msg); },
   });
 
-  // isRunning 区分是新建还是重新生成（用 generated 判断）
-  const generating = isRunning && !generated;
-  const regenLoading = isRunning && generated;
+  // isRunning 区分是新建还是重新生成
+  const generating = isRunning && !wasGenerated;
+  const regenLoading = isRunning && wasGenerated;
 
   const handleGenerate = async () => {
     setError(null);
+    startTask("pending");
     try {
       const task = await generateAPI.shotScript(episode.id);
       startTask(task.record_id);
@@ -330,11 +335,14 @@ function StepScript({
 
   const handleRegen = async (_feedback: string) => {
     setError(null);
+    // 立即标记为重新生成 loading，不等网络请求返回
+    setWasGenerated(true);
+    startTask("pending");
     try {
       const task = await generateAPI.shotScript(episode.id);
       startTask(task.record_id);
-      // 弹窗保持打开，轮询成功后由 onSuccess 关闭
     } catch (e: unknown) {
+      setWasGenerated(false);
       setError(e instanceof Error ? e.message : "重新生成失败");
     }
   };
