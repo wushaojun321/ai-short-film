@@ -115,7 +115,7 @@ async def _parse_script_async(celery_id: str, project_id: str):
                         total_chunks=total,
                         chunk_text=chunk,
                     )
-                    result = await llm_service.chat_json(map_sys, user_p)
+                    result = await llm_service.chat_json(map_sys, user_p, max_tokens=8192)
                     completed[0] += 1
                     pct = 18 + int(completed[0] / total * 32)
                     await log([f"[map] 第 {idx + 1}/{total} 段提取完成"], pct)
@@ -142,7 +142,7 @@ async def _parse_script_async(celery_id: str, project_id: str):
             "[prompt] Prompt 渲染完成，发送 LLM 请求…",
         ], 55)
 
-        result = await llm_service.chat_json(system_prompt, user_prompt)
+        result = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=8192)
         await log([
             "✓ LLM 响应完成，开始解析结果…",
         ], 70)
