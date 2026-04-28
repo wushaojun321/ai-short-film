@@ -245,6 +245,18 @@ function LazyImage({ src, alt, className, enlargeable }: { src: string; alt: str
 function LazyVideo({ src, className }: { src: string; className?: string }) {
   const [loaded, setLoaded] = useState(false);
   const [errored, setErrored] = useState(false);
+  // src 变化（如 COS 签名 URL 到来）时重置状态，用 key 强制重建 video 元素
+  const [key, setKey] = useState(0);
+  const lastSrcRef = useRef(src);
+  useEffect(() => {
+    if (lastSrcRef.current !== src) {
+      lastSrcRef.current = src;
+      setLoaded(false);
+      setErrored(false);
+      setKey((k) => k + 1);
+    }
+  }, [src]);
+
   return (
     <div className="relative w-full h-full">
       {!loaded && !errored && (
@@ -258,6 +270,7 @@ function LazyVideo({ src, className }: { src: string; className?: string }) {
         </div>
       )}
       <video
+        key={key}
         src={src}
         controls
         className={cn(className, !loaded && "opacity-0")}
