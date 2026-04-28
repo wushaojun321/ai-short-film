@@ -27,7 +27,7 @@ async def chat_completion(
     user_prompt: str,
     model: str | None = None,
     temperature: float = 0.7,
-    max_tokens: int = 4096,
+    max_tokens: int = 128000,
 ) -> str:
     """Simple chat completion, returns raw text."""
     client = get_client()
@@ -49,7 +49,7 @@ async def chat_json(
     user_prompt: str,
     model: str | None = None,
     temperature: float = 0.3,
-    max_tokens: int = 4096,
+    max_tokens: int = 128000,
 ) -> dict:
     """Chat completion expecting JSON response. Returns parsed dict."""
     client = get_client()
@@ -88,7 +88,7 @@ async def chat_with_history(
     messages: list[dict],
     model: str | None = None,
     temperature: float = 0.7,
-    max_tokens: int = 2048,
+    max_tokens: int = 128000,
 ) -> str:
     """Multi-turn chat with pre-built messages list."""
     client = get_client()
@@ -107,7 +107,7 @@ async def chat_with_tools(
     tools: list[dict],
     model: str | None = None,
     temperature: float = 0.7,
-    max_tokens: int = 2048,
+    max_tokens: int = 128000,
 ) -> tuple[str | None, list | None]:
     """
     Single LLM call with tool definitions.

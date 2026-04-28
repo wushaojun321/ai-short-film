@@ -305,7 +305,7 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
         if record:
             await record.set({"progress": 30})
 
-        result = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=8192)
+        result = await llm_service.chat_json(system_prompt, user_prompt)
 
         if record:
             await record.set({"progress": 70})
