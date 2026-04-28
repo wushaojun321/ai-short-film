@@ -291,12 +291,13 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
         system_prompt, user_prompt, _ = await render(
             PromptConfigScope.shot_script_gen,
             {
-                "episode_script": f"第{episode.number}集《{episode.title}》\n\n{episode.summary}",
+                "series_prompt": project.series_prompt or "",
+                "episode_number": episode.number,
+                "episode_title": episode.title,
+                "episode_summary": episode.summary or "",
                 "continuity_notes": episode.continuity_notes or "无",
                 "asset_list": str(asset_list),
-                "series_style": project.series_prompt or "",
                 "max_shot_duration": max_shot_duration,
-                "feedback": feedback or "",
                 "feedback_section": f"\n\n修改意见：\n{feedback}" if feedback else "",
             },
         )

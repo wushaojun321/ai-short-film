@@ -17,6 +17,10 @@ async def render(scope: PromptConfigScope, variables: dict) -> tuple[str, str, d
     """Return (system_prompt, rendered_user_prompt, config_snapshot)."""
     config = await get_active(scope)
     try:
+        system_prompt = config.system_prompt.format(**variables)
+    except KeyError:
+        system_prompt = config.system_prompt
+    try:
         user_prompt = config.user_prompt_template.format(**variables)
     except KeyError:
         user_prompt = config.user_prompt_template
@@ -26,7 +30,7 @@ async def render(scope: PromptConfigScope, variables: dict) -> tuple[str, str, d
         "system_prompt": config.system_prompt,
         "user_prompt_template": config.user_prompt_template,
     }
-    return config.system_prompt, user_prompt, snapshot
+    return system_prompt, user_prompt, snapshot
 
 
 async def upsert(
