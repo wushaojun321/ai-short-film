@@ -109,6 +109,7 @@ interface ApprovalBarProps {
   regenerateLabel?: string;
   allApproved?: boolean;
   approving?: boolean;
+  regenerating?: boolean;
   /** 内容尚未全部生成完毕时传 true，禁用审批按钮并显示提示 */
   notReady?: boolean;
   notReadyTip?: string;
@@ -116,7 +117,7 @@ interface ApprovalBarProps {
 
 function ApprovalBar({
   approved, total, onApproveAll, onRegenerate, regenerateLabel, allApproved, approving,
-  notReady, notReadyTip,
+  regenerating, notReady, notReadyTip,
 }: ApprovalBarProps) {
   return (
     <div className="flex items-center gap-4 mb-5 py-3 px-4 bg-soft rounded-xl border border-line">
@@ -140,13 +141,18 @@ function ApprovalBar({
         {notReady && notReadyTip && (
           <p className="text-xs text-muted mt-1">{notReadyTip}</p>
         )}
+        {regenerating && (
+          <p className="text-xs text-muted mt-1">后台重新生成中，你可以继续其他操作</p>
+        )}
       </div>
       {/* 操作 */}
       <div className="flex items-center gap-2 shrink-0">
         {onRegenerate && !allApproved && (
-          <Button size="sm" variant="outline" onClick={onRegenerate}>
-            <RefreshCw className="w-3.5 h-3.5" />
-            {regenerateLabel ?? "打回重新生成"}
+          <Button size="sm" variant="outline" onClick={onRegenerate} disabled={regenerating}>
+            {regenerating
+              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />重新生成中…</>
+              : <><RefreshCw className="w-3.5 h-3.5" />{regenerateLabel ?? "打回重新生成"}</>
+            }
           </Button>
         )}
         <Button
@@ -333,13 +339,13 @@ function StepScript({
     setEditingId(null);
   };
 
-  const handleRegen = async (_feedback: string) => {
+  const handleRegen = async (feedback: string) => {
     setError(null);
     // 立即标记为重新生成 loading，不等网络请求返回
     setWasGenerated(true);
     startTask("pending");
     try {
-      const task = await generateAPI.shotScript(episode.id);
+      const task = await generateAPI.shotScript(episode.id, feedback || undefined);
       startTask(task.record_id);
     } catch (e: unknown) {
       setWasGenerated(false);
@@ -422,6 +428,7 @@ function StepScript({
         regenerateLabel="打回重新生成"
         allApproved={approved}
         approving={approving}
+        regenerating={regenLoading}
       />
 
       {/* 脚本列表 */}

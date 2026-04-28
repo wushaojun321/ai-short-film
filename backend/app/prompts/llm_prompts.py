@@ -287,8 +287,8 @@ SHOT_SCRIPT_GEN = {
     "speaker": "说话人"
   }
 ]""",
-    "user_prompt_template": "全剧风格：\n{series_prompt}\n\n第 {episode_number} 集《{episode_title}》\n简介：{episode_summary}\n\n连续性约束：\n{continuity_notes}\n\n可用资产列表：\n{asset_list}",
-    "variables": ["series_prompt", "episode_number", "episode_title", "episode_summary", "continuity_notes", "asset_list", "max_shot_duration"],
+    "user_prompt_template": "全剧风格：\n{series_prompt}\n\n第 {episode_number} 集《{episode_title}》\n简介：{episode_summary}\n\n连续性约束：\n{continuity_notes}\n\n可用资产列表：\n{asset_list}{feedback_section}",
+    "variables": ["series_prompt", "episode_number", "episode_title", "episode_summary", "continuity_notes", "asset_list", "max_shot_duration", "feedback"],
 }
 
 # =============================================================================

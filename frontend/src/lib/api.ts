@@ -238,8 +238,10 @@ export const generateAPI = {
   parseScript: (projectId: string, data: { target_episodes: number; min_duration: number; parse_notes?: string }): Promise<ApiGenResponse> =>
     client.post(`/generate/projects/${projectId}/parse-script`, data),
 
-  shotScript: (episodeId: string): Promise<ApiGenResponse> =>
-    client.post(`/generate/episodes/${episodeId}/shot-script`),
+  shotScript: (episodeId: string, feedback?: string): Promise<ApiGenResponse> =>
+    client.post(`/generate/episodes/${episodeId}/shot-script`, undefined, {
+      params: feedback ? { feedback } : undefined,
+    }),
 
   assetImage: (assetId: string): Promise<ApiGenResponse> =>
     client.post(`/generate/assets/${assetId}/image`),
