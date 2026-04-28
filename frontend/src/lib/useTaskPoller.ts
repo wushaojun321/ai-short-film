@@ -112,23 +112,35 @@ export function useShotTasksPoller({
   const onShotDoneRef = useRef(onShotDone);
   onShotDoneRef.current = onShotDone;
 
-  // 为单个 shot 启动轮询
+  // 为单个 shot 启动轮询（最多轮询 150 次 ≈ 5 分钟，超时后视为孤儿任务放弃）
   const pollShot = useCallback((recordId: string, shotId: string) => {
     if (activePollers.current.has(shotId)) return; // 已在轮询
     activePollers.current.set(shotId, false);
 
+    let attempts = 0;
+    const MAX_ATTEMPTS = 150;
+
+    const clearLoading = () => {
+      activePollers.current.delete(shotId);
+      setLoadingShotIds((prev) => {
+        const next = new Set(prev);
+        next.delete(shotId);
+        return next;
+      });
+    };
+
     const poll = async () => {
       if (activePollers.current.get(shotId)) return; // cancelled
+      if (attempts++ >= MAX_ATTEMPTS) {
+        // 孤儿任务超时，放弃 loading 状态
+        clearLoading();
+        return;
+      }
       try {
         const task = await generateAPI.getTask(recordId);
         if (activePollers.current.get(shotId)) return;
         if (task.status === "success" || task.status === "failed" || task.status === "cancelled") {
-          activePollers.current.delete(shotId);
-          setLoadingShotIds((prev) => {
-            const next = new Set(prev);
-            next.delete(shotId);
-            return next;
-          });
+          clearLoading();
           if (task.status === "success") {
             onShotDoneRef.current(shotId);
           }
@@ -136,12 +148,7 @@ export function useShotTasksPoller({
           setTimeout(poll, intervalMs);
         }
       } catch {
-        activePollers.current.delete(shotId);
-        setLoadingShotIds((prev) => {
-          const next = new Set(prev);
-          next.delete(shotId);
-          return next;
-        });
+        clearLoading();
       }
     };
 

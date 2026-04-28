@@ -575,6 +575,18 @@ function StepImages({
   const [batchGenerating, setBatchGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // episode.shots 更新时同步 imageUrl（保留 loadingRegen 和 imageApproved）
+  useEffect(() => {
+    setShots((prev) => episode.shots.map((s) => {
+      const existing = prev.find((p) => p.id === s.id);
+      return {
+        ...s,
+        imageApproved: existing?.imageApproved ?? (isPast === true || s.state === "approved"),
+        loadingRegen: existing?.loadingRegen ?? false,
+      };
+    }));
+  }, [episode.shots, isPast]);
+
   // Mount 时恢复正在生成的 shot loading 状态
   const { loadingShotIds, trackShot } = useShotTasksPoller({
     episodeId: episode.id,
@@ -582,12 +594,11 @@ function StepImages({
     onShotDone: (_shotId) => onShotsUpdate(),
   });
 
-  // 将 loadingShotIds 同步到 shots 的 loadingRegen 字段
+  // 将 loadingShotIds 严格同步到 shots 的 loadingRegen 字段（任务完成后也要清除）
   useEffect(() => {
-    if (loadingShotIds.size === 0) return;
     setShots((prev) => prev.map((s) => ({
       ...s,
-      loadingRegen: loadingShotIds.has(s.id) ? true : s.loadingRegen,
+      loadingRegen: loadingShotIds.has(s.id),
     })));
   }, [loadingShotIds]);
 
@@ -698,14 +709,14 @@ function StepImages({
         onApproveAll={handleApproveAll}
         allApproved={allApproved}
         approving={approving}
-        notReady={shots.length === 0 || shots.some((s) => !s.imageUrl || s.loadingRegen || s.state === "generating")}
+        notReady={shots.length === 0 || shots.some((s) => !s.imageUrl || s.loadingRegen || loadingShotIds.has(s.id))}
         notReadyTip="所有分镜剧照生成完成后方可审批"
       />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
         {shots.map((shot, idx) => {
           const isApproved = shot.imageApproved || allApproved;
-          const isGenerating = shot.loadingRegen || shot.state === "generating";
+          const isGenerating = shot.loadingRegen || loadingShotIds.has(shot.id);
 
           return (
             <div key={shot.id} className={cn(
@@ -834,6 +845,19 @@ function StepVideos({
   const [batchGenerating, setBatchGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // episode.shots 更新时同步 videoUrl / videoGenerated（保留 loadingRegen）
+  useEffect(() => {
+    setShots((prev) => episode.shots.map((s) => {
+      const existing = prev.find((p) => p.id === s.id);
+      return {
+        ...s,
+        videoApproved: existing?.videoApproved ?? (isPast === true || s.state === "approved"),
+        videoGenerated: !!s.videoUrl,
+        loadingRegen: existing?.loadingRegen ?? false,
+      };
+    }));
+  }, [episode.shots, isPast]);
+
   // Mount 时恢复正在生成的 shot loading 状态
   const { loadingShotIds, trackShot } = useShotTasksPoller({
     episodeId: episode.id,
@@ -841,12 +865,11 @@ function StepVideos({
     onShotDone: (_shotId) => onShotsUpdate(),
   });
 
-  // 将 loadingShotIds 同步到 shots 的 loadingRegen 字段
+  // 将 loadingShotIds 严格同步到 shots 的 loadingRegen 字段（任务完成后也要清除）
   useEffect(() => {
-    if (loadingShotIds.size === 0) return;
     setShots((prev) => prev.map((s) => ({
       ...s,
-      loadingRegen: loadingShotIds.has(s.id) ? true : s.loadingRegen,
+      loadingRegen: loadingShotIds.has(s.id),
     })));
   }, [loadingShotIds]);
 
@@ -957,7 +980,7 @@ function StepVideos({
         onApproveAll={handleApproveAll}
         allApproved={allApproved}
         approving={approving}
-        notReady={shots.length === 0 || shots.some((s) => !s.videoUrl || s.loadingRegen || s.state === "rendering")}
+        notReady={shots.length === 0 || shots.some((s) => !s.videoUrl || s.loadingRegen || loadingShotIds.has(s.id))}
         notReadyTip="所有分镜视频生成完成后方可审批"
       />
 
@@ -977,7 +1000,7 @@ function StepVideos({
               >
                 {/* 缩略图 */}
                 <div className="w-10 h-14 rounded-lg bg-soft shrink-0 flex items-center justify-center border border-line overflow-hidden">
-                  {(s.loadingRegen || s.state === "rendering") ? (
+                  {(s.loadingRegen || loadingShotIds.has(s.id)) ? (
                     <Loader2 className="w-4 h-4 text-brand animate-spin" />
                   ) : s.videoGenerated ? (
                     <div className="w-full h-full bg-gradient-to-b from-soft to-line flex items-center justify-center">
@@ -1010,10 +1033,10 @@ function StepVideos({
             <div>
               {/* 视频预览 */}
               <div className="aspect-[9/16] max-w-xs mx-auto bg-soft rounded-2xl border border-line flex items-center justify-center mb-4 relative overflow-hidden">
-                {(shot.loadingRegen || shot.state === "rendering") ? (
+                {(shot.loadingRegen || loadingShotIds.has(shot.id)) ? (
                   <div className="flex flex-col items-center gap-2">
                     <Loader2 className="w-8 h-8 text-brand animate-spin" />
-                    <p className="text-xs text-muted">{shot.state === "rendering" ? "视频生成中…" : "重新生成中…"}</p>
+                    <p className="text-xs text-muted">视频生成中…</p>
                   </div>
                 ) : shot.videoUrl ? (
                   <LazyVideo
@@ -1046,7 +1069,7 @@ function StepVideos({
                 <p className="text-xs text-sub text-center mb-4 px-2 leading-relaxed">{shot.description}</p>
 
                 {/* 操作按钮：已通过或生成中时隐藏 */}
-                {!(shot.videoApproved || allApproved) && !(shot.loadingRegen || shot.state === "rendering") && (
+                {!(shot.videoApproved || allApproved) && !(shot.loadingRegen || loadingShotIds.has(shot.id)) && (
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
