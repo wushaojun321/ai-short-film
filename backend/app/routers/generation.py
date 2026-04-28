@@ -53,7 +53,7 @@ async def enqueue_parse_script(project_id: PydanticObjectId, data: ParseScriptRe
 # ── Shot script generation ────────────────────────────────────
 
 @router.post("/episodes/{episode_id}/shot-script")
-async def enqueue_shot_script(episode_id: PydanticObjectId):
+async def enqueue_shot_script(episode_id: PydanticObjectId, max_shot_duration: int = 5):
     """Enqueue shot script generation for an episode."""
     episode = await Episode.get(episode_id)
     if not episode:
@@ -63,7 +63,7 @@ async def enqueue_shot_script(episode_id: PydanticObjectId):
     from app.models.task_record import TaskRecord, TaskStatus
     from datetime import datetime
 
-    task = gen_shot_script_task.delay(str(episode_id))
+    task = gen_shot_script_task.delay(str(episode_id), max_shot_duration)
     record = TaskRecord(
         celery_task_id=task.id,
         task_type="gen_shot_script",

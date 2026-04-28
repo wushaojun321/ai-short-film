@@ -256,12 +256,12 @@ async def _parse_script_async(celery_id: str, project_id: str):
 
 
 @celery_app.task(bind=True, name="app.tasks.llm.gen_shot_script", queue="llm")
-def gen_shot_script_task(self, episode_id: str):
+def gen_shot_script_task(self, episode_id: str, max_shot_duration: int = 5):
     """Generate storyboard script for an episode."""
-    return run_async(_gen_shot_script_async(self.request.id, episode_id))
+    return run_async(_gen_shot_script_async(self.request.id, episode_id, max_shot_duration))
 
 
-async def _gen_shot_script_async(celery_id: str, episode_id: str):
+async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_duration: int = 5):
     from app.database import init_db
     await init_db()
 
@@ -295,6 +295,7 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str):
                 "continuity_notes": episode.continuity_notes or "无",
                 "asset_list": str(asset_list),
                 "series_style": project.series_prompt or "",
+                "max_shot_duration": max_shot_duration,
             },
         )
 

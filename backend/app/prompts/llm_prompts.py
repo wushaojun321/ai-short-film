@@ -269,7 +269,7 @@ SHOT_SCRIPT_GEN = {
     "system_prompt": """你是专业的短视频导演，擅长将剧本分解为详细的分镜脚本。
 
 规则：
-1. 每个镜头 3-8 秒，建立镜和过渡镜可到 10-12 秒
+1. 每个镜头时长尽量控制在 {max_shot_duration} 秒左右，允许略有偏差，但不要超过该值太多
 2. 每个片段必须包含：建立镜、动作镜、关系镜、反应镜、过渡镜
 3. 每个镜头必须明确：景别、机位方向、机位高度、运镜方式、时间分段动作
 4. 台词必须明确说话人，写死"谁唯一发声"
@@ -280,7 +280,7 @@ SHOT_SCRIPT_GEN = {
   {
     "shot_code": "S01",
     "order": 1,
-    "duration": 6,
+    "duration": {max_shot_duration},
     "description": "详细导演式描述",
     "required_assets": ["资产名称1", "资产名称2"],
     "dialogue": "台词内容（如有）",
@@ -288,7 +288,7 @@ SHOT_SCRIPT_GEN = {
   }
 ]""",
     "user_prompt_template": "全剧风格：\n{series_prompt}\n\n第 {episode_number} 集《{episode_title}》\n简介：{episode_summary}\n\n连续性约束：\n{continuity_notes}\n\n可用资产列表：\n{asset_list}",
-    "variables": ["series_prompt", "episode_number", "episode_title", "episode_summary", "continuity_notes", "asset_list"],
+    "variables": ["series_prompt", "episode_number", "episode_title", "episode_summary", "continuity_notes", "asset_list", "max_shot_duration"],
 }
 
 # =============================================================================
