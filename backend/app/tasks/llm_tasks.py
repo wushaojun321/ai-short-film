@@ -316,6 +316,9 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str):
         # Create shots — LLM may return array or dict with various key names
         if isinstance(result, list):
             shots_data = result
+        elif isinstance(result, dict) and "shot_code" in result:
+            # LLM returned a single shot object instead of an array
+            shots_data = [result]
         else:
             shots_data = (
                 result.get("shots")
