@@ -18,7 +18,7 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
     from app.models.asset import Asset, AssetStatus, AssetVersion
     from app.models.project import Project
     from app.models.task_record import TaskRecord
-    from app.services import image_service, llm_service
+    from app.services import image_service, llm_service, sensitive_word_service
     from app.services.prompt_service import render
     from app.models.prompt_config import PromptConfigScope
     from datetime import datetime
@@ -41,44 +41,70 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
         series_prompt = (project.series_prompt or "") if project else ""
         asset_type_str = asset.asset_type.value if hasattr(asset.asset_type, "value") else str(asset.asset_type)
 
-        # ── Step 1: LLM 优化 asset.prompt → Seedream 专用提示词 ──────────────
-        optimized_prompt = asset.prompt  # 默认回退到原始 prompt
-        try:
-            system_prompt, user_prompt, _ = await render(
-                PromptConfigScope.asset_prompt_gen,
-                {
-                    "asset_description": f"名称：{asset.name}\n类型：{asset_type_str}\n描述：{asset.prompt}",
-                    "style_guide": series_prompt or "写实风格，电影质感",
-                    "negative_prompt_rules": "避免模糊、变形、多余肢体、不自然比例",
-                },
-            )
-            raw = await llm_service.chat_json(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-            )
-            if isinstance(raw, str):
-                raw = json.loads(raw)
-            positive = raw.get("positive_prompt", "")
-            if positive:
-                optimized_prompt = positive
-                # 将优化后的提示词存回 asset，用户后续 AI 修改时能看到
-                await asset.set({"prompt": optimized_prompt})
-        except Exception as e:
-            # LLM 优化失败不阻断生图，继续用原始 prompt
-            if record:
-                await record.set({"logs": (record.logs or []) + [f"[prompt] LLM 优化失败，使用原始提示词：{e}"]})
-
-        if record:
-            await record.set({"progress": 30, "logs": (record.logs or []) + ["[image] 正在生成图像…"]})
-
-        # ── Step 2: 拼装最终 prompt 发给 Seedream ────────────────────────────
-        # series_prompt 已在 asset_prompt_gen 的 style_guide 里注入，这里不重复拼接
-        full_prompt = optimized_prompt
-
-        image_url = await image_service.generate_image(
-            prompt=full_prompt,
-            size="2048x2048",
+        system_prompt, user_prompt_tpl, _ = await render(
+            PromptConfigScope.asset_prompt_gen,
+            {
+                "asset_description": f"名称：{asset.name}\n类型：{asset_type_str}\n描述：{asset.prompt}",
+                "style_guide": series_prompt or "写实风格，电影质感",
+                "negative_prompt_rules": "避免模糊、变形、多余肢体、不自然比例",
+            },
         )
+
+        # ── 重试循环：最多 3 次，遇到敏感词错误时提取词 + 重新生成 prompt ──────
+        MAX_RETRIES = 3
+        image_url = None
+        optimized_prompt = asset.prompt  # 默认回退到原始 prompt
+
+        for attempt in range(MAX_RETRIES):
+            # 每次重试都注入最新黑名单
+            blocked = await sensitive_word_service.get_all_words()
+            blocked_note = (
+                f"\n\n## 以下词语已确认会触发审核，生成提示词时必须完全规避：\n{', '.join(blocked)}"
+                if blocked else ""
+            )
+
+            full_prompt = None
+            try:
+                raw = await llm_service.chat_json(
+                    system_prompt=system_prompt + blocked_note,
+                    user_prompt=user_prompt_tpl,
+                )
+                if isinstance(raw, str):
+                    raw = json.loads(raw)
+                positive = raw.get("positive_prompt", "")
+                if positive:
+                    full_prompt = positive
+                    optimized_prompt = positive
+            except Exception as e:
+                if record:
+                    await record.set({"logs": (record.logs or []) + [f"[prompt] LLM 优化失败：{e}"]})
+
+            if not full_prompt:
+                full_prompt = asset.prompt  # 回退到原始 prompt
+
+            if record:
+                attempt_label = f"第 {attempt + 1} 次" if attempt > 0 else ""
+                await record.set({"progress": 30, "logs": (record.logs or []) + [f"[image] {attempt_label}正在生成图像…"]})
+
+            try:
+                image_url = await image_service.generate_image(
+                    prompt=full_prompt,
+                    size="2048x2048",
+                )
+                # 将最终使用的优化 prompt 存回 asset
+                await asset.set({"prompt": optimized_prompt})
+                break  # 成功，退出重试循环
+            except Exception as gen_err:
+                err_str = str(gen_err)
+                if "SensitiveContent" in err_str:
+                    words = await sensitive_word_service.extract_and_save(full_prompt, "image")
+                    log_msg = f"[retry {attempt + 1}/{MAX_RETRIES}] 敏感词触发审核，已记录词汇：{words or '(提取失败)'}"
+                    if record:
+                        await record.set({"logs": (record.logs or []) + [log_msg]})
+                    if attempt == MAX_RETRIES - 1:
+                        raise  # 最后一次仍失败，向上抛出
+                    continue  # 重试
+                raise  # 非敏感词错误直接抛出
 
         # Record version
         version_str = f"v{len(asset.versions) + 1}"
