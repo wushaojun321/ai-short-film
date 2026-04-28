@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   CheckCircle2, RefreshCw, Loader2, Play, Volume2,
-  Film, Layers, Clock, Tag, Edit3, Check, Bot,
+  Film, Layers, Clock, Tag, Edit3, Check, Bot, X, ZoomIn,
 } from "lucide-react";
 import AgentDialog from "@/components/AgentDialog";
 import { Button } from "@/components/ui/button";
@@ -172,12 +172,36 @@ function ApprovalBar({
 
 // ─── 生成中全屏遮罩 ──────────────────────────────────────────
 
-/** 带 loading 占位的图片组件，防止破碎图标 */
-function LazyImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
+/** 全屏图片预览 Lightbox */
+function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center"
+      onClick={onClose}
+    >
+      <button
+        className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors"
+        onClick={onClose}
+      >
+        <X className="w-7 h-7" />
+      </button>
+      <img
+        src={src}
+        alt={alt}
+        className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  );
+}
+
+/** 带 loading 占位的图片组件，防止破碎图标，支持点击放大 */
+function LazyImage({ src, alt, className, enlargeable }: { src: string; alt: string; className?: string; enlargeable?: boolean }) {
   const [loaded, setLoaded] = useState(false);
   const [errored, setErrored] = useState(false);
+  const [lightbox, setLightbox] = useState(false);
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full group">
       {!loaded && !errored && (
         <div className="absolute inset-0 flex items-center justify-center bg-soft">
           <Loader2 className="w-5 h-5 text-brand animate-spin" />
@@ -191,10 +215,20 @@ function LazyImage({ src, alt, className }: { src: string; alt: string; classNam
       <img
         src={src}
         alt={alt}
-        className={cn(className, !loaded && "opacity-0")}
+        className={cn(className, !loaded && "opacity-0", enlargeable && loaded && "cursor-zoom-in")}
         onLoad={() => setLoaded(true)}
         onError={() => setErrored(true)}
+        onClick={() => enlargeable && loaded && setLightbox(true)}
       />
+      {enlargeable && loaded && (
+        <div
+          className="absolute bottom-2 right-2 bg-black/50 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-zoom-in"
+          onClick={() => setLightbox(true)}
+        >
+          <ZoomIn className="w-3.5 h-3.5 text-white" />
+        </div>
+      )}
+      {lightbox && <ImageLightbox src={src} alt={alt} onClose={() => setLightbox(false)} />}
     </div>
   );
 }
@@ -254,18 +288,65 @@ function StepScript({
   const [approving, setApproving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [agentTarget, setAgentTarget] = useState<string | null>(null);
+  // 后台运行的任务 record_id（非 null 时轮询）
+  const [pendingRecordId, setPendingRecordId] = useState<string | null>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 轮询后台生成任务，完成后刷新数据
+  useEffect(() => {
+    if (!pendingRecordId) return;
+    let cancelled = false;
+
+    const poll = async () => {
+      if (cancelled) return;
+      try {
+        const task = await generateAPI.getTask(pendingRecordId);
+        if (task.status === "success") {
+          if (!cancelled) {
+            setPendingRecordId(null);
+            setGenerating(false);
+            setRegenLoading(false);
+            onShotsUpdate();
+            onEpisodeUpdate();
+            setGenerated(true);
+            setApproved(false);
+            setRegenDialog(false);
+          }
+        } else if (task.status === "failed" || task.status === "cancelled") {
+          if (!cancelled) {
+            setPendingRecordId(null);
+            setGenerating(false);
+            setRegenLoading(false);
+            setError(task.error ?? "生成失败");
+          }
+        } else {
+          pollTimerRef.current = setTimeout(poll, 2000);
+        }
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setPendingRecordId(null);
+          setGenerating(false);
+          setRegenLoading(false);
+          setError(e instanceof Error ? e.message : "轮询失败");
+        }
+      }
+    };
+
+    pollTimerRef.current = setTimeout(poll, 2000);
+    return () => {
+      cancelled = true;
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    };
+  }, [pendingRecordId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleGenerate = async () => {
     setGenerating(true);
     setError(null);
     try {
       const task = await generateAPI.shotScript(episode.id);
-      await pollTask(task.record_id, () => {});
-      onShotsUpdate();
-      setGenerated(true);
+      setPendingRecordId(task.record_id);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "生成失败");
-    } finally {
       setGenerating(false);
     }
   };
@@ -280,19 +361,15 @@ function StepScript({
     setEditingId(null);
   };
 
-  const handleRegen = async (feedback: string) => {
+  const handleRegen = async (_feedback: string) => {
     setRegenLoading(true);
     setError(null);
     try {
       const task = await generateAPI.shotScript(episode.id);
-      await pollTask(task.record_id, () => {});
-      onShotsUpdate();
-      onEpisodeUpdate(); // 重新生成会回退 currentStep，需刷新 episode
-      setRegenDialog(false);
-      setApproved(false);
+      setPendingRecordId(task.record_id);
+      // 弹窗保持打开，轮询成功后关闭
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "重新生成失败");
-    } finally {
       setRegenLoading(false);
     }
   };
@@ -334,10 +411,12 @@ function StepScript({
         {error && <p className="text-sm text-red-500">{error}</p>}
         <Button onClick={handleGenerate} disabled={generating}>
           {generating
-            ? <><Loader2 className="w-4 h-4 animate-spin" />生成中…</>
+            ? <><Loader2 className="w-4 h-4 animate-spin" />AI 生成中，请稍候…</>
             : "生成分镜脚本"}
         </Button>
-        {generating && <GeneratingOverlay message="AI 正在生成分镜脚本…" />}
+        {generating && (
+          <p className="text-xs text-muted">后台生成中，你可以继续其他操作</p>
+        )}
       </div>
     );
   }
@@ -470,13 +549,10 @@ function StepScript({
         open={regenDialog}
         title="打回重新生成分镜脚本"
         description="AI 将重新生成本集全部分镜脚本，请描述需要调整的方向。"
-        onClose={() => setRegenDialog(false)}
+        onClose={() => !regenLoading && setRegenDialog(false)}
         onConfirm={handleRegen}
         loading={regenLoading}
       />
-
-      {/* 全局生成中遮罩 */}
-      {regenLoading && <GeneratingOverlay message="AI 正在重新生成分镜脚本…" />}
 
       {/* 单镜 AI 修改对话 */}
       {agentTarget && (
@@ -661,6 +737,7 @@ function StepImages({
                       src={cosUrl(shot.imageUrl)}
                       alt={`镜头 ${idx + 1}`}
                       className="w-full h-full object-cover"
+                      enlargeable
                     />
                     {isApproved && (
                       <div className="absolute inset-0 bg-brand/10 flex items-center justify-center">

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Upload, FileText, ChevronRight, Check, Loader2,
   Edit2, Clock, Hash, Sparkles, Terminal, RefreshCw,
-  AlertTriangle, Activity, Bot,
+  AlertTriangle, Activity, Bot, X, ZoomIn,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -626,6 +626,7 @@ function AssetCard({
 }) {
   const [loading, setLoading] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
+  const [lightbox, setLightbox] = useState(false);
   const { cosUrl } = useCos();
   const isQueued = asset.status === "queued";
   const isGenerating = asset.status === "generating" || isQueued;
@@ -653,15 +654,47 @@ function AssetCard({
 
   return (
     <>
+      {lightbox && asset.preview_url && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center"
+          onClick={() => setLightbox(false)}
+        >
+          <button
+            className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors"
+            onClick={() => setLightbox(false)}
+          >
+            <X className="w-7 h-7" />
+          </button>
+          <img
+            src={cosUrl(asset.preview_url)}
+            alt={asset.name}
+            className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
       <div className="border border-line rounded-xl overflow-hidden bg-white hover:shadow-card-hover transition-all">
-        <div className="aspect-[4/5] bg-soft relative overflow-hidden">
+        <div className="aspect-[4/5] bg-soft relative overflow-hidden group">
           {isGenerating ? (
             <div className="w-full h-full flex flex-col items-center justify-center gap-2">
               <Loader2 className="w-6 h-6 animate-spin text-brand" />
               <span className="text-xs text-muted">{isQueued ? "排队等待…" : "生成中…"}</span>
             </div>
           ) : asset.preview_url ? (
-            <img src={cosUrl(asset.preview_url)} alt={asset.name} className="w-full h-full object-cover" />
+            <>
+              <img
+                src={cosUrl(asset.preview_url)}
+                alt={asset.name}
+                className="w-full h-full object-cover cursor-zoom-in"
+                onClick={() => setLightbox(true)}
+              />
+              <div
+                className="absolute bottom-2 right-2 bg-black/50 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-zoom-in"
+                onClick={() => setLightbox(true)}
+              >
+                <ZoomIn className="w-3.5 h-3.5 text-white" />
+              </div>
+            </>
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <span className="text-muted text-xs">暂无预览</span>
