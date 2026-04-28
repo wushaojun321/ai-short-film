@@ -65,9 +65,26 @@ async def confirm_asset(project_id: PydanticObjectId, asset_id: PydanticObjectId
 
 @router.post("/{asset_id}/regen")
 async def request_regen(project_id: PydanticObjectId, asset_id: PydanticObjectId):
-    """Mark asset for regeneration (Phase 2 will enqueue Celery task)."""
+    """Mark asset for regeneration and immediately enqueue Celery image task."""
     asset = await asset_service.get_asset(asset_id)
     if not asset:
         raise HTTPException(404, "Asset not found")
-    updated = await asset_service.mark_regen(asset)
-    return {"status": updated.status, "task_id": "stub-regen"}
+
+    from app.models.asset import AssetStatus
+    from app.models.task_record import TaskRecord, TaskStatus
+    from app.tasks.image_tasks import gen_asset_image_task
+    from datetime import datetime
+
+    await asset.set({"status": AssetStatus.queued})
+    task = gen_asset_image_task.delay(str(asset_id))
+
+    record = TaskRecord(
+        celery_task_id=task.id,
+        task_type="gen_asset_image",
+        project_id=project_id,
+        target_id=asset_id,
+        status=TaskStatus.running,
+        started_at=datetime.utcnow(),
+    )
+    await record.insert()
+    return {"status": AssetStatus.queued, "task_id": task.id, "record_id": str(record.id)}
