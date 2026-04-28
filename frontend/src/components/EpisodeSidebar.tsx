@@ -1,5 +1,5 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { CheckCircle2, Circle, Loader2, Film } from "lucide-react";
+import { CheckCircle2, Circle, Film } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { EpisodeDetail, EpisodeStatus } from "@/lib/data";
 import { cn } from "@/lib/utils";
@@ -21,7 +21,7 @@ const statusConfig: Record<EpisodeStatus, {
     label: "已完成",
   },
   in_progress: {
-    icon: <Loader2 className="w-3.5 h-3.5 text-warn shrink-0 animate-spin" />,
+    icon: <Film className="w-3.5 h-3.5 text-warn shrink-0" />,
     dot:  "bg-warn animate-pulse",
     label: "制作中",
   },
