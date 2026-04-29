@@ -40,8 +40,8 @@ async def get_episode(
         raise HTTPException(404, "Episode not found")
     if include_shots:
         shots = await Shot.find(Shot.episode_id == episode.id).sort("+order").to_list()
-        data = episode.model_dump(by_alias=True)
-        data["shots"] = [s.model_dump(by_alias=True) for s in shots]
+        data = episode.model_dump(by_alias=True, mode="json")
+        data["shots"] = [s.model_dump(by_alias=True, mode="json") for s in shots]
         return data
     return episode
 
