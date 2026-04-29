@@ -78,6 +78,7 @@ async def _build_snapshot(target_type: str, target_id: str) -> str:
                 return ""
             return (
                 f"类型：分集\n"
+                f"episode_id：{target_id}\n"
                 f"第 {ep.number} 集：{ep.title}\n"
                 f"简介：{ep.summary}\n"
                 f"当前步骤：{ep.current_step}"
