@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Upload, FileText, ChevronRight, Check, Loader2,
   Edit2, Clock, Hash, Sparkles, Terminal, RefreshCw,
-  AlertTriangle, Activity, Bot, X, ZoomIn,
+  AlertTriangle, Activity, Bot, X, ZoomIn, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -418,6 +418,8 @@ function Phase2({
   const [agentOpen, setAgentOpen] = useState(false);
   const [apiEpisodes, setApiEpisodes] = useState<ApiEpisode[]>([]);
   const [sheetEp, setSheetEp] = useState<EpisodeDraft | null>(null);
+  const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
+  const [assetEdits, setAssetEdits] = useState<Record<string, { name: string; prompt: string }>>({});
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const update = (idx: number, patch: Partial<EpisodeDraft>) => {
@@ -573,17 +575,83 @@ function Phase2({
               </TabsList>
               <TabsContent value={assetTab}>
                 <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
-                  {currentAssets.map((a) => (
-                    <div key={a.id} className="border border-line rounded-xl p-3 bg-white">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-text truncate">{a.name}</p>
-                          <p className="text-xs text-muted mt-1 line-clamp-3 leading-relaxed">{a.prompt || "（暂无提示词）"}</p>
-                        </div>
-                        <Badge variant="secondary" className="shrink-0 text-xs">{ASSET_TYPE_ZH[a.asset_type] ?? a.asset_type}</Badge>
+                  {currentAssets.map((a) => {
+                    const isEditing = editingAssetId === a.id;
+                    const draft = assetEdits[a.id] ?? { name: a.name, prompt: a.prompt ?? "" };
+                    return (
+                      <div key={a.id} className="group border border-line rounded-xl p-3 bg-white hover:border-brand/30 transition-all">
+                        {isEditing ? (
+                          <div className="space-y-2">
+                            <Input
+                              value={draft.name}
+                              onChange={(e) => setAssetEdits((prev) => ({ ...prev, [a.id]: { ...draft, name: e.target.value } }))}
+                              className="text-sm"
+                              autoFocus
+                              placeholder="资产名称"
+                            />
+                            <Textarea
+                              value={draft.prompt}
+                              onChange={(e) => setAssetEdits((prev) => ({ ...prev, [a.id]: { ...draft, prompt: e.target.value } }))}
+                              rows={4}
+                              className="text-xs"
+                              placeholder="Seedream 生成提示词"
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={async () => {
+                                  await assetAPI.update(projectId, a.id, { name: draft.name, prompt: draft.prompt });
+                                  setEditingAssetId(null);
+                                  setAssetEdits((prev) => { const n = { ...prev }; delete n[a.id]; return n; });
+                                  loadData();
+                                }}
+                              >
+                                <Check className="w-3.5 h-3.5" />保存
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setEditingAssetId(null);
+                                  setAssetEdits((prev) => { const n = { ...prev }; delete n[a.id]; return n; });
+                                }}
+                              >
+                                取消
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-text truncate">{a.name}</p>
+                              <p className="text-xs text-muted mt-1 line-clamp-3 leading-relaxed">{a.prompt || "（暂无提示词）"}</p>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Badge variant="secondary" className="text-xs">{ASSET_TYPE_ZH[a.asset_type] ?? a.asset_type}</Badge>
+                              <button
+                                onClick={() => {
+                                  setAssetEdits((prev) => ({ ...prev, [a.id]: { name: a.name, prompt: a.prompt ?? "" } }));
+                                  setEditingAssetId(a.id);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-muted hover:text-brand rounded"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  await assetAPI.delete(projectId, a.id);
+                                  loadData();
+                                }}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-muted hover:text-danger rounded"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </TabsContent>
             </Tabs>
@@ -594,20 +662,16 @@ function Phase2({
       <Separator className="my-6" />
 
       <div className="flex items-center justify-between">
-        <p className="text-sm text-sub">确认后将进入图片生成阶段，分集和资产不可再大幅调整。</p>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={() => setAgentOpen(true)} className="flex items-center gap-1.5">
+            <Bot className="w-4 h-4" />返工修改
+          </Button>
+          <p className="text-sm text-sub">确认后将进入图片生成阶段，分集和资产不可再大幅调整。</p>
+        </div>
         <Button onClick={handleConfirm} disabled={submitting || episodes.length === 0}>
           {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />确认中…</> : <>确认分集与资产 <ChevronRight className="w-4 h-4" /></>}
         </Button>
       </div>
-
-      {/* AI 助手悬浮按钮 */}
-      <button
-        onClick={() => setAgentOpen(true)}
-        className="fixed bottom-8 right-8 w-14 h-14 rounded-full bg-brand text-white shadow-lg hover:bg-brand/90 flex items-center justify-center transition-all hover:scale-105 z-50"
-        title="AI 助手：通过对话调整分集和资产"
-      >
-        <Bot className="w-6 h-6" />
-      </button>
 
       <AgentDialog
         open={agentOpen}
