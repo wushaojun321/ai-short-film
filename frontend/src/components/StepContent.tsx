@@ -232,7 +232,6 @@ function StepScript({
     setError(null);
     try {
       await generateAPI.shotScript(episode.id);
-      // generating 状态由轮询驱动（runningTasks），无需本地管理
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "生成失败");
     }
@@ -316,6 +315,7 @@ function StepScript({
         regenerateLabel="打回重新生成"
         allApproved={approved}
         approving={approving}
+        regenerating={generating}
       />
 
       <div className="space-y-3">
@@ -416,7 +416,7 @@ function StepScript({
         })}
       </div>
 
-      {/* 打回重新生成 — episode 级多轮对话 */}
+      {/* 打回重新生成 — AgentDialog，AI 工具调用触发 Celery 任务，状态由轮询驱动 */}
       <AgentDialog
         open={regenDialogOpen}
         onOpenChange={(v) => setRegenDialogOpen(v)}
@@ -551,15 +551,18 @@ function StepImages({
         </div>
       )}
 
-      <ApprovalBar
-        approved={approvedCount}
-        total={shots.length}
-        onApproveAll={handleApproveAll}
-        allApproved={allApproved}
-        approving={approving}
-        notReady={shots.length === 0 || shots.some((s) => !s.imageUrl || loadingIds.has(s.id) || s.state === "generating")}
-        notReadyTip="所有分镜剧照生成完成后方可审批"
-      />
+      {/* 只有至少有一张剧照已生成，才显示审批进度条 */}
+      {shots.some((s) => s.imageUrl) && (
+        <ApprovalBar
+          approved={approvedCount}
+          total={shots.length}
+          onApproveAll={handleApproveAll}
+          allApproved={allApproved}
+          approving={approving}
+          notReady={shots.length === 0 || shots.some((s) => !s.imageUrl || loadingIds.has(s.id) || s.state === "generating")}
+          notReadyTip="所有分镜剧照生成完成后方可审批"
+        />
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
         {shots.map((shot, idx) => {
