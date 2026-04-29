@@ -64,24 +64,53 @@ async def chat_json(
         response_format={"type": "json_object"},
         extra_headers=_EXTRA_HEADERS,
     )
-    content = resp.choices[0].message.content or "{}"
+    choice = resp.choices[0]
+    content = choice.message.content or "{}"
+    if choice.finish_reason == "length":
+        raise ValueError(
+            "LLM JSON response was truncated before completion. "
+            "Increase max_tokens or reduce requested output size."
+        )
     try:
         return json.loads(content)
-    except json.JSONDecodeError:
-        # LLM output was truncated — salvage complete objects from a partial JSON array
-        import re
-        # Find all complete {...} objects inside the truncated content
-        salvaged = re.findall(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)?\}', content, re.DOTALL)
-        if salvaged:
-            complete = []
-            for s in salvaged:
-                try:
-                    complete.append(json.loads(s))
-                except json.JSONDecodeError:
-                    pass
-            if complete:
-                return complete  # type: ignore[return-value]
-        raise
+    except json.JSONDecodeError as exc:
+        try:
+            return await _repair_json(content=content, max_tokens=max_tokens)
+        except Exception:
+            pass
+        preview_start = max(exc.pos - 120, 0)
+        preview_end = min(exc.pos + 120, len(content))
+        preview = content[preview_start:preview_end].replace("\n", "\\n")
+        raise ValueError(
+            f"LLM returned invalid JSON: {exc.msg} at line {exc.lineno} "
+            f"column {exc.colno} (char {exc.pos}). Around error: {preview}"
+        ) from exc
+
+
+async def _repair_json(content: str, max_tokens: int = 4096) -> dict:
+    """Ask the model to repair malformed JSON once."""
+    client = get_client()
+    resp = await client.chat.completions.create(
+        model=settings.openrouter_model,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "你是 JSON 修复器。用户会给你一段格式损坏的 JSON。"
+                    "只输出修复后的合法 JSON 对象，不要解释。"
+                    "保留原有字段和信息，修复未转义换行、引号、逗号、括号等语法问题。"
+                    "如果内容末尾被截断，请尽量补全最小合法结构。"
+                ),
+            },
+            {"role": "user", "content": content},
+        ],
+        temperature=0,
+        max_tokens=max(max_tokens, 4096),
+        response_format={"type": "json_object"},
+        extra_headers=_EXTRA_HEADERS,
+    )
+    repaired = resp.choices[0].message.content or "{}"
+    return json.loads(repaired)
 
 
 async def chat_with_history(
@@ -132,4 +161,3 @@ async def chat_with_tools(
         return None, msg.tool_calls
 
     return msg.content or "", None
-

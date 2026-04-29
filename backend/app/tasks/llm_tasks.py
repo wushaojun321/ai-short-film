@@ -116,6 +116,11 @@ async def _parse_script_async(celery_id: str, project_id: str):
                         chunk_text=chunk,
                     )
                     result = await llm_service.chat_json(map_sys, user_p, max_tokens=8192)
+                    if not isinstance(result, dict):
+                        raise ValueError(
+                            f"Map 阶段第 {idx + 1}/{total} 段返回了 {type(result).__name__}，"
+                            "期望 JSON 对象"
+                        )
                     completed[0] += 1
                     pct = 18 + int(completed[0] / total * 32)
                     await log([f"[map] 第 {idx + 1}/{total} 段提取完成"], pct)
@@ -143,6 +148,11 @@ async def _parse_script_async(celery_id: str, project_id: str):
         ], 55)
 
         result = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=16384)
+        if not isinstance(result, dict):
+            raise ValueError(
+                f"剧本解析返回了 {type(result).__name__}，期望 JSON 对象，"
+                "应包含 episodes 和 assets 字段"
+            )
         await log([
             "✓ LLM 响应完成，开始解析结果…",
         ], 70)
