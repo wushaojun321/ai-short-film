@@ -84,6 +84,8 @@ export interface ApiShot {
   order: number;
   duration: number;
   description: string;
+  dialogue: string;
+  speaker: string;
   prompt: string;
   required_assets: Array<{ asset_id: string; asset_name: string }>;
   state: string;

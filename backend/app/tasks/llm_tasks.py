@@ -352,6 +352,8 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
                 order=s.get("order", idx + 1),
                 duration=s.get("duration", 5),
                 description=s.get("description", ""),
+                dialogue=s.get("dialogue", ""),
+                speaker=s.get("speaker", ""),
                 prompt=s.get("prompt", ""),
                 required_assets=required_assets,
                 state=ShotState.planned,

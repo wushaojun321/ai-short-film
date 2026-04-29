@@ -530,6 +530,14 @@ function StepScript({
                       ))}
                     </div>
                   )}
+
+                  {/* 对白 */}
+                  {shot.dialogue && (
+                    <div className="mt-2 px-2 py-1.5 bg-soft rounded text-xs text-text leading-relaxed border-l-2 border-brand/40">
+                      {shot.speaker && <span className="font-medium text-brand mr-1">{shot.speaker}：</span>}
+                      {shot.dialogue}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -59,6 +59,8 @@ export interface Shot {
   order: number;
   duration: number; // 秒
   description: string;
+  dialogue: string;
+  speaker: string;
   assets: string[];
   state: ShotState;
   imageUrl?: string;

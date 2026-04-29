@@ -28,6 +28,8 @@ class Shot(Document):
     order: int
     duration: int = 5
     description: str = ""
+    dialogue: str = ""
+    speaker: str = ""
     prompt: str = ""
     required_assets: list[ShotAssetBinding] = []
     state: ShotState = ShotState.planned
