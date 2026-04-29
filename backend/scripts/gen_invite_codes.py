@@ -19,7 +19,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from beanie import init_beanie
-from motor.motor_asyncio import AsyncIOMotorClient
 from app.config import settings
 from app.models.invite_code import InviteCode
 
@@ -30,9 +29,7 @@ def _random_code(prefix: str, length: int) -> str:
 
 
 async def main(count: int, prefix: str, length: int):
-    client = AsyncIOMotorClient(settings.mongodb_url)
-    db_name = settings.mongodb_url.rsplit("/", 1)[-1].split("?")[0] or "ai_short_film"
-    await init_beanie(database=client[db_name], document_models=[InviteCode])
+    await init_beanie(connection_string=settings.mongodb_url, document_models=[InviteCode])
 
     generated = []
     attempts = 0
