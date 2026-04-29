@@ -423,6 +423,7 @@ function StepVideos({
 
   const hasUngenerated = shots.some((s) => !s.videoUrl && !loadingIds.has(s.id) && s.state !== "rendering");
   const shot = shots[selected] ?? shots[0];
+  const submittedPrompt = shot?.submittedPrompt;
 
   const handleBatchGenerate = async () => {
     const targets = shots.filter((s) => !s.videoUrl && !loadingIds.has(s.id) && s.state !== "rendering");
@@ -578,7 +579,7 @@ function StepVideos({
               <div className="max-w-xs mx-auto">
                 <p className="text-xs text-sub text-center mb-3 px-2 leading-relaxed">{shot.description}</p>
 
-                {shot.prompt && (
+                {submittedPrompt && (
                   <button
                     onClick={() => setPromptSheetOpen(true)}
                     className="w-full flex items-center justify-center gap-1.5 py-1.5 mb-3 rounded-lg text-xs text-muted hover:text-brand hover:bg-brand/5 transition-colors border border-dashed border-line hover:border-brand/30"
@@ -616,7 +617,7 @@ function StepVideos({
         title={`镜头 ${shot?.shotCode ?? ""} · 最终提交提示词`}
       >
         <pre className="text-xs text-sub leading-relaxed whitespace-pre-wrap break-words font-sans">
-          {shot?.prompt || "暂无提示词"}
+          {submittedPrompt || "暂无最终提交提示词"}
         </pre>
       </Sheet>
 

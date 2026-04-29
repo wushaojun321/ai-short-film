@@ -170,7 +170,7 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
             ])
 
             # 立即写入最终真实提交文本，前端生成中即可看到。
-            await shot.set({"prompt": submitted_prompt})
+            await shot.set({"prompt": submitted_prompt, "submitted_prompt": submitted_prompt})
             if record:
                 await record.set({"logs": (record.logs or []) + [f"[prompt] 最终提交提示词：{submitted_prompt}"]})
 
@@ -223,6 +223,7 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
             "state": ShotState.rendered,
             "generation_task_id": celery_id,
             "prompt": submitted_prompt,
+            "submitted_prompt": submitted_prompt,
         }
         if last_frame_url:
             updates["last_frame_url"] = last_frame_url

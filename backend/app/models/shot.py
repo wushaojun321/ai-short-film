@@ -35,6 +35,7 @@ class Shot(Document):
     description: str = ""
     dialogues: list[ShotDialogueLine] = []  # 一个镜头可有多句对白
     prompt: str = ""
+    submitted_prompt: str = ""
     required_assets: list[ShotAssetBinding] = []
     state: ShotState = ShotState.planned
     version: str = "v1"

@@ -109,6 +109,7 @@ export interface ApiShot {
   dialogue?: string;
   speaker?: string;
   prompt: string;
+  submitted_prompt?: string;
   required_assets: Array<{ asset_id: string; asset_name: string }>;
   state: string;
   version: string;

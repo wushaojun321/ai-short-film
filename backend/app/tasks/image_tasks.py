@@ -276,7 +276,7 @@ async def _gen_shot_image_async(celery_id: str, shot_id: str):
                 ),
                 f"【引用资产】\n{asset_prompt_block}",
             ])
-            await shot.set({"prompt": submitted_prompt})
+            await shot.set({"prompt": submitted_prompt, "submitted_prompt": submitted_prompt})
 
             if record:
                 attempt_label = f"第 {attempt + 1} 次" if attempt > 0 else ""
@@ -311,6 +311,7 @@ async def _gen_shot_image_async(celery_id: str, shot_id: str):
             "state": ShotState.asset_ready,
             "generation_task_id": celery_id,
             "prompt": submitted_prompt,
+            "submitted_prompt": submitted_prompt,
         })
 
         await finish_task_record(celery_id, result={"image_url": image_url})

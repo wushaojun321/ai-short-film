@@ -93,6 +93,7 @@ export function transformShot(s: ApiShot): Shot {
     videoUrl: s.video_url ?? undefined,
     version: s.version,
     prompt: s.prompt,
+    submittedPrompt: s.submitted_prompt || (s.prompt?.includes("【引用资产】") ? s.prompt : undefined),
   };
 }
 
