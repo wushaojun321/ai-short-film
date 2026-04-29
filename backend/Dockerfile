@@ -31,7 +31,9 @@ RUN uv pip install --system --no-cache \
     "volcengine-python-sdk[ark]>=3.0.0" \
     "httpx>=0.27.0" \
     "sse-starlette>=2.1.0" \
-    "python-dotenv>=1.0.0"
+    "python-dotenv>=1.0.0" \
+    "python-jose[cryptography]>=3.3.0" \
+    "passlib[bcrypt]>=1.7.4"
 
 # Copy source
 COPY . .
