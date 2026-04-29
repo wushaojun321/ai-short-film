@@ -589,11 +589,22 @@ function StepVideos({
                 )}
 
                 {!(isPast || (!!shot.videoUrl && shot.state === "approved")) && !(loadingIds.has(shot.id) || shot.state === "rendering") && (
-                  <div className="flex gap-2">
-                    <Button variant="outline" className="flex-1" onClick={() => setAgentTarget(shot.id)}>
-                      <RefreshCw className="w-4 h-4" />重新生成
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant={shot.videoUrl ? "outline" : "default"}
+                      className="col-span-2"
+                      onClick={() => handleRegen(shot.id)}
+                    >
+                      {shot.videoUrl ? (
+                        <><RefreshCw className="w-4 h-4" />重新生成本镜头</>
+                      ) : (
+                        <><Play className="w-4 h-4" />生成本镜头</>
+                      )}
                     </Button>
-                    <Button className="flex-1" onClick={() => handleApprove(shot.id)} disabled={!shot.videoUrl}>
+                    <Button variant="outline" onClick={() => setAgentTarget(shot.id)}>
+                      <Bot className="w-4 h-4" />AI 修改
+                    </Button>
+                    <Button onClick={() => handleApprove(shot.id)} disabled={!shot.videoUrl}>
                       <Check className="w-4 h-4" />审批通过
                     </Button>
                   </div>
