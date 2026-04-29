@@ -4,7 +4,6 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import init_db
-from app.utils.seed_data import seed_prompt_configs
 from app.routers import projects, episodes, shots, assets, tasks
 from app.routers.admin import prompt_configs as admin_prompt_configs
 from app.routers import generation
@@ -15,7 +14,6 @@ from app.routers import sts
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    await seed_prompt_configs()
     yield
 
 
