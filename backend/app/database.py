@@ -3,6 +3,7 @@ from app.config import settings
 from app.models import (
     Project, Episode, Shot, Asset,
     Conversation, PromptConfig, TaskRecord,
+    User, InviteCode,
 )
 
 
@@ -17,5 +18,7 @@ async def init_db():
             Conversation,
             PromptConfig,
             TaskRecord,
+            User,
+            InviteCode,
         ],
     )

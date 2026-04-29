@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from app.models.prompt_config import PromptConfigScope
 from app.services.prompt_service import _PROMPTS
+from app.deps import get_current_user
 
-router = APIRouter(prefix="/admin/prompt-configs", tags=["admin"])
+router = APIRouter(prefix="/admin/prompt-configs", tags=["admin"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("")

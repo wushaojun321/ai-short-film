@@ -1,12 +1,13 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
 from beanie import PydanticObjectId
 from app.models.project import Project, ProjectInitStatus
 from app.models.episode import Episode, EpisodeStatus
 from app.schemas.project import ProjectCreate, ProjectUpdate, ParseScriptRequest, ConfirmEpisodesRequest
 from app.services import project_service
 import app.services.storage_service as storage_service
+from app.deps import get_current_user
 
-router = APIRouter(prefix="/projects", tags=["projects"])
+router = APIRouter(prefix="/projects", tags=["projects"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("")

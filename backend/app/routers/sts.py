@@ -1,8 +1,9 @@
 """STS 临时密钥接口。"""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from app.services.storage_service import get_sts_credentials
+from app.deps import get_current_user
 
-router = APIRouter(tags=["sts"])
+router = APIRouter(tags=["sts"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/sts-token")

@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import init_db
+from app.routers import auth
 from app.routers import projects, episodes, shots, assets, tasks
 from app.routers.admin import prompt_configs as admin_prompt_configs
 from app.routers import generation
@@ -76,6 +77,7 @@ async def normalize_id_middleware(request: Request, call_next):
 
 API_PREFIX = "/api/v1"
 
+app.include_router(auth.router, prefix=API_PREFIX)
 app.include_router(projects.router, prefix=API_PREFIX)
 app.include_router(episodes.router, prefix=API_PREFIX)
 app.include_router(shots.router, prefix=API_PREFIX)

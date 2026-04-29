@@ -1,12 +1,13 @@
 """Conversation CRUD + agent chat endpoint."""
 from __future__ import annotations
 from datetime import datetime
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from beanie import PydanticObjectId
 from pydantic import BaseModel
 from app.models.conversation import Conversation, ConversationTarget, ConversationRole, Message
+from app.deps import get_current_user
 
-router = APIRouter(prefix="/conversations", tags=["conversations"])
+router = APIRouter(prefix="/conversations", tags=["conversations"], dependencies=[Depends(get_current_user)])
 
 
 # ── Schemas ────────────────────────────────────────────────────────────────────

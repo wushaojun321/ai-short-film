@@ -35,10 +35,28 @@ function extractErrorMessage(err: unknown): string {
   return e?.message ?? "请求失败";
 }
 
+// 请求拦截：注入 Authorization Bearer token
+client.interceptors.request.use((config) => {
+  const token = localStorage.getItem("auth_token");
+  if (token) {
+    config.headers = config.headers ?? {};
+    config.headers["Authorization"] = `Bearer ${token}`;
+  }
+  return config;
+});
+
 client.interceptors.response.use(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (res) => normalizeIds(res.data) as any,
-  (err) => Promise.reject(new Error(extractErrorMessage(err)))
+  (err) => {
+    if (err?.response?.status === 401) {
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_username");
+      window.location.href = "/login";
+      return Promise.reject(new Error("登录已过期，请重新登录"));
+    }
+    return Promise.reject(new Error(extractErrorMessage(err)));
+  }
 );
 
 // ─── 类型（与后端对齐） ───────────────────────────────────────
@@ -356,3 +374,18 @@ export function pollTask(
     }, intervalMs);
   });
 }
+
+// ─── Auth API ─────────────────────────────────────────────────
+
+export interface TokenResponse {
+  access_token: string;
+  token_type: string;
+  username: string;
+}
+
+export const authAPI = {
+  login: (username: string, password: string): Promise<TokenResponse> =>
+    client.post("/auth/login", { username, password }),
+  register: (username: string, password: string, invite_code: string): Promise<TokenResponse> =>
+    client.post("/auth/register", { username, password, invite_code }),
+};

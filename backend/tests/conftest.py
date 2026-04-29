@@ -22,12 +22,14 @@ async def _init_test_db():
     from app.models import (
         Project, Episode, Shot, Asset,
         Conversation, PromptConfig, TaskRecord,
+        User, InviteCode,
     )
     await init_beanie(
         connection_string=TEST_MONGO_URL,
         document_models=[
             Project, Episode, Shot, Asset,
             Conversation, PromptConfig, TaskRecord,
+            User, InviteCode,
         ],
     )
     client = AsyncIOMotorClient(TEST_MONGO_URL)
@@ -135,20 +137,39 @@ def mock_video():
         yield
 
 
+# ── Auth fixtures ─────────────────────────────────────────────
+@pytest_asyncio.fixture(scope="function")
+async def auth_headers(client):
+    """Register a test user with an invite code and return auth headers."""
+    from app.models.invite_code import InviteCode as InviteCodeModel
+    code_doc = InviteCodeModel(code="TEST-INVITE-0001")
+    await code_doc.insert()
+
+    r = await client.post("/api/v1/auth/register", json={
+        "username": "testuser",
+        "password": "testpass123",
+        "invite_code": "TEST-INVITE-0001",
+    })
+    assert r.status_code == 201, r.text
+    token = r.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
 # ── Helpers ───────────────────────────────────────────────────
-async def create_project(client, title="测试项目", genre="都市", episodes=5):
+async def create_project(client, title="测试项目", genre="都市", episodes=5, headers=None):
     r = await client.post("/api/v1/projects", json={
         "title": title, "genre": genre, "target_episode_count": episodes
-    })
+    }, headers=headers or {})
     assert r.status_code == 201
     return r.json()
 
 
-async def upload_script(client, project_id):
+async def upload_script(client, project_id, headers=None):
     content = "这是测试剧本内容，共五集，讲述一个感人的故事。".encode("utf-8")
     r = await client.post(
         f"/api/v1/projects/{project_id}/upload-script",
         files={"file": ("test_script.txt", content, "text/plain")},
+        headers=headers or {},
     )
     assert r.status_code == 200
     return r.json()

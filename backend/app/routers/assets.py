@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from beanie import PydanticObjectId
 from app.models.project import Project
 from app.schemas.asset import AssetCreate, AssetUpdate
 from app.services import asset_service
+from app.deps import get_current_user
 
-router = APIRouter(prefix="/projects/{project_id}/assets", tags=["assets"])
+router = APIRouter(prefix="/projects/{project_id}/assets", tags=["assets"], dependencies=[Depends(get_current_user)])
 
 
 async def _get_project(project_id: PydanticObjectId) -> Project:

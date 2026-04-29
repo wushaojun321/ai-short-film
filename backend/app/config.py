@@ -28,5 +28,10 @@ class Settings(BaseSettings):
     ark_image_model: str = "doubao-seedream-5-0-260128"
     ark_video_model: str = "doubao-seedance-2-0-260128"
 
+    # JWT Auth
+    jwt_secret_key: str = "change-me-in-production-use-a-long-random-string"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_days: int = 30
+
 
 settings = Settings()

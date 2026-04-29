@@ -2,7 +2,7 @@
 from __future__ import annotations
 import asyncio
 import json
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from beanie import PydanticObjectId
 from app.models.project import Project
@@ -11,8 +11,9 @@ from app.models.shot import Shot
 from app.models.asset import Asset
 from app.models.task_record import TaskRecord, TaskStatus
 from app.schemas.project import ParseScriptRequest
+from app.deps import get_current_user
 
-router = APIRouter(prefix="/generate", tags=["generation"])
+router = APIRouter(prefix="/generate", tags=["generation"], dependencies=[Depends(get_current_user)])
 
 
 # ── Script parsing ────────────────────────────────────────────

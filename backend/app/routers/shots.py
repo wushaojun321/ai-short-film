@@ -1,11 +1,13 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from beanie import PydanticObjectId
 from app.models.episode import Episode
 from app.schemas.shot import ShotCreate, ShotUpdate, ShotReviewRequest, BatchReviewRequest
 from app.services import shot_service
+from app.deps import get_current_user
 
 router = APIRouter(
-    prefix="/projects/{project_id}/episodes/{episode_id}/shots", tags=["shots"]
+    prefix="/projects/{project_id}/episodes/{episode_id}/shots", tags=["shots"],
+    dependencies=[Depends(get_current_user)]
 )
 
 

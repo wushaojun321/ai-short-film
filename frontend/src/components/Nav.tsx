@@ -1,10 +1,11 @@
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import { ChevronDown, Clapperboard, Plus, LayoutGrid } from "lucide-react";
+import { ChevronDown, Clapperboard, Plus, LayoutGrid, LogOut } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useProjects } from "@/lib/ProjectsContext";
+import { useAuth } from "@/lib/AuthContext";
 import { cn } from "@/lib/utils";
 
 const statusColor: Record<string, string> = {
@@ -20,8 +21,14 @@ export default function Nav() {
   const location = useLocation();
   const { projectId } = useParams<{ projectId: string }>();
   const { projects } = useProjects();
+  const { user, logout } = useAuth();
   const currentProject = projects.find((p) => p.id === projectId);
   const isHome = location.pathname === "/projects" || location.pathname === "/";
+
+  function handleLogout() {
+    logout();
+    navigate("/login", { replace: true });
+  }
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-14 bg-white/95 backdrop-blur-sm border-b border-line">
@@ -120,10 +127,33 @@ export default function Nav() {
               所有项目
             </button>
           )}
-          {/* 用户头像 */}
-          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold shadow-sm">
-            U
-          </div>
+          {/* 用户菜单 */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-soft transition-colors group">
+                <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold shadow-sm">
+                  {user?.username?.[0]?.toUpperCase() ?? "U"}
+                </div>
+                <span className="text-xs font-medium text-sub hidden sm:block max-w-[80px] truncate">
+                  {user?.username}
+                </span>
+                <ChevronDown className="w-3 h-3 text-muted hidden sm:block group-data-[state=open]:rotate-180 transition-transform" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44 p-1">
+              <DropdownMenuLabel className="px-2 py-1.5 text-xs text-muted font-semibold">
+                {user?.username}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-2 py-1.5 text-sm text-red-500 cursor-pointer hover:bg-red-50 rounded-md"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                退出登录
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>

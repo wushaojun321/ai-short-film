@@ -1,12 +1,13 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from beanie import PydanticObjectId
 from app.models.project import Project
 from app.models.episode import EpisodeStep
 from app.models.shot import Shot
 from app.schemas.episode import EpisodeCreate, EpisodeUpdate, StepAdvanceRequest
 from app.services import episode_service
+from app.deps import get_current_user
 
-router = APIRouter(prefix="/projects/{project_id}/episodes", tags=["episodes"])
+router = APIRouter(prefix="/projects/{project_id}/episodes", tags=["episodes"], dependencies=[Depends(get_current_user)])
 
 
 async def _get_project(project_id: PydanticObjectId) -> Project:

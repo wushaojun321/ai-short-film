@@ -1,9 +1,10 @@
 """Task status router — Phase 1 stub. Full implementation in Phase 2."""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from beanie import PydanticObjectId
 from app.models.task_record import TaskRecord
+from app.deps import get_current_user
 
-router = APIRouter(prefix="/tasks", tags=["tasks"])
+router = APIRouter(prefix="/tasks", tags=["tasks"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/{task_id}")
