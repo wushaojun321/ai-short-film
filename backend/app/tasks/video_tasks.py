@@ -105,6 +105,8 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
                 if isinstance(raw, str):
                     raw = _json.loads(raw)
                 video_prompt = raw.get("prompt", "") or None
+                if video_prompt and record:
+                    await record.set({"logs": (record.logs or []) + [f"[prompt] LLM 生成提示词：{video_prompt}"]})
             except Exception as e:
                 if record:
                     await record.set({"logs": (record.logs or []) + [f"[prompt] LLM 优化失败：{e}"]})
