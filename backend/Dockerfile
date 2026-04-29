@@ -33,6 +33,7 @@ RUN uv pip install --system --no-cache \
     "sse-starlette>=2.1.0" \
     "python-dotenv>=1.0.0" \
     "python-jose[cryptography]>=3.3.0" \
+    "bcrypt>=4.0.0" \
     "passlib[bcrypt]>=1.7.4"
 
 # Copy source
