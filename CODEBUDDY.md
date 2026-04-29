@@ -151,6 +151,14 @@ ssh film "cd /root/ai-short-film && docker compose logs -f worker-llm"
 ssh film "cd /root/ai-short-film && docker compose ps"
 ```
 
+> **⚠️ 容器代码不会自动更新**：`git pull` 只更新宿主机文件，`docker compose restart` 只重启进程，容器内的代码仍是 build 时打包的版本。
+> **代码有任何变更都必须重新 build 镜像**，否则容器跑的还是旧代码。
+>
+> `docker compose restart` 仅适用于**只改了环境变量**（`.env`）的情况，不涉及代码改动。
+
+> **⚠️ Dockerfile 依赖是硬编码的**：`backend/Dockerfile` 中的 `RUN uv pip install ...` 列表与 `pyproject.toml` 是独立维护的，两者不会自动同步。
+> 新增 Python 依赖时，必须**同时更新 Dockerfile 的安装列表**，否则 build 出来的镜像缺包，服务启动报 `ModuleNotFoundError`。
+
 **服务清单：**
 - `frontend` — nginx，80/443，前端静态文件 + API 反代（含 SSL）
 - `api` — FastAPI 主进程，仅容器内访问
