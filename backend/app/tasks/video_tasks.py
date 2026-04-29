@@ -155,6 +155,7 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
             "video_url": video_url,
             "state": ShotState.rendered,
             "generation_task_id": celery_id,
+            "prompt": video_prompt,
         }
         if last_frame_url:
             updates["last_frame_url"] = last_frame_url
