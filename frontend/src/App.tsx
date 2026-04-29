@@ -13,32 +13,24 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
-          {/* 公开路由：登录页，不套 Shell */}
-          <Route path="/login" element={<LoginPage />} />
-
-          {/* 受保护路由 */}
-          <Route
-            path="/*"
-            element={
-              <ProtectedRoute>
-                <CosProvider>
-                  <ProjectsProvider>
-                    <Shell>
-                      <Routes>
-                        <Route path="/" element={<Navigate to="/projects" replace />} />
-                        <Route path="/projects" element={<ProjectsHome />} />
-                        <Route path="/projects/new" element={<NewProjectPage />} />
-                        <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
-                        <Route path="*" element={<Navigate to="/projects" replace />} />
-                      </Routes>
-                    </Shell>
-                  </ProjectsProvider>
-                </CosProvider>
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
+        <CosProvider>
+          <ProjectsProvider>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/" element={<Navigate to="/projects" replace />} />
+              <Route path="/projects" element={
+                <ProtectedRoute><Shell><ProjectsHome /></Shell></ProtectedRoute>
+              } />
+              <Route path="/projects/new" element={
+                <ProtectedRoute><Shell><NewProjectPage /></Shell></ProtectedRoute>
+              } />
+              <Route path="/projects/:projectId" element={
+                <ProtectedRoute><Shell><ProjectDetailPage /></Shell></ProtectedRoute>
+              } />
+              <Route path="*" element={<Navigate to="/projects" replace />} />
+            </Routes>
+          </ProjectsProvider>
+        </CosProvider>
       </AuthProvider>
     </BrowserRouter>
   );
