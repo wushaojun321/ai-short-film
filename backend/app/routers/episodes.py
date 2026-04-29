@@ -48,7 +48,7 @@ async def get_episode(
         data = episode.model_dump(by_alias=True, mode="json")
         data["shots"] = [s.model_dump(by_alias=True, mode="json") for s in shots]
         data["running_tasks"] = [
-            {"task_type": t.task_type, "status": t.status}
+            {"task_type": t.task_type, "status": t.status, "progress": t.progress or 0}
             for t in running_tasks
         ]
         return data

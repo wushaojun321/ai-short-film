@@ -61,7 +61,7 @@ export default function ProjectStudioScreen({ project }: ProjectStudioScreenProp
             const existing = prev.find((e) => e.id === transformed.id);
             // 保留当前集已加载的 shots 和 runningTasks，避免列表接口覆盖为空
             return existing
-              ? { ...transformed, shots: existing.shots, runningTasks: existing.runningTasks }
+              ? { ...transformed, shots: existing.shots, runningTasks: existing.runningTasks, taskProgress: existing.taskProgress }
               : transformed;
           })
         );

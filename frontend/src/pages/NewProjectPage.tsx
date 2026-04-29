@@ -10,7 +10,6 @@ export default function NewProjectPage() {
   const navigate = useNavigate();
   const { reload } = useProjects();
   const [title, setTitle] = useState("");
-  const [genre, setGenre] = useState("古装");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,7 +18,7 @@ export default function NewProjectPage() {
     setCreating(true);
     setError(null);
     try {
-      const data = await projectAPI.create({ title: title.trim(), genre });
+      const data = await projectAPI.create({ title: title.trim() });
       reload();
       navigate(`/projects/${data.id}`);
     } catch (e: unknown) {
@@ -41,14 +40,6 @@ export default function NewProjectPage() {
             onChange={(e) => setTitle(e.target.value)}
             placeholder="例：《锦绣长安》"
             onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-          />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-sub mb-1.5 block">类型</label>
-          <Input
-            value={genre}
-            onChange={(e) => setGenre(e.target.value)}
-            placeholder="古装 / 现代 / 悬疑…"
           />
         </div>
 

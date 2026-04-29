@@ -6,6 +6,10 @@ from app.schemas.project import ProjectCreate, ProjectUpdate
 
 
 async def create_project(data: ProjectCreate) -> Project:
+    existing = await Project.find_one(Project.title == data.title)
+    if existing:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=409, detail=f"项目名「{data.title}」已存在，请使用其他名称")
     project = Project(**data.model_dump())
     await project.insert()
     return project

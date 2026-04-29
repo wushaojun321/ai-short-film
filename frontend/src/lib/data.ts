@@ -90,6 +90,7 @@ export interface EpisodeDetail {
   continuityNotes?: string;
   finalVideoUrl?: string;
   runningTasks: string[];  // 当前 pending/running 的 task_type 列表
+  taskProgress: Record<string, number>;  // task_type -> progress (0-100)
 }
 
 // ─── 项目数据 ────────────────────────────────────────────────

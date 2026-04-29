@@ -59,11 +59,17 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
         else:
             dialogue_text = "无台词"
 
+        duration = shot.duration or 5
+        seg1 = round(duration / 3)
+        seg2 = round(duration * 2 / 3)
+
         system_prompt, user_prompt, _ = await render(
             PromptConfigScope.shot_video_gen,
             {
                 "shot_code": shot.shot_code,
-                "duration": shot.duration or 5,
+                "duration": duration,
+                "seg1": seg1,
+                "seg2": seg2,
                 "shot_description": shot.description,
                 "character_prompts": "\n".join(character_parts) if character_parts else "无",
                 "scene_prompt": "；".join(scene_parts) if scene_parts else "无",
@@ -106,8 +112,11 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
                 if isinstance(raw, str):
                     raw = _json.loads(raw)
                 video_prompt = raw.get("prompt", "") or None
-                if video_prompt and record:
-                    await record.set({"logs": (record.logs or []) + [f"[prompt] LLM 生成提示词：{video_prompt}"]})
+                if video_prompt:
+                    # 立即写入 shot.prompt，前端生成中即可看到新提示词
+                    await shot.set({"prompt": video_prompt})
+                    if record:
+                        await record.set({"logs": (record.logs or []) + [f"[prompt] LLM 生成提示词：{video_prompt}"]})
             except Exception as e:
                 if record:
                     await record.set({"logs": (record.logs or []) + [f"[prompt] LLM 优化失败：{e}"]})
@@ -135,7 +144,7 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
                         first_frame_url=first_frame_url,
                         reference_images=reference_images if reference_images else None,
                         ratio="9:16",
-                        duration=shot.duration or 5,
+                        duration=duration,
                         resolution="720p",
                         return_last_frame=True,
                     ),

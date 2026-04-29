@@ -73,7 +73,7 @@ export interface ApiEpisode {
   continuity_notes: string;
   final_video_url?: string;
   shots?: ApiShot[];  // 当 include_shots=true 时后端附带
-  running_tasks?: Array<{ task_type: string; status: string }>;  // 当前 pending/running 的任务
+  running_tasks?: Array<{ task_type: string; status: string; progress: number }>;  // 当前 pending/running 的任务
   created_at: string;
   updated_at: string;
 }
@@ -146,7 +146,7 @@ export const projectAPI = {
   get: (projectId: string): Promise<ApiProject> =>
     client.get(`/projects/${projectId}`),
 
-  create: (data: { title: string; genre: string; target_episode_count?: number }): Promise<ApiProject> =>
+  create: (data: { title: string; target_episode_count?: number }): Promise<ApiProject> =>
     client.post("/projects", data),
 
   update: (projectId: string, data: Partial<ApiProject>): Promise<ApiProject> =>

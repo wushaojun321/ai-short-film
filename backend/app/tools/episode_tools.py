@@ -23,8 +23,8 @@ GEN_SHOT_SCRIPT_SCHEMA = {
                 },
                 "max_shot_duration": {
                     "type": "integer",
-                    "description": "每个镜头最大时长（秒），默认 5",
-                    "default": 5,
+                    "description": "每个镜头最大时长（秒），默认 10",
+                    "default": 10,
                 },
             },
             "required": ["episode_id", "feedback"],

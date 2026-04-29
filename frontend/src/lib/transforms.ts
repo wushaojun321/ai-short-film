@@ -59,6 +59,7 @@ export function transformEpisode(e: ApiEpisode): EpisodeDetail {
     continuityNotes: e.continuity_notes,
     finalVideoUrl: e.final_video_url,
     runningTasks: (e.running_tasks ?? []).map((t) => t.task_type),
+    taskProgress: Object.fromEntries((e.running_tasks ?? []).map((t) => [t.task_type, t.progress])),
   };
 }
 

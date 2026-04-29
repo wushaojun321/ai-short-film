@@ -47,7 +47,6 @@ function ProjectCard({ project }: { project: Project }) {
             <h3 className="font-bold text-text text-base leading-snug group-hover:text-primary transition-colors line-clamp-2">
               {project.title}
             </h3>
-            <p className="text-xs text-muted mt-0.5 tabular-nums">{project.genre}</p>
           </div>
         </div>
 

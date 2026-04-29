@@ -762,7 +762,7 @@ function StepVideos({
           </span>
           <Button size="sm" onClick={handleBatchGenerate} disabled={batchGenerating}>
             {batchGenerating ? (
-              <><Loader2 className="w-3.5 h-3.5 animate-spin" />生成中…</>
+              <><Loader2 className="w-3.5 h-3.5 animate-spin" />生成中… {episode.taskProgress["gen_shot_video"] ? `${episode.taskProgress["gen_shot_video"]}%` : ""}</>
             ) : (
               <><Play className="w-3.5 h-3.5" />批量生成全部</>
             )}

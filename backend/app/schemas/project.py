@@ -5,7 +5,6 @@ from app.models.project import ProjectInitStatus
 
 class ProjectCreate(BaseModel):
     title: str
-    genre: str = ""
     format: str = "VERTICAL_9_16"
     target_episode_count: int = 0
     min_episode_duration: int = 120
@@ -13,7 +12,6 @@ class ProjectCreate(BaseModel):
 
 class ProjectUpdate(BaseModel):
     title: Optional[str] = None
-    genre: Optional[str] = None
     format: Optional[str] = None
     target_episode_count: Optional[int] = None
     min_episode_duration: Optional[int] = None

@@ -274,7 +274,7 @@ SHOT_SCRIPT_GEN = {
 分镜拆分规则：
 1. 以场景或情节节点为单位拆分镜头，同一镜头内可包含多句连续对白
 2. 同一场景内的连续对话无需每句切镜，保持景别连贯，多句台词收入同一镜头的 dialogues 列表
-3. 每个镜头时长控制在 {max_shot_duration} 秒左右，对话较多可适当延长，但不超过该值的 2 倍
+3. 每个镜头时长严格不超过 {max_shot_duration} 秒；对白字数须与时长匹配：中文语速约 6-7 字/秒，{max_shot_duration} 秒内对白总字数不超过 {max_dialogue_chars} 字；对白过多时须拆分为多个镜头
 4. 场景切换（新场景、时间跳跃）时单独起一个建立镜
 5. 每个镜头必须明确：景别（远/全/中/近/特写）、机位方向、运镜方式（固定/推/拉/跟）
 6. 台词原文照抄，禁止改写或缩写；**对白必须使用中文**，不得出现英文或其他语言
@@ -305,7 +305,7 @@ description 字段必须包含以下信息（不得省略）：
 ]
 注意：无台词的镜头 dialogues 填空数组 []。""",
     "user_prompt_template": "全剧风格：\n{series_prompt}\n\n第 {episode_number} 集《{episode_title}》\n本集剧本：\n{script_excerpt}\n\n连续性约束：\n{continuity_notes}\n\n可用资产列表：\n{asset_list}{feedback_section}",
-    "variables": ["series_prompt", "episode_number", "episode_title", "script_excerpt", "continuity_notes", "asset_list", "max_shot_duration", "feedback"],
+    "variables": ["series_prompt", "episode_number", "episode_title", "script_excerpt", "continuity_notes", "asset_list", "max_shot_duration", "max_dialogue_chars", "feedback"],
 }
 
 # =============================================================================
@@ -367,14 +367,14 @@ SHOT_VIDEO_GEN = {
 5. 固定站位
 6. 景别与机位
 7. 运镜
-8. 时间分段动作（根据视频实际时长均匀分段，覆盖完整时长，不要写死固定秒数）
+8. 时间分段动作（视频时长 {duration} 秒，均匀分为三段：0-{seg1}s / {seg1}-{seg2}s / {seg2}-{duration}s，每段写明对应动作，覆盖完整时长）
 9. 台词与说话人（明确唯一发声人，其他人不得张嘴）
 10. 反向约束
 
 以 JSON 格式输出：{"prompt": "完整提示词文本"}
 注意：提示词用中文撰写，台词原文保留。""",
     "user_prompt_template": "镜头编号：{shot_code}\n视频时长：{duration}秒\n分镜描述：{shot_description}\n台词：{dialogue}\n角色参考：\n{character_prompts}\n场景参考：{scene_prompt}\n\n当前提示词（若有）：{shot_prompt}",
-    "variables": ["shot_code", "duration", "shot_description", "dialogue", "character_prompts", "scene_prompt", "shot_prompt"],
+    "variables": ["shot_code", "duration", "seg1", "seg2", "shot_description", "dialogue", "character_prompts", "scene_prompt", "shot_prompt"],
 }
 
 # =============================================================================
@@ -393,6 +393,7 @@ SHOT_SCRIPT_EDIT = {
 - 只修改用户指定的部分，不随意改动其他镜头
 - 保持连续性约束不变
 - 输出修改后的完整分镜列表（JSON 格式）或仅返回被修改的镜头
+- 时长与对白约束：每个镜头 duration 严格不超过 10 秒；中文语速约 6-7 字/秒，每镜对白总字数不超过 duration × 6 字；对白过多时须拆分为多个镜头
 
 如果是文字描述修改，直接返回修改建议文本。
 如果用户要求重新生成某个镜头的图像或视频，回复包含 [REGEN_IMAGE:shot_code] 或 [REGEN_VIDEO:shot_code] 标记。""",
