@@ -583,7 +583,7 @@ function StepVideos({
                     onClick={() => setPromptSheetOpen(true)}
                     className="w-full flex items-center justify-center gap-1.5 py-1.5 mb-3 rounded-lg text-xs text-muted hover:text-brand hover:bg-brand/5 transition-colors border border-dashed border-line hover:border-brand/30"
                   >
-                    <FileText className="w-3 h-3" />查看生成提示词
+                    <FileText className="w-3 h-3" />查看最终提交提示词
                   </button>
                 )}
 
@@ -613,7 +613,7 @@ function StepVideos({
       <Sheet
         open={promptSheetOpen}
         onClose={() => setPromptSheetOpen(false)}
-        title={`镜头 ${shot?.shotCode ?? ""} · 视频生成提示词`}
+        title={`镜头 ${shot?.shotCode ?? ""} · 最终提交提示词`}
       >
         <pre className="text-xs text-sub leading-relaxed whitespace-pre-wrap break-words font-sans">
           {shot?.prompt || "暂无提示词"}

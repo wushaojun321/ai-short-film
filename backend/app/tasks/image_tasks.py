@@ -193,16 +193,26 @@ async def _gen_shot_image_async(celery_id: str, shot_id: str):
         from app.models.asset import Asset
         from app.models.episode import Episode
         required_assets_prompts = ""
+        asset_prompt_parts = []
         if shot.required_assets:
             asset_ids = [binding.asset_id for binding in shot.required_assets]
             assets = await Asset.find({"_id": {"$in": asset_ids}}).to_list()
-            asset_map = {a.id: a for a in assets}
+            asset_map = {str(a.id): a for a in assets}
             parts = []
             for binding in shot.required_assets:
-                a = asset_map.get(binding.asset_id)
+                a = asset_map.get(str(binding.asset_id))
                 if a:
-                    parts.append(f"{binding.asset_name}：{a.prompt}")
+                    asset_type = {
+                        "character": "人物",
+                        "scene": "场景",
+                        "prop": "道具",
+                        "template": "模板",
+                    }.get(a.asset_type.value if hasattr(a.asset_type, "value") else str(a.asset_type), "资产")
+                    line = f"{binding.asset_name}（{asset_type}）：{a.prompt or binding.asset_name}"
+                    parts.append(line)
+                    asset_prompt_parts.append(f"- {line}")
             required_assets_prompts = "\n".join(parts)
+        asset_prompt_block = "\n".join(asset_prompt_parts) if asset_prompt_parts else "无"
 
         # Get episode continuity notes
         episode = await Episode.get(shot.episode_id)
@@ -224,6 +234,7 @@ async def _gen_shot_image_async(celery_id: str, shot_id: str):
         # ── 重试循环：最多 3 次，遇到敏感词错误时提取词 + 重新生成 prompt ──────
         MAX_RETRIES = 3
         image_url = None
+        submitted_prompt = ""
         for attempt in range(MAX_RETRIES):
             # 每次重试都重新生成 prompt，注入最新黑名单
             blocked = await sensitive_word_service.get_all_words()
@@ -255,18 +266,30 @@ async def _gen_shot_image_async(celery_id: str, shot_id: str):
                 if record:
                     await record.set({"logs": (record.logs or []) + ["[prompt] 使用兜底通用提示词"]})
 
+            submitted_prompt = "\n\n".join([
+                full_prompt.strip(),
+                (
+                    "【镜头基础信息】\n"
+                    f"镜头编号：{shot.shot_code}\n"
+                    f"分镜描述：{shot.description}\n"
+                    f"连续性约束：{continuity_notes}"
+                ),
+                f"【引用资产】\n{asset_prompt_block}",
+            ])
+            await shot.set({"prompt": submitted_prompt})
+
             if record:
                 attempt_label = f"第 {attempt + 1} 次" if attempt > 0 else ""
                 await record.set({"progress": 30, "logs": (record.logs or []) + [f"[image] {attempt_label}正在生成图像…"]})
 
             logger.info(
                 "[SHOT IMAGE PROMPT] shot_id=%s shot=%s attempt=%d/%d\n--- PROMPT START ---\n%s\n--- PROMPT END ---",
-                shot_id, shot.shot_code, attempt + 1, MAX_RETRIES, full_prompt,
+                shot_id, shot.shot_code, attempt + 1, MAX_RETRIES, submitted_prompt,
             )
 
             try:
                 image_url = await image_service.generate_image(
-                    prompt=full_prompt,
+                    prompt=submitted_prompt,
                     size="2048x3640",  # ~9:16 vertical, ≥3.6M pixels
                 )
                 break  # 成功，退出重试循环
@@ -274,7 +297,7 @@ async def _gen_shot_image_async(celery_id: str, shot_id: str):
                 err_str = str(gen_err)
                 if "SensitiveContent" in err_str:
                     # 提取并保存敏感词，下次重试时会注入黑名单
-                    words = await sensitive_word_service.extract_and_save(full_prompt, "image")
+                    words = await sensitive_word_service.extract_and_save(submitted_prompt, "image")
                     log_msg = f"[retry {attempt + 1}/{MAX_RETRIES}] 敏感词触发审核，已记录词汇：{words or '(提取失败)'}"
                     if record:
                         await record.set({"logs": (record.logs or []) + [log_msg]})
@@ -287,6 +310,7 @@ async def _gen_shot_image_async(celery_id: str, shot_id: str):
             "image_url": image_url,
             "state": ShotState.asset_ready,
             "generation_task_id": celery_id,
+            "prompt": submitted_prompt,
         })
 
         await finish_task_record(celery_id, result={"image_url": image_url})
