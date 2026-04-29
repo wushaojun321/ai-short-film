@@ -63,6 +63,7 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
             PromptConfigScope.shot_video_gen,
             {
                 "shot_code": shot.shot_code,
+                "duration": shot.duration or 5,
                 "shot_description": shot.description,
                 "character_prompts": "\n".join(character_parts) if character_parts else "无",
                 "scene_prompt": "；".join(scene_parts) if scene_parts else "无",

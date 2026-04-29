@@ -367,14 +367,14 @@ SHOT_VIDEO_GEN = {
 5. 固定站位
 6. 景别与机位
 7. 运镜
-8. 时间分段动作（0-Xs / Xs-Ys / Ys-Zs）
+8. 时间分段动作（根据视频实际时长均匀分段，覆盖完整时长，不要写死固定秒数）
 9. 台词与说话人（明确唯一发声人，其他人不得张嘴）
 10. 反向约束
 
 以 JSON 格式输出：{"prompt": "完整提示词文本"}
 注意：提示词用中文撰写，台词原文保留。""",
-    "user_prompt_template": "镜头编号：{shot_code}\n分镜描述：{shot_description}\n台词：{dialogue}\n角色参考：\n{character_prompts}\n场景参考：{scene_prompt}\n\n当前提示词（若有）：{shot_prompt}",
-    "variables": ["shot_code", "shot_description", "dialogue", "character_prompts", "scene_prompt", "shot_prompt"],
+    "user_prompt_template": "镜头编号：{shot_code}\n视频时长：{duration}秒\n分镜描述：{shot_description}\n台词：{dialogue}\n角色参考：\n{character_prompts}\n场景参考：{scene_prompt}\n\n当前提示词（若有）：{shot_prompt}",
+    "variables": ["shot_code", "duration", "shot_description", "dialogue", "character_prompts", "scene_prompt", "shot_prompt"],
 }
 
 # =============================================================================
