@@ -4,7 +4,7 @@ import {
   Film, Layers, Clock, Tag, Edit3, Check, Bot, X, ZoomIn, FileText,
 } from "lucide-react";
 import AgentDialog from "@/components/AgentDialog";
-import Sheet from "@/components/ui/sheet";
+import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
