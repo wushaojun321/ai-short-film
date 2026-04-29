@@ -345,10 +345,12 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
                         asset_name=matched.name,
                     ))
 
+            raw_code = s.get("shot_code")
+            shot_code = str(raw_code) if raw_code is not None else f"EP{episode.number:02d}-S{idx+1:02d}"
             shot = Shot(
                 project_id=episode.project_id,
                 episode_id=episode.id,
-                shot_code=s.get("shot_code", f"EP{episode.number:02d}-S{idx+1:02d}"),
+                shot_code=shot_code,
                 order=s.get("order", idx + 1),
                 duration=s.get("duration", 5),
                 description=s.get("description", ""),
