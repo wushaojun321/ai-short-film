@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import {
   CheckCircle2, RefreshCw, Loader2, Play, Volume2,
-  Film, Layers, Clock, Tag, Edit3, Check, Bot, X, ZoomIn,
+  Film, Layers, Clock, Tag, Edit3, Check, Bot, X, ZoomIn, FileText,
 } from "lucide-react";
 import AgentDialog from "@/components/AgentDialog";
+import Sheet from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -854,6 +855,7 @@ function StepVideos({
   );
   const [regenTarget, setRegenTarget] = useState<string | null>(null);
   const [agentTarget, setAgentTarget] = useState<string | null>(null);
+  const [promptSheetOpen, setPromptSheetOpen] = useState(false);
   const [allApproved, setAllApproved] = useState(isPast === true);
   const [approving, setApproving] = useState(false);
   const [batchGenerating, setBatchGenerating] = useState(false);
@@ -1082,7 +1084,17 @@ function StepVideos({
 
               {/* 描述 */}
               <div className="max-w-xs mx-auto">
-                <p className="text-xs text-sub text-center mb-4 px-2 leading-relaxed">{shot.description}</p>
+                <p className="text-xs text-sub text-center mb-3 px-2 leading-relaxed">{shot.description}</p>
+
+                {/* 提示词入口 */}
+                {shot.prompt && (
+                  <button
+                    onClick={() => setPromptSheetOpen(true)}
+                    className="w-full flex items-center justify-center gap-1.5 py-1.5 mb-3 rounded-lg text-xs text-muted hover:text-brand hover:bg-brand/5 transition-colors border border-dashed border-line hover:border-brand/30"
+                  >
+                    <FileText className="w-3 h-3" />查看生成提示词
+                  </button>
+                )}
 
                 {/* 操作按钮：已通过或生成中时隐藏 */}
                 {!(shot.videoApproved || allApproved) && !(shot.loadingRegen || loadingShotIds.has(shot.id)) && (
@@ -1123,6 +1135,17 @@ function StepVideos({
           )}
         </div>
       </div>
+
+      {/* 提示词抽屉 */}
+      <Sheet
+        open={promptSheetOpen}
+        onClose={() => setPromptSheetOpen(false)}
+        title={`镜头 ${shot?.id ?? ""} · 视频生成提示词`}
+      >
+        <pre className="text-xs text-sub leading-relaxed whitespace-pre-wrap break-words font-sans">
+          {shot?.prompt || "暂无提示词"}
+        </pre>
+      </Sheet>
 
       {/* 重新生成弹窗 */}
       <RegenerateDialog
