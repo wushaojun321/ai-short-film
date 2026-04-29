@@ -91,9 +91,28 @@ async def _build_artifact_snapshot(target_type: ConversationTarget, target_id: P
             }
     elif target_type == ConversationTarget.project:
         from app.models.project import Project
+        from app.models.episode import Episode
         obj = await Project.get(target_id)
         if obj:
-            return {"title": obj.title, "genre": obj.genre, "series_prompt": obj.series_prompt}
+            episodes = await Episode.find(Episode.project_id == obj.id).sort("+number").to_list()
+            episode_list = [
+                {
+                    "number": e.number,
+                    "title": e.title,
+                    "summary": e.summary,
+                    "word_count": e.word_count,
+                    "estimated_duration": e.estimated_duration,
+                    "script_excerpt": e.script_excerpt,
+                }
+                for e in episodes
+            ]
+            return {
+                "title": obj.title,
+                "genre": obj.genre,
+                "series_prompt": obj.series_prompt,
+                "script_text": obj.script_text or "",
+                "episodes": episode_list,
+            }
     return {}
 
 
