@@ -1,5 +1,8 @@
 # 提示词调试指南
 
+> 服务器连接方式、部署命令见 [CODEBUDDY.md 部署章节](../CODEBUDDY.md#部署)。
+> 本文档中所有命令均在**服务器上**执行（先 `ssh root@42.193.144.175` 登录，再 `cd /root/ai-short-film`）。
+
 ## 工作流概述
 
 系统中有两类提示词需要调试：
@@ -26,14 +29,14 @@
 
 ## 第二步：从日志中拿到提示词
 
-### 连接服务器，实时查看 worker 日志
+登录服务器后，在 `/root/ai-short-film` 目录下执行：
 
 ```bash
-# 查看图片 worker 日志（资产图片 + 分镜剧照）
-ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-image"
+# 实时查看图片 worker 日志（资产图片 + 分镜剧照）
+docker compose logs -f worker-image
 
-# 查看视频 worker 日志（分镜视频）
-ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-video"
+# 实时查看视频 worker 日志（分镜视频）
+docker compose logs -f worker-video
 ```
 
 ### 日志格式
@@ -75,14 +78,14 @@ ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker
 ### 过滤日志（只看提示词）
 
 ```bash
-# 只看资产图片提示词
-ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs worker-image 2>&1 | grep -A 5 'PROMPT START'"
+# 只看资产/分镜图片提示词
+docker compose logs worker-image 2>&1 | grep -A 5 'PROMPT START'
 
 # 只看视频提示词
-ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs worker-video 2>&1 | grep -A 5 'PROMPT START'"
+docker compose logs worker-video 2>&1 | grep -A 5 'PROMPT START'
 
 # 最近 200 行日志（排查最新一次生成）
-ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs --tail=200 worker-image"
+docker compose logs --tail=200 worker-image
 ```
 
 ---
@@ -148,13 +151,15 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 
 ## 快速命令备忘
 
+在服务器 `/root/ai-short-film` 目录下执行：
+
 ```bash
 # 实时跟踪图片生成提示词
-ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-image 2>&1 | grep -E 'PROMPT|--- PROMPT'"
+docker compose logs -f worker-image 2>&1 | grep -E 'PROMPT|--- PROMPT'
 
 # 实时跟踪视频生成提示词
-ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-video 2>&1 | grep -E 'PROMPT|--- PROMPT'"
+docker compose logs -f worker-video 2>&1 | grep -E 'PROMPT|--- PROMPT'
 
 # 查看所有 worker 日志
-ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-image worker-video worker-llm"
+docker compose logs -f worker-image worker-video worker-llm
 ```
