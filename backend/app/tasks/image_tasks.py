@@ -83,12 +83,12 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
                     await record.set({"logs": (record.logs or []) + [f"[prompt] LLM 优化失败：{e}"]})
 
             if not full_prompt:
-                # 兜底：用资产名称构造中性英文 prompt，避免原始 prompt 中可能的敏感词
-                asset_type_label = {"character": "person", "scene": "location", "prop": "object"}.get(asset_type_str, "subject")
+                # 兜底：用资产名称构造中性中文 prompt，避免原始 prompt 中可能的敏感词
+                asset_type_label = {"character": "人物", "scene": "场景", "prop": "道具"}.get(asset_type_str, "主体")
                 full_prompt = (
-                    f"portrait photo of a {asset_type_label}, "
-                    "white background, professional photography, "
-                    "detailed, high quality, realistic"
+                    f"竖屏9:16，{asset_type_label}标准参考图，名称：{asset.name}，"
+                    "白色纯色背景，主体清晰完整，细节丰富，写实电影质感，高清，"
+                    "避免模糊、变形、多余肢体、不自然比例"
                 )
                 if record:
                     await record.set({"logs": (record.logs or []) + ["[prompt] 使用兜底安全提示词（LLM 优化失败）"]})
@@ -246,11 +246,11 @@ async def _gen_shot_image_async(celery_id: str, shot_id: str):
                     await record.set({"logs": (record.logs or []) + [f"[prompt] LLM 优化失败：{e}"]})
 
             if not full_prompt:
-                # 兜底：不含敏感词的纯英文视觉描述
+                # 兜底：不含敏感词的中文视觉描述
                 full_prompt = (
-                    "cinematic vertical 9:16 shot, realistic film style, "
-                    "indoor scene with people and computer screens showing colorful charts, "
-                    "dramatic lighting"
+                    "竖屏9:16，写实电影风格，当前分镜的第一帧静止画面，"
+                    "人物和场景清晰可辨，构图稳定，光线有层次，高清质感，"
+                    "避免模糊、变形、多余肢体、不自然比例"
                 )
                 if record:
                     await record.set({"logs": (record.logs or []) + ["[prompt] 使用兜底通用提示词"]})

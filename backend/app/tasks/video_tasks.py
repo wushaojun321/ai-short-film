@@ -125,11 +125,10 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
                     await record.set({"logs": (record.logs or []) + [f"[prompt] LLM 优化失败：{e}"]})
 
             if not video_prompt:
-                # 兜底：不含敏感词的纯英文视觉描述
+                # 兜底：不含敏感词的中文视觉描述
                 video_prompt = (
-                    "cinematic vertical 9:16 shot, realistic film style, "
-                    "indoor scene with people and computer screens, "
-                    "dramatic lighting, high quality"
+                    "竖屏9:16，写实电影风格，根据当前分镜剧照生成短视频，"
+                    "镜头运动稳定，人物动作自然，表情清晰，场景连续，光线有层次，高清质感"
                 )
                 if record:
                     await record.set({"logs": (record.logs or []) + ["[prompt] 使用兜底通用提示词"]})

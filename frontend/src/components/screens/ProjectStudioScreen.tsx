@@ -1,18 +1,14 @@
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
-import { AlertTriangle, Images, FileText, Loader2, Trash2 } from "lucide-react";
+import { Images, FileText } from "lucide-react";
 import EpisodeSidebar from "@/components/EpisodeSidebar";
 import EpisodeStepBar from "@/components/EpisodeStepBar";
 import StepContent from "@/components/StepContent";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
 import { Project, EpisodeDetail, EpisodeStep, STEP_ORDER } from "@/lib/data";
-import { episodeAPI, projectAPI } from "@/lib/api";
+import { episodeAPI } from "@/lib/api";
 import { transformEpisode } from "@/lib/transforms";
-import { useProjects } from "@/lib/ProjectsContext";
 
 interface ProjectStudioScreenProps {
   project: Project;
@@ -22,13 +18,9 @@ interface ProjectStudioScreenProps {
 export default function ProjectStudioScreen({ project, onProjectUpdate }: ProjectStudioScreenProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { reload: reloadProjects } = useProjects();
   const [episodes, setEpisodes] = useState<EpisodeDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [scriptSheetOpen, setScriptSheetOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const episodeId = searchParams.get("episode") ?? episodes[0]?.id;
   const stepParam = searchParams.get("step") as EpisodeStep | null;
@@ -128,21 +120,6 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
 
   if (!activeEpisode) return null;
 
-  const handleDeleteProject = async () => {
-    setDeleting(true);
-    setDeleteError(null);
-    try {
-      await projectAPI.delete(project.id);
-      reloadProjects();
-      onProjectUpdate();
-      navigate("/projects", { replace: true });
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : "删除项目失败，请稍后重试");
-    } finally {
-      setDeleting(false);
-    }
-  };
-
   return (
     <div className="flex h-[calc(100vh-56px)]">
       <EpisodeSidebar
@@ -200,15 +177,6 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
                     <Images className="w-3.5 h-3.5" />
                     资产库
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex items-center gap-1.5 text-xs text-danger hover:text-danger hover:border-danger/40 hover:bg-danger-soft"
-                    onClick={() => setDeleteDialogOpen(true)}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    删除项目
-                  </Button>
                   <div className="flex gap-4 text-right">
                     {activeEpisode.estimatedDuration > 0 && (
                       <div>
@@ -251,43 +219,6 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
           </pre>
         )}
       </Sheet>
-
-      <Dialog open={deleteDialogOpen} onOpenChange={(open) => !deleting && setDeleteDialogOpen(open)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-danger" />
-              删除项目
-            </DialogTitle>
-            <DialogDescription>
-              将删除「{project.title}」以及它的分集、资产、分镜和任务记录。此操作无法撤销。
-            </DialogDescription>
-          </DialogHeader>
-          {deleteError && (
-            <div className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">
-              {deleteError}
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
-              取消
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteProject} disabled={deleting}>
-              {deleting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  删除中...
-                </>
-              ) : (
-                <>
-                  <Trash2 className="w-4 h-4" />
-                  确认删除
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

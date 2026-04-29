@@ -92,6 +92,8 @@ SCRIPT_PARSE = {
 
 **总体要求**：所有资产图必须清晰可辨、正面展示、白色纯色背景。图像将作为角色/场景/道具的标准参考图，供后续所有分镜生成引用，因此必须细节丰富、准确无歧义。Seedream 默认生成同质化较高，**请务必写得非常具体**，尤其是外貌特征的细节，越具体越不容易生成相似图像。
 
+**语言要求**：所有 `prompt` 必须使用中文撰写，保留剧本中的中文角色名、场景名、台词和风格词，不要翻译成英文。
+
 ### 人物角色 prompt 规范
 必须包含以下所有维度，缺一不可：
 1. 构图：全身像，正面朝前，白色纯色背景（便于识别全身轮廓）
@@ -137,7 +139,8 @@ SCRIPT_PARSE = {
 注意：
 1. 每个角色的 prompt 必须有足够强的差异化特征，确保不同角色生成的图像不会混淆
 2. 主角尤其要强调骨相差异、服装颜色差异和排斥项
-3. 道具宁缺毋滥，只写真正重要的""",
+3. 道具宁缺毋滥，只写真正重要的
+4. 所有资产 prompt 必须中文输出，禁止输出英文翻译版""",
     "user_prompt_template": "剧本内容：\n{script_text}\n\n目标集数：{target_episodes}\n每集最短时长（秒）：{min_duration}\n补充说明：{parse_notes}",
     "variables": ["script_text", "target_episodes", "min_duration", "parse_notes"],
 }
@@ -239,6 +242,8 @@ ASSET_PROMPT_GEN = {
     "description": "为角色/场景/道具生成 Seedream 图像生成提示词",
     "system_prompt": """你是专业的 AI 图像提示词工程师，擅长为 Seedream 模型生成高质量的人物、场景、道具图像提示词。
 
+语言要求：输出的 `positive_prompt` 和 `negative_prompt` 必须使用中文，不要翻译成英文，不要夹杂英文摄影术语；保留原始中文角色名、场景名、道具名和风格描述。
+
 提示词规范：
 - 人物：明确脸型、肤色、骨相、发型、配饰、服装、气质、排斥项
 - 场景：明确空间、光线、时间、氛围、视角
@@ -246,8 +251,8 @@ ASSET_PROMPT_GEN = {
 
 请以 json 格式输出结果：
 {
-  "positive_prompt": "正向提示词（中英文均可）",
-  "negative_prompt": "反向提示词",
+  "positive_prompt": "中文正向提示词",
+  "negative_prompt": "中文反向提示词",
   "style_notes": "风格补充说明"
 }""",
     "user_prompt_template": "资产描述：{asset_description}\n\n风格指南：{style_guide}\n\n角色排斥规则：{negative_prompt_rules}",
@@ -322,6 +327,8 @@ SHOT_IMAGE_GEN = {
     "description": "构建发给 Seedream 的分镜剧照生成提示词",
     "system_prompt": """你是专业电影分镜师，负责将导演分镜描述转化为 Seedream 图像生成提示词。
 
+语言要求：最终 `prompt` 和 `negative_prompt` 必须使用中文，不要翻译成英文，不要输出英文版提示词；保留中文角色名、场景名、台词和剧本风格词。
+
 生成的图像是该镜头的**第一帧静止画面**，即镜头刚开始时的定格状态：
 - 人物处于动作的起始姿态（未完成动作，如推镜头时人物还在起始站位）
 - 表情为情绪刚刚出现的瞬间
@@ -358,6 +365,8 @@ SHOT_VIDEO_GEN = {
     "name": "分镜视频生成-提示词构建",
     "description": "构建发给 Seedance 的视频生成提示词",
     "system_prompt": """你是专业 AI 视频导演，负责构建 Seedance 2.0 视频生成提示词。
+
+语言要求：最终 `prompt` 必须使用中文，不要翻译成英文，不要输出英文版提示词；保留中文角色名、场景名、台词和剧本风格词。
 
 提示词结构（必须包含）：
 1. 全局视觉风格
