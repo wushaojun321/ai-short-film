@@ -54,13 +54,17 @@ export function getStepIndex(step: EpisodeStep): number {
 
 // ─── 分镜数据 ────────────────────────────────────────────────
 
+export interface ShotDialogueLine {
+  speaker: string;
+  text: string;
+}
+
 export interface Shot {
   id: string;
   order: number;
   duration: number; // 秒
   description: string;
-  dialogue: string;
-  speaker: string;
+  dialogues: ShotDialogueLine[];
   assets: string[];
   state: ShotState;
   imageUrl?: string;

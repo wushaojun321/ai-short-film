@@ -79,7 +79,7 @@ async def _build_artifact_snapshot(target_type: ConversationTarget, target_id: P
             shots = await Shot.find(Shot.episode_id == obj.id).sort("+order").to_list()
             shot_list = [
                 f"{s.shot_code}（{s.duration}s）: {s.description[:80]}"
-                + (f" 台词：{s.speaker}：{s.dialogue}" if s.dialogue else "")
+                + (f" 台词：{'；'.join(f'{d.speaker}：{d.text}' if d.speaker else d.text for d in s.dialogues)}" if s.dialogues else "")
                 for s in shots
             ]
             return {

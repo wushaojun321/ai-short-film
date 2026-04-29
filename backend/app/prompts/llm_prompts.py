@@ -272,12 +272,12 @@ SHOT_SCRIPT_GEN = {
 核心原则：忠实还原剧本，不创作、不增减情节。
 
 分镜拆分规则：
-1. 以剧本中的对白或动作节点为单位拆分镜头，一句台词或一个连贯动作对应一个镜头
-2. 同一场景内的连续对话/动作应保持景别连贯，不要为了凑镜头数量强行切换
-3. 每个镜头时长控制在 {max_shot_duration} 秒左右，台词较长可适当延长，但不超过该值的 1.5 倍
+1. 以场景或情节节点为单位拆分镜头，同一镜头内可包含多句连续对白
+2. 同一场景内的连续对话无需每句切镜，保持景别连贯，多句台词收入同一镜头的 dialogues 列表
+3. 每个镜头时长控制在 {max_shot_duration} 秒左右，对话较多可适当延长，但不超过该值的 2 倍
 4. 场景切换（新场景、时间跳跃）时单独起一个建立镜
 5. 每个镜头必须明确：景别（远/全/中/近/特写）、机位方向、运镜方式（固定/推/拉/跟）
-6. 台词原文照抄，禁止改写或缩写
+6. 台词原文照抄，禁止改写或缩写；**对白必须使用中文**，不得出现英文或其他语言
 7. 每个镜头绑定出现的角色资产和当前场景资产
 
 description 字段必须包含以下信息（不得省略）：
@@ -297,10 +297,13 @@ description 字段必须包含以下信息（不得省略）：
     "duration": {max_shot_duration},
     "description": "景别+机位+运镜+动作+表情+画面内容（服装有变化时加注）",
     "required_assets": ["资产名称1", "资产名称2"],
-    "dialogue": "台词原文（无台词则为空字符串）",
-    "speaker": "说话人（无台词则为空字符串）"
+    "dialogues": [
+      {"speaker": "角色名", "text": "台词原文"},
+      {"speaker": "另一角色", "text": "回应台词"}
+    ]
   }
-]""",
+]
+注意：无台词的镜头 dialogues 填空数组 []。""",
     "user_prompt_template": "全剧风格：\n{series_prompt}\n\n第 {episode_number} 集《{episode_title}》\n本集剧本：\n{script_excerpt}\n\n连续性约束：\n{continuity_notes}\n\n可用资产列表：\n{asset_list}{feedback_section}",
     "variables": ["series_prompt", "episode_number", "episode_title", "script_excerpt", "continuity_notes", "asset_list", "max_shot_duration", "feedback"],
 }

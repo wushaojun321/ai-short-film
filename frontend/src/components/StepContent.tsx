@@ -466,10 +466,14 @@ function StepScript({
                   )}
 
                   {/* 对白 */}
-                  {shot.dialogue && (
-                    <div className="mt-2 px-2 py-1.5 bg-soft rounded text-xs text-text leading-relaxed border-l-2 border-brand/40">
-                      {shot.speaker && <span className="font-medium text-brand mr-1">{shot.speaker}：</span>}
-                      {shot.dialogue}
+                  {shot.dialogues.length > 0 && (
+                    <div className="mt-2 flex flex-col gap-1">
+                      {shot.dialogues.map((line, i) => (
+                        <div key={i} className="px-2 py-1.5 bg-soft rounded text-xs text-text leading-relaxed border-l-2 border-brand/40">
+                          {line.speaker && <span className="font-medium text-brand mr-1">{line.speaker}：</span>}
+                          {line.text}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>

@@ -80,8 +80,10 @@ export function transformShot(s: ApiShot): Shot {
     order: s.order,
     duration: s.duration,
     description: s.description,
-    dialogue: s.dialogue ?? "",
-    speaker: s.speaker ?? "",
+    dialogues: s.dialogues ?? (
+      // 兼容旧格式：dialogue/speaker 字符串
+      s.dialogue ? [{ speaker: s.speaker ?? "", text: s.dialogue }] : []
+    ),
     assets: s.required_assets.map((a) => a.asset_name),
     state: SHOT_STATE_MAP[s.state] ?? "planned",
     imageUrl: s.image_url ?? undefined,

@@ -21,6 +21,11 @@ class ShotAssetBinding(BaseModel):
     asset_name: str
 
 
+class ShotDialogueLine(BaseModel):
+    speaker: str = ""
+    text: str = ""
+
+
 class Shot(Document):
     project_id: PydanticObjectId
     episode_id: PydanticObjectId
@@ -28,8 +33,7 @@ class Shot(Document):
     order: int
     duration: int = 5
     description: str = ""
-    dialogue: str = ""
-    speaker: str = ""
+    dialogues: list[ShotDialogueLine] = []  # 一个镜头可有多句对白
     prompt: str = ""
     required_assets: list[ShotAssetBinding] = []
     state: ShotState = ShotState.planned

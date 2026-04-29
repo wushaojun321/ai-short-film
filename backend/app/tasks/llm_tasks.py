@@ -347,6 +347,22 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
 
             raw_code = s.get("shot_code")
             shot_code = str(raw_code) if raw_code is not None else f"EP{episode.number:02d}-S{idx+1:02d}"
+
+            # 解析 dialogues 列表，兼容旧格式（dialogue/speaker 字符串）
+            raw_dialogues = s.get("dialogues")
+            if isinstance(raw_dialogues, list):
+                from app.models.shot import ShotDialogueLine
+                dialogues = [
+                    ShotDialogueLine(speaker=d.get("speaker", ""), text=d.get("text", ""))
+                    for d in raw_dialogues if isinstance(d, dict) and d.get("text")
+                ]
+            else:
+                # 兼容旧格式：dialogue + speaker 字符串
+                from app.models.shot import ShotDialogueLine
+                old_text = s.get("dialogue", "")
+                old_speaker = s.get("speaker", "")
+                dialogues = [ShotDialogueLine(speaker=old_speaker, text=old_text)] if old_text else []
+
             shot = Shot(
                 project_id=episode.project_id,
                 episode_id=episode.id,
@@ -354,8 +370,7 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
                 order=s.get("order", idx + 1),
                 duration=s.get("duration", 5),
                 description=s.get("description", ""),
-                dialogue=s.get("dialogue", ""),
-                speaker=s.get("speaker", ""),
+                dialogues=dialogues,
                 prompt=s.get("prompt", ""),
                 required_assets=required_assets,
                 state=ShotState.planned,
