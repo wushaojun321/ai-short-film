@@ -222,26 +222,19 @@ function StepScript({
   const [editText, setEditText] = useState("");
   const [regenDialogOpen, setRegenDialogOpen] = useState(false);
   const [approving, setApproving] = useState(false);
-  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [agentTarget, setAgentTarget] = useState<string | null>(null);
 
-  // 当 shots 出现时（由父组件 3s 轮询驱动），清除生成中状态
-  useEffect(() => {
-    if (generating && shots.length > 0) {
-      setGenerating(false);
-    }
-  }, [shots.length, generating]);
+  // 由后端 running_tasks 派生，刷新后状态自动恢复
+  const generating = episode.runningTasks.includes("gen_shot_script");
 
   const handleGenerate = async () => {
     setError(null);
-    setGenerating(true);
     try {
       await generateAPI.shotScript(episode.id);
-      // 不在这里 setGenerating(false)，由上面的 useEffect 在轮询拿到 shots 后清除
+      // generating 状态由轮询驱动（runningTasks），无需本地管理
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "生成失败");
-      setGenerating(false);
     }
   };
 
@@ -467,8 +460,10 @@ function StepImages({
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
   const [agentTarget, setAgentTarget] = useState<string | null>(null);
   const [approving, setApproving] = useState(false);
-  const [batchGenerating, setBatchGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 由后端 running_tasks 派生，刷新后状态自动恢复
+  const batchGenerating = episode.runningTasks.includes("gen_shot_image");
 
   // shot state 变为非 generating 时，清除本地 loading（轮询数据到了）
   useEffect(() => {
@@ -488,16 +483,13 @@ function StepImages({
   const handleBatchGenerate = async () => {
     const targets = shots.filter((s) => !s.imageUrl && !loadingIds.has(s.id) && s.state !== "generating");
     if (targets.length === 0) return;
-    setBatchGenerating(true);
     setError(null);
     setLoadingIds((prev) => new Set([...prev, ...targets.map((s) => s.id)]));
     try {
       await Promise.all(targets.map((s) => generateAPI.shotImage(s.id).catch(() => {
         setLoadingIds((prev) => { const n = new Set(prev); n.delete(s.id); return n; });
       })));
-    } finally {
-      setBatchGenerating(false);
-    }
+    } catch { /* 单个失败已在上面处理 */ }
   };
 
   const handleRegen = async (shotId: string) => {
@@ -682,8 +674,10 @@ function StepVideos({
   const [agentTarget, setAgentTarget] = useState<string | null>(null);
   const [promptSheetOpen, setPromptSheetOpen] = useState(false);
   const [approving, setApproving] = useState(false);
-  const [batchGenerating, setBatchGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 由后端 running_tasks 派生，刷新后状态自动恢复
+  const batchGenerating = episode.runningTasks.includes("gen_shot_video");
 
   // shot state 变为非 rendering 时，清除本地 loading
   useEffect(() => {
@@ -704,16 +698,13 @@ function StepVideos({
   const handleBatchGenerate = async () => {
     const targets = shots.filter((s) => !s.videoUrl && !loadingIds.has(s.id) && s.state !== "rendering");
     if (targets.length === 0) return;
-    setBatchGenerating(true);
     setError(null);
     setLoadingIds((prev) => new Set([...prev, ...targets.map((s) => s.id)]));
     try {
       await Promise.all(targets.map((s) => generateAPI.shotVideo(s.id).catch(() => {
         setLoadingIds((prev) => { const n = new Set(prev); n.delete(s.id); return n; });
       })));
-    } finally {
-      setBatchGenerating(false);
-    }
+    } catch { /* 单个失败已在上面处理 */ }
   };
 
   const handleRegen = async (shotId: string) => {
@@ -955,9 +946,10 @@ function StepMerge({
 }: { episode: EpisodeDetail; projectId: string; isPast?: boolean }) {
   // 派生：finalVideoUrl 存在说明合并完成
   const done = isPast || !!episode.finalVideoUrl;
+  // 由后端 running_tasks 派生，刷新后状态自动恢复
+  const merging = episode.runningTasks.includes("merge_episode");
 
   const [progress, setProgress] = useState(done ? 100 : 0);
-  const [merging, setMerging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const animTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -976,26 +968,26 @@ function StepMerge({
     }
   };
 
-  // finalVideoUrl 出现时，停止动画并设为 100%
+  // merging 变为 true 时启动进度动画；变为 false 或完成时停止
   useEffect(() => {
-    if (episode.finalVideoUrl && merging) {
+    if (merging) {
+      startProgressAnim();
+    } else {
       stopProgressAnim();
-      setProgress(100);
-      setMerging(false);
+      if (done) setProgress(100);
     }
-  }, [episode.finalVideoUrl, merging]);
+    return stopProgressAnim;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [merging, done]);
 
   useEffect(() => () => stopProgressAnim(), []);
 
   const handleMerge = async () => {
     setError(null);
-    setMerging(true);
-    startProgressAnim();
     try {
       await generateAPI.mergeEpisode(episode.id);
+      // merging 状态由轮询驱动，无需本地管理
     } catch (e: unknown) {
-      stopProgressAnim();
-      setMerging(false);
       setError(e instanceof Error ? e.message : "合并失败");
     }
   };

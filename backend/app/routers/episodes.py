@@ -39,9 +39,18 @@ async def get_episode(
     if not episode:
         raise HTTPException(404, "Episode not found")
     if include_shots:
+        from app.models.task_record import TaskRecord, TaskStatus
         shots = await Shot.find(Shot.episode_id == episode.id).sort("+order").to_list()
+        running_tasks = await TaskRecord.find(
+            TaskRecord.episode_id == episode.id,
+            TaskRecord.status.in_([TaskStatus.pending, TaskStatus.running]),
+        ).to_list()
         data = episode.model_dump(by_alias=True, mode="json")
         data["shots"] = [s.model_dump(by_alias=True, mode="json") for s in shots]
+        data["running_tasks"] = [
+            {"task_type": t.task_type, "status": t.status}
+            for t in running_tasks
+        ]
         return data
     return episode
 

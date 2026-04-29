@@ -89,6 +89,7 @@ export interface EpisodeDetail {
   shots: Shot[];
   continuityNotes?: string;
   finalVideoUrl?: string;
+  runningTasks: string[];  // 当前 pending/running 的 task_type 列表
 }
 
 // ─── 项目数据 ────────────────────────────────────────────────

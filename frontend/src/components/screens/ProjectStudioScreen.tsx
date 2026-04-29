@@ -59,9 +59,9 @@ export default function ProjectStudioScreen({ project }: ProjectStudioScreenProp
           data.map((raw) => {
             const transformed = transformEpisode(raw);
             const existing = prev.find((e) => e.id === transformed.id);
-            // 保留当前集已加载的 shots，避免列表接口覆盖为空
+            // 保留当前集已加载的 shots 和 runningTasks，避免列表接口覆盖为空
             return existing
-              ? { ...transformed, shots: existing.shots }
+              ? { ...transformed, shots: existing.shots, runningTasks: existing.runningTasks }
               : transformed;
           })
         );

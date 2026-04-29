@@ -58,6 +58,7 @@ export function transformEpisode(e: ApiEpisode): EpisodeDetail {
     shots: e.shots ? e.shots.map(transformShot) : [],
     continuityNotes: e.continuity_notes,
     finalVideoUrl: e.final_video_url,
+    runningTasks: (e.running_tasks ?? []).map((t) => t.task_type),
   };
 }
 
