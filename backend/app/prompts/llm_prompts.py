@@ -6,8 +6,8 @@
   - 变量：user_prompt_template 中使用的 {变量名} 列表
   - 输出：期望的 LLM 输出格式
 
-DEFAULT_PROMPTS 列表供 seed_data.py 在启动时写入数据库（仅首次）。
-运行时从数据库读取（支持通过 Admin API 在线修改和版本回滚）。
+DEFAULT_PROMPTS 列表供 prompt_service.py 在运行时直接读取。
+注意：项目中仍保留 PromptConfig 模型和 seed_data.py 旧代码，但当前主链路不再从数据库读取提示词。
 """
 
 from app.models.prompt_config import PromptConfigScope
@@ -476,7 +476,7 @@ SERIES_OVERVIEW_EDIT = {
     "variables": ["current_overview", "user_instruction"],
 }
 
-# 按初始化 → 生成 → 编辑 → 其他顺序排列，供 seed_data.py 导入
+# 按初始化 → 生成 → 编辑 → 其他顺序排列，供 prompt_service.py 导入
 DEFAULT_PROMPTS = [
     SCRIPT_PARSE,
     SCRIPT_MAP,

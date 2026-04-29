@@ -2,181 +2,291 @@
 
 ## 项目概览
 
-AI 辅助短剧（竖屏 9:16）从剧本到成片的生产系统。当前前端为 **纯 Mock 数据**，用于流程演示。
+AI 辅助短剧（竖屏 9:16）从剧本到分集、资产、分镜、剧照、视频和合片的生产系统。
+
+当前项目已经不是纯前端 Mock：
+
+- 前端为 React/Vite 单页应用，已接入真实 API、登录态、项目数据、任务轮询和对话侧边栏。
+- 后端为 FastAPI + MongoDB/Beanie + Redis/Celery，负责项目、分集、资产、分镜、任务记录、代码侧提示词和多轮对话。
+- 生成任务拆成独立 Celery 队列：LLM、图像、视频、合片。
+- 初始化阶段先解析分集和资产需求，创建资产记录；资产图片不再强制一次性全量生成，当前界面支持进入图片确认阶段后按需/批量生成。
 
 ## 技术栈
 
 - **前端**：React 18 + TypeScript + Vite + Tailwind CSS + React Router 6
 - **UI 组件**：自写组件 + shadcn/ui 风格（基于 Radix UI）
-- **Mock 数据**：`frontend/src/lib/data.ts`
-- **核心文档**：`docs/workflow-spec.md`（完整工作流规范）
-- **后端规划**：`docs/backend-plan.md`（Python/FastAPI/Beanie/Celery 后端实现计划）
-- **提示词调试**：`docs/prompt-debug.md`（如何从日志获取提示词并迭代调整）
-- **火山 API 文档**：`docs/volcano/`（Seedream 文生图 + Seedance 视频生成 API 参考）
+- **API 客户端**：`frontend/src/lib/api.ts`
+- **状态转换**：`frontend/src/lib/transforms.ts`
+- **认证**：JWT Bearer token，前端存储在 `localStorage`
+- **后端**：Python 3.12 + FastAPI + Beanie + MongoDB
+- **异步任务**：Celery + Redis
+- **对象存储**：COS/S3 风格存储，STS 临时密钥用于前端访问
+- **外部生成**：OpenRouter LLM、Seedream 图像、Seedance 视频
+- **核心文档**：`docs/workflow-spec.md`
+- **后端说明**：`docs/backend-plan.md`
+- **提示词调试**：`docs/prompt-debug.md`
+- **火山 API 文档**：`docs/volcano/`
 
 ## 目录结构
 
 ```
 ai-short-film/
 ├── frontend/src/
-│   ├── App.tsx                              # 路由入口（3条路由）
+│   ├── App.tsx                       # 路由入口和登录保护
 │   ├── lib/
-│   │   ├── data.ts                          # 所有 Mock 数据和类型定义
-│   │   └── utils.ts                         # cn() 工具函数
+│   │   ├── api.ts                    # axios 客户端、API 封装、任务轮询
+│   │   ├── AuthContext.tsx           # 登录态
+│   │   ├── CosContext.tsx            # COS 访问 URL 处理
+│   │   ├── ProjectsContext.tsx       # 项目列表状态
+│   │   ├── transforms.ts             # API 数据转前端视图模型
+│   │   ├── data.ts                   # 前端视图类型和步骤定义
+│   │   └── utils.ts
 │   ├── components/
-│   │   ├── ui/                              # shadcn 风格 UI 组件库
-│   │   │   ├── button.tsx
-│   │   │   ├── badge.tsx
-│   │   │   ├── dialog.tsx
-│   │   │   ├── dropdown-menu.tsx
-│   │   │   ├── input.tsx
-│   │   │   ├── scroll-area.tsx
-│   │   │   ├── separator.tsx
-│   │   │   ├── tabs.tsx
-│   │   │   └── textarea.tsx
-│   │   ├── Nav.tsx                          # 顶部导航（项目下拉切换）
-│   │   ├── Shell.tsx                        # 页面壳（只包含 Nav）
-│   │   ├── EpisodeSidebar.tsx               # 左侧分集列表（已初始化项目）
-│   │   ├── EpisodeStepBar.tsx               # 顶部分集制作步骤条（8步）
-│   │   ├── StepContent.tsx                  # 各步骤制品展示区
+│   │   ├── AgentDialog.tsx           # 制品级多轮对话侧边栏
+│   │   ├── EpisodeSidebar.tsx
+│   │   ├── EpisodeStepBar.tsx
+│   │   ├── StepContent.tsx           # 分镜/剧照/视频/合片步骤 UI
 │   │   └── screens/
-│   │       ├── NewProjectScreen.tsx         # 三阶段初始化流程
-│   │       └── ProjectStudioScreen.tsx      # 分集制作台主页面
+│   │       ├── NewProjectScreen.tsx   # 上传剧本、等待解析、分集与资产、图片确认
+│   │       └── ProjectStudioScreen.tsx
 │   └── pages/
-│       ├── ProjectsHome.tsx                 # 首页（项目列表）
-│       ├── NewProjectPage.tsx               # 路由包装
-│       └── ProjectDetailPage.tsx            # 路由包装（判断初始化状态）
+│       ├── LoginPage.tsx
+│       ├── ProjectsHome.tsx
+│       ├── NewProjectPage.tsx
+│       └── ProjectDetailPage.tsx
+├── backend/app/
+│   ├── main.py                       # FastAPI 入口，统一 id 归一化
+│   ├── models/                       # Beanie 文档模型
+│   ├── routers/                      # REST API
+│   ├── services/                     # LLM/图像/视频/存储/业务服务
+│   ├── tasks/                        # Celery 任务
+│   ├── prompts/                      # 默认提示词
+│   ├── tools/                        # Agent 可调用工具
+│   └── agent/                        # 对话 Agent 运行器
 ├── docs/
-│   ├── workflow-spec.md                     # 完整工作流规范（分镜/资产/连续性策略）
-│   ├── backend-plan.md                      # 后端实现计划（Python+Mongo+Beanie+Celery）
-│   └── volcano/                             # 火山引擎 API 参考文档
-│       ├── 01_create-video.md               # Seedance 创建视频生成任务 API
-│       ├── 02_query-video.md                # Seedance 查询单个视频任务 API
-│       ├── 03_query-video-list.md           # Seedance 批量查询视频任务列表 API
-│       ├── 04_seedance_tutorial.md          # Seedance 完整使用教程（参考图/首尾帧/多模态）
-│       └── 05_t2i.md                        # Seedream 文生图 API（图像生成）
+│   ├── workflow-spec.md
+│   ├── backend-plan.md
+│   ├── prompt-debug.md
+│   └── volcano/
+├── docker-compose.yml
+└── TODO.md
 ```
 
 ## 路由结构
 
 ```
-/                           → /projects (重定向)
-/projects                   → 首页（项目列表 + 新建按钮）
-/projects/new               → 新建项目（三阶段初始化流程）
-/projects/:projectId        → 项目详情
-  initStatus !== "initialized" → NewProjectScreen（补充初始化）
-  initStatus === "initialized" → ProjectStudioScreen（分集制作台）
-    URL 参数：?episode=EP04&step=video_review
+/login                      → 登录/邀请码注册
+/                            → /projects
+/projects                    → 项目列表
+/projects/new                → 新建项目
+/projects/:projectId         → 项目详情
+  initStatus !== initialized → NewProjectScreen
+  initStatus === initialized → ProjectStudioScreen
 ```
 
-## 初始化流程（三阶段）
+前端 API 默认走 `/api/v1`，可通过 `VITE_API_URL` 覆盖。
+
+## 当前初始化流程
 
 ```
-阶段 1：导入剧本
-  → 上传文件 → 点击「解析剧本」→ 弹窗配置（集数/时长/连续性约束）→ AI 解析
+阶段 1：上传剧本
+  → 上传 .txt/.docx/.pdf → 配置目标集数、最短时长、补充说明 → 触发 LLM 解析任务
 
-阶段 2：分集规划审核
-  → AI 生成分集列表（集数/标题/字数/预估时长）→ 用户可 inline 编辑 → 确认
+阶段 1.5：等待解析
+  → 前端轮询 TaskRecord → 展示进度和日志 → 成功后加载分集草案
 
-阶段 3：资产审核
-  → AI 生成角色/场景/道具资产图 → 用户可单独重生 → 确认初始化
+阶段 2：分集与资产
+  → 用户审核/编辑分集 → 确认分集 → 查看解析出的资产记录
+
+阶段 3：图片确认
+  → 对资产单独/批量生成图片 → 审核确认资产 → 确认初始化完成
 ```
 
-## 单集制作 Step 流程（8步）
+注意：解析任务会创建 `Episode` 和 `Asset` 记录，但资产图片由 `worker-image` 后续生成，不是解析阶段一次性全部出图。
+
+## 单集制作流程
+
+前端当前将审核合并进生成步骤，视图上是 6 个主步骤：
 
 ```
-1. 生成分镜脚本  → 分镜列表（含连续性约束、资产绑定）
-2. 生成分镜剧照  → 网格展示，可单独/批量生成
-3. 剧照审核      → 逐镜通过/拒绝
-4. 生成分镜视频  → 批量生成，状态列表
-5. 视频审核      → 左列表+右预览，逐镜通过/拒绝
-6. 配音          → 按角色音色设定生成
-7. 合并成片      → 进度条合并
-8. 完成          → 成片预览/下载
+1. 分镜脚本      → worker-llm 生成 Shot 列表、台词、资产绑定
+2. 分镜剧照      → worker-image 生成剧照，页面内完成剧照审核
+3. 分镜视频      → worker-video 生成视频，页面内完成视频审核
+4. 配音          → 类型和步骤保留，实际 TTS 任务尚未落地
+5. 合并成片      → worker-merge 使用 ffmpeg 拼接 approved 镜头
+6. 完成          → 展示 final_video_url
+```
+
+后端 `EpisodeStep` 仍保留更细状态：
+
+```
+storyboard_script → storyboard_images → image_review → storyboard_videos
+→ video_review → dubbing → merge → done
 ```
 
 ## 关键数据类型
 
+后端真实枚举以 `backend/app/models/` 为准：
+
 ```typescript
-ProjectInitStatus = "not_started" | "script_uploaded" | "episodes_confirmed" | "assets_confirmed" | "initialized"
+ProjectInitStatus =
+  "not_started" | "script_uploaded" | "episodes_confirmed" |
+  "assets_confirmed" | "initialized"
+
 EpisodeStatus = "not_started" | "in_progress" | "completed"
-EpisodeStep = "storyboard_script" | "storyboard_images" | "image_review" | "storyboard_videos" | "video_review" | "dubbing" | "merge" | "done"
-ShotState = "planned" | "asset_required" | "asset_ready" | "rendered" | "review_failed" | "approved"
-AssetStatus = "已生成" | "待确认" | "需重生" | "缺失"
+
+EpisodeStep =
+  "storyboard_script" | "storyboard_images" | "image_review" |
+  "storyboard_videos" | "video_review" | "dubbing" | "merge" | "done"
+
+ShotState =
+  "planned" | "asset_required" | "generating" | "asset_ready" |
+  "rendering" | "rendered" | "review_failed" | "approved"
+
+AssetStatus =
+  "pending" | "queued" | "generating" | "approved" |
+  "need_regen" | "missing"
+
+TaskStatus =
+  "pending" | "running" | "success" | "failed" | "cancelled"
+```
+
+## API 结构
+
+所有业务接口都挂在 `/api/v1` 下，并要求 Bearer token，除了登录注册。
+
+主要路由：
+
+```
+POST   /api/v1/auth/register
+POST   /api/v1/auth/login
+
+GET    /api/v1/projects
+POST   /api/v1/projects
+GET    /api/v1/projects/{project_id}
+PATCH  /api/v1/projects/{project_id}
+DELETE /api/v1/projects/{project_id}
+POST   /api/v1/projects/{project_id}/upload-script
+POST   /api/v1/projects/{project_id}/confirm-episodes
+POST   /api/v1/projects/{project_id}/confirm-assets
+
+GET    /api/v1/projects/{project_id}/episodes
+GET    /api/v1/projects/{project_id}/episodes/{episode_id}?include_shots=true
+PATCH  /api/v1/projects/{project_id}/episodes/{episode_id}
+POST   /api/v1/projects/{project_id}/episodes/{episode_id}/advance-step
+POST   /api/v1/projects/{project_id}/episodes/{episode_id}/set-step
+
+GET    /api/v1/projects/{project_id}/episodes/{episode_id}/shots
+PATCH  /api/v1/projects/{project_id}/episodes/{episode_id}/shots/{shot_id}
+POST   /api/v1/projects/{project_id}/episodes/{episode_id}/shots/{shot_id}/review
+POST   /api/v1/projects/{project_id}/episodes/{episode_id}/shots/batch-review
+
+GET    /api/v1/projects/{project_id}/assets
+PATCH  /api/v1/projects/{project_id}/assets/{asset_id}
+DELETE /api/v1/projects/{project_id}/assets/{asset_id}
+POST   /api/v1/projects/{project_id}/assets/{asset_id}/confirm
+POST   /api/v1/projects/{project_id}/assets/{asset_id}/regen
+
+POST   /api/v1/generate/projects/{project_id}/parse-script
+POST   /api/v1/generate/episodes/{episode_id}/shot-script
+POST   /api/v1/generate/assets/{asset_id}/image
+POST   /api/v1/generate/shots/{shot_id}/image
+POST   /api/v1/generate/shots/{shot_id}/video
+POST   /api/v1/generate/episodes/{episode_id}/merge
+GET    /api/v1/generate/tasks/{record_id}/progress       # SSE，当前前端主要使用普通轮询
+
+GET    /api/v1/tasks/{record_id}
+GET    /api/v1/tasks
+
+GET    /api/v1/conversations
+POST   /api/v1/conversations
+GET    /api/v1/conversations/{conversation_id}
+DELETE /api/v1/conversations/{conversation_id}
+POST   /api/v1/conversations/{conversation_id}/chat
+
+GET    /api/v1/admin/prompt-configs
+GET    /api/v1/admin/prompt-configs/{scope}
 ```
 
 ## ID 字段规范（`_id` vs `id`）
 
-Beanie/MongoDB 原生序列化用 `_id`，为保证前后端一致，**所有 API 响应统一输出 `id`**：
+Beanie/MongoDB 原生序列化用 `_id`，为保证前后端一致，所有 API 响应统一输出 `id`：
 
-- **后端**：`app/main.py` 注册了 `normalize_id_middleware`，拦截所有 JSON 响应，递归将 `_id` 改为 `id`。无需在每个路由单独处理。
-- **前端**：`frontend/src/lib/api.ts` 的 axios 响应拦截器也做了同样转换（`normalizeIds`），作为双重保险。
-- **规则**：前端所有代码一律用 `.id`，禁止用 `._id`。测试脚本、后端直接调 API 的工具也应使用 `id` 字段。
-- **外键**：后端模型中 `project_id`、`episode_id` 等外键字段名不变，不受此规范影响。
+- 后端：`app/main.py` 注册了 `normalize_id_middleware`，递归将 `_id` 改为 `id`。
+- 前端：`frontend/src/lib/api.ts` 的 axios 响应拦截器也做同样转换，作为双重保险。
+- 规则：前端代码一律用 `.id`，不要用 `._id`。
+- 外键：`project_id`、`episode_id` 等字段名不变。
 
-```
-MongoDB 文档         { _id: ObjectId, title: "..." }
-        ↓
-FastAPI 序列化       { _id: "507f...", title: "..." }  ← Beanie 默认 by_alias=True
-        ↓
-normalize_id_middleware  { id: "507f...", title: "..." }  ← 后端统一处理
-        ↓
-前端 normalizeIds（双保险）  { id: "507f...", title: "..." }
-```
+## 任务队列
+
+Celery 队列和 Docker Compose 服务对应关系：
+
+| 服务 | 队列 | 作用 |
+| --- | --- | --- |
+| `worker-llm` | `llm` | 剧本解析、长剧本 Map-Reduce、分镜脚本生成 |
+| `worker-image` | `image` | 资产图片、分镜剧照 |
+| `worker-video` | `video` | 分镜视频 |
+| `worker-merge` | `merge` | 整集视频拼接 |
+
+解析剧本时报错时，优先看 `worker-llm`；图片生成看 `worker-image`；视频生成看 `worker-video`。
 
 ## 主题
 
 白色风格（#FFFFFF 背景），品牌绿 #0F8A52 保留。
-颜色 token 在 `tailwind.config.js` 中定义，可直接使用 `bg-bg`、`text-sub`、`border-line` 等。
+颜色 token 在 `tailwind.config.js` 中定义，可使用 `bg-bg`、`text-sub`、`border-line` 等。
 
 ## 部署
 
 服务器通过 `ssh root@42.193.144.175` 访问，使用 Docker Compose 部署，代码在 `/root/ai-short-film`。
 
-> **⚠️ 部署注意**：所有 worker 容器（worker-image、worker-llm 等）共享后端 Python 模型代码（如 `AssetStatus` 枚举）。
-> 若只 build `api` 而不 build worker，worker 容器仍使用旧枚举，读取新状态值时 Pydantic 会报 ValidationError，导致任务静默失败。
-> **任何涉及模型/枚举变更时，必须同时 build 并重启所有 worker。**
+> **部署注意**：所有 worker 容器共享后端 Python 代码。模型、枚举、任务、服务、提示词等代码有任何变更时，必须 build 并重启对应 worker。只重启 `api` 或 `frontend` 不会更新 `worker-llm`、`worker-image`、`worker-video`、`worker-merge` 的代码。
 
 ```bash
 # 标准部署流程（代码已推到 gitee 后执行）
 ssh root@42.193.144.175 "cd /root/ai-short-film && git pull && docker compose build && docker compose up -d"
 
-# 仅重启不重新 build（配置变更时）
+# 仅重启不重新 build（只改环境变量或临时重启时）
 ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose restart"
+
+# 查看服务状态
+ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose ps"
 
 # 查看日志
 ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f api"
 ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-llm"
-
-# 查看服务状态
-ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose ps"
+ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-image"
+ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-video"
 ```
 
-> **⚠️ 容器代码不会自动更新**：`git pull` 只更新宿主机文件，`docker compose restart` 只重启进程，容器内的代码仍是 build 时打包的版本。
-> **代码有任何变更都必须重新 build 镜像**，否则容器跑的还是旧代码。
->
-> `docker compose restart` 仅适用于**只改了环境变量**（`.env`）的情况，不涉及代码改动。
+> **容器代码不会自动更新**：`git pull` 只更新宿主机文件，`docker compose restart` 只重启旧镜像里的进程。代码变更必须重新 build。
 
-> **⚠️ Dockerfile 依赖是硬编码的**：`backend/Dockerfile` 中的 `RUN uv pip install ...` 列表与 `pyproject.toml` 是独立维护的，两者不会自动同步。
-> 新增 Python 依赖时，必须**同时更新 Dockerfile 的安装列表**，否则 build 出来的镜像缺包，服务启动报 `ModuleNotFoundError`。
+> **Dockerfile 依赖是硬编码的**：`backend/Dockerfile` 中的 `uv pip install ...` 列表与 `pyproject.toml` 独立维护。新增 Python 依赖时必须同时更新两边。
 
-**服务清单：**
-- `frontend` — nginx，80/443，前端静态文件 + API 反代（含 SSL）
-- `api` — FastAPI 主进程，仅容器内访问
-- `worker-llm` — Celery LLM 队列，并发 2
-- `worker-image` — Celery 图像队列，并发 4
-- `worker-video` — Celery 视频队列，并发 2
-- `worker-merge` — Celery 合并队列，并发 1
-- `mongodb` — MongoDB 7，宿主机端口 27018
-- `redis` — Redis 7，宿主机端口 6380
-- `v2ray` — 代理（供 LLM/API 外网访问）
+服务清单：
 
-**环境变量**：`backend/.env`（不入 git）
+- `frontend`：nginx，80/443，前端静态文件 + API 反代
+- `api`：FastAPI 主进程
+- `worker-llm`：Celery LLM 队列，并发 2
+- `worker-image`：Celery 图像队列，并发 4
+- `worker-video`：Celery 视频队列，并发 2
+- `worker-merge`：Celery 合并队列，并发 1
+- `mongodb`：MongoDB 7，宿主机端口 27018
+- `redis`：Redis 7，宿主机端口 6380
+- `v2ray`：代理，供 LLM/API 外网访问
 
-## 核心设计原则（来自 workflow-spec.md）
+环境变量：`backend/.env`（不入 git）。
 
-1. 初始化阶段一次性完成：全剧资产图片在初始化时生成，保障后续角色一致性
-2. 分镜生成时带入资产清单，AI 自动绑定 required_assets
-3. 连续性约束由上一集结尾状态自动触发生成，用户可修改
-4. 每集独立推进，支持并发制作
-5. 资产在全剧共享（asset_bible），不是每集独立
+## 当前实现与工作流文档的关系
+
+`docs/workflow-spec.md` 是目标工作流规范，当前代码已经实现主链路，但仍有差距：
+
+- 已实现：项目/用户隔离、剧本上传、长剧本 Map-Reduce、分集和资产记录、资产图、分镜图、分镜视频、合片、任务记录、进度轮询、提示词配置、制品对话入口。
+- 部分实现：资产按需生成、连续性注入、参考图策略、敏感词重试、审核状态机。
+- 未完全实现：结构化 beat/片段层、自动缺失资产检查、片段预览、TTS 配音任务、视频生成百分比透传、任务恢复监控、队列满时的 queued 状态全链路。
+
+## 已知代码风险
+
+- `backend/app/routers/conversations.py` 中同一组 conversation 路由重复定义了一遍。当前 router 仍有全局登录依赖，但后半段缺少项目归属校验，后续应清理重复代码，只保留带 owner 校验的版本。
+- `llm_service.chat_json()` 仍可能把 LLM 的非法 JSON 原样抛出 `Unterminated string...`。需要进一步做截断检测、JSON 修复和更清晰的错误日志。
+- 提示词当前由 `backend/app/prompts/llm_prompts.py` 代码常量提供，`PromptConfig` 数据库模型和 `seed_data.py` 属于残留/预留结构；在线编辑、版本回滚当前不生效。
+- 后端测试依赖需要在本机安装完整；当前测试依赖缺失时会出现 `ModuleNotFoundError: motor`。

@@ -2,11 +2,11 @@
 统一提示词管理入口。
 
 所有提示词集中在此目录：
-  llm_prompts.py    —— 13 个 LLM scope 提示词（存数据库，支持运行时修改）
+  llm_prompts.py    —— LLM scope 提示词（当前运行时直接从代码常量读取）
   agent_prompts.py  —— Agent 基础提示词（硬编码，不入库）
 
 调用方式：
-  from app.prompts import DEFAULT_PROMPTS      # → seed_data.py
+  from app.prompts import DEFAULT_PROMPTS      # → prompt_service.py
   from app.prompts import BASE_INSTRUCTIONS    # → agent/context.py
   from app.prompts import SHOT_SCRIPT_GEN      # 按名称引用单条（可选）
 """

@@ -1,4 +1,9 @@
-"""Seed default prompt configs on startup."""
+"""Legacy helper for syncing prompt configs to MongoDB.
+
+Current runtime prompt rendering reads directly from app.prompts.DEFAULT_PROMPTS
+via app.services.prompt_service. This helper is not called from app startup and
+is kept only for possible future migration/admin tooling.
+"""
 import hashlib
 from datetime import datetime
 from app.models.prompt_config import PromptConfig
