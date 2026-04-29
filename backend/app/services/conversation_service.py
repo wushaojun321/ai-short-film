@@ -73,9 +73,22 @@ async def _build_artifact_snapshot(target_type: ConversationTarget, target_id: P
             return {"name": obj.name, "asset_type": obj.asset_type, "prompt": obj.prompt, "preview_url": obj.preview_url}
     elif target_type == ConversationTarget.episode:
         from app.models.episode import Episode
+        from app.models.shot import Shot
         obj = await Episode.get(target_id)
         if obj:
-            return {"title": obj.title, "summary": obj.summary, "current_step": obj.current_step}
+            shots = await Shot.find(Shot.episode_id == obj.id).sort("+order").to_list()
+            shot_list = [
+                f"{s.shot_code}（{s.duration}s）: {s.description[:80]}"
+                + (f" 台词：{s.speaker}：{s.dialogue}" if s.dialogue else "")
+                for s in shots
+            ]
+            return {
+                "id": str(obj.id),
+                "title": obj.title,
+                "summary": obj.summary,
+                "current_step": obj.current_step,
+                "shots": shot_list,
+            }
     elif target_type == ConversationTarget.project:
         from app.models.project import Project
         obj = await Project.get(target_id)

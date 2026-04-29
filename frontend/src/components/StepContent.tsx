@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
-  DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { EpisodeStep, EpisodeDetail, Shot, ShotState, getStepIndex } from "@/lib/data";
 import { cn } from "@/lib/utils";
@@ -46,59 +45,7 @@ const shotStateCfg: Record<ShotState, {
   planned:       { label: "待生成",   variant: "outline" },
 };
 
-// ─── 共用：重新生成意见弹窗 ──────────────────────────────────
 
-interface RegenerateDialogProps {
-  open: boolean;
-  title: string;
-  description?: string;
-  onClose: () => void;
-  onConfirm: (feedback: string) => void;
-}
-
-function RegenerateDialog({
-  open, title, description, onClose, onConfirm,
-}: RegenerateDialogProps) {
-  const [feedback, setFeedback] = useState("");
-
-  const handleConfirm = () => {
-    onConfirm(feedback);
-    setFeedback("");
-    onClose();
-  };
-
-  const handleClose = () => {
-    setFeedback("");
-    onClose();
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          {description && <DialogDescription>{description}</DialogDescription>}
-        </DialogHeader>
-        <div className="py-2">
-          <label className="text-xs font-medium text-sub mb-1.5 block">
-            修改意见 / 重新生成要求（选填）
-          </label>
-          <Textarea
-            value={feedback}
-            onChange={(e) => setFeedback(e.target.value)}
-            placeholder="可描述需要调整的方向，AI 将参考此意见重新生成…"
-            rows={4}
-            autoFocus
-          />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>取消</Button>
-          <Button onClick={handleConfirm}>确认重新生成</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 // ─── 顶部审批操作栏 ──────────────────────────────────────────
 
@@ -302,7 +249,7 @@ function StepScript({
   const [shots, setShots] = useState(episode.shots);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
-  const [regenDialog, setRegenDialog] = useState(false);
+  const [regenDialogOpen, setRegenDialogOpen] = useState(false);
   const [approved, setApproved] = useState(isPast === true);
   const [approving, setApproving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -319,7 +266,7 @@ function StepScript({
     episodeId: episode.id,
     taskType: "gen_shot_script",
     onSuccess: () => {
-      setRegenDialog(false);
+      setRegenDialogOpen(false);
       setApproved(false);
       setWasGenerated(false);
       onShotsUpdate();
@@ -351,20 +298,6 @@ function StepScript({
   const handleSaveEdit = (id: string) => {
     setShots((prev) => prev.map((s) => s.id === id ? { ...s, description: editText } : s));
     setEditingId(null);
-  };
-
-  const handleRegen = async (feedback: string) => {
-    setError(null);
-    // 立即标记为重新生成 loading，不等网络请求返回
-    setWasGenerated(true);
-    startTask("pending");
-    try {
-      const task = await generateAPI.shotScript(episode.id, feedback || undefined);
-      startTask(task.record_id);
-    } catch (e: unknown) {
-      setWasGenerated(false);
-      setError(e instanceof Error ? e.message : "重新生成失败");
-    }
   };
 
   const handleApproveAll = async () => {
@@ -438,7 +371,7 @@ function StepScript({
         approved={approved ? displayShots.length : 0}
         total={displayShots.length}
         onApproveAll={handleApproveAll}
-        onRegenerate={() => setRegenDialog(true)}
+        onRegenerate={() => setRegenDialogOpen(true)}
         regenerateLabel="打回重新生成"
         allApproved={approved}
         approving={approving}
@@ -546,13 +479,22 @@ function StepScript({
         })}
       </div>
 
-      {/* 打回重新生成弹窗 */}
-      <RegenerateDialog
-        open={regenDialog}
-        title="打回重新生成分镜脚本"
-        description="AI 将重新生成本集全部分镜脚本，请描述需要调整的方向。"
-        onClose={() => setRegenDialog(false)}
-        onConfirm={handleRegen}
+      {/* 打回重新生成 — episode 级多轮对话 */}
+      <AgentDialog
+        open={regenDialogOpen}
+        onOpenChange={(v) => {
+          setRegenDialogOpen(v);
+          if (!v) { setWasGenerated(true); onShotsUpdate(); }
+        }}
+        targetType="episode"
+        targetId={episode.id}
+        projectId={projectId}
+        title="AI 重新生成分镜脚本"
+        onTaskStarted={() => {
+          setWasGenerated(true);
+          startTask("pending");
+          onShotsUpdate();
+        }}
       />
 
       {/* 单镜 AI 修改对话 */}
@@ -591,7 +533,6 @@ function StepImages({
     }))
   );
   // 注：imageApproved 以 s.state === "approved" 为准，isPast 时整体通过
-  const [regenTarget, setRegenTarget] = useState<string | null>(null);
   const [agentTarget, setAgentTarget] = useState<string | null>(null);
   const [allApproved, setAllApproved] = useState(isPast === true);
   const [approving, setApproving] = useState(false);
@@ -657,11 +598,10 @@ function StepImages({
     }
   };
 
-  const handleRegen = async (shotId: string, _feedback: string) => {
+  const handleRegen = async (shotId: string) => {
     setShots((prev) => prev.map((s) =>
       s.id === shotId ? { ...s, loadingRegen: true } : s
     ));
-    setRegenTarget(null);
     setError(null);
     try {
       const task = await generateAPI.shotImage(shotId);
@@ -810,25 +750,18 @@ function StepImages({
         })}
       </div>
 
-      {/* 重新生成弹窗 */}
-      <RegenerateDialog
-        open={!!regenTarget}
-        title={`重新生成镜头 ${regenTarget ?? ""} 剧照`}
-        description="请描述需要调整的方向，AI 将仅重新生成此镜头的剧照。"
-        onClose={() => setRegenTarget(null)}
-        onConfirm={(feedback) => regenTarget && handleRegen(regenTarget, feedback)}
-      />
-
-      {/* 单镜 AI 修改对话 */}
+      {/* 单镜 AI 修改/重新生成对话（合并） */}
       {agentTarget && (
         <AgentDialog
           open={!!agentTarget}
-          onOpenChange={(v) => !v && setAgentTarget(null)}
+          onOpenChange={(v) => {
+            if (!v) { setAgentTarget(null); onShotsUpdate(); }
+          }}
           targetType="shot_image"
           targetId={agentTarget}
           projectId={projectId}
           title="AI 修改 · 镜头剧照"
-          onTaskStarted={() => { setAgentTarget(null); onShotsUpdate(); }}
+          onTaskStarted={() => { onShotsUpdate(); }}
           initialPrompt={shots.find((s) => s.id === agentTarget)?.prompt || shots.find((s) => s.id === agentTarget)?.description}
         />
       )}
@@ -857,7 +790,6 @@ function StepVideos({
       loadingRegen: false,
     }))
   );
-  const [regenTarget, setRegenTarget] = useState<string | null>(null);
   const [agentTarget, setAgentTarget] = useState<string | null>(null);
   const [promptSheetOpen, setPromptSheetOpen] = useState(false);
   const [allApproved, setAllApproved] = useState(isPast === true);
@@ -923,11 +855,10 @@ function StepVideos({
     }
   };
 
-  const handleRegen = async (shotId: string, _feedback: string) => {
+  const handleRegen = async (shotId: string) => {
     setShots((prev) => prev.map((s) =>
       s.id === shotId ? { ...s, loadingRegen: true } : s
     ));
-    setRegenTarget(null);
     setError(null);
     try {
       const task = await generateAPI.shotVideo(shotId);
@@ -1106,17 +1037,9 @@ function StepVideos({
                     <Button
                       variant="outline"
                       className="flex-1"
-                      onClick={() => setRegenTarget(shot.id)}
+                      onClick={() => setAgentTarget(shot.id)}
                     >
                       <RefreshCw className="w-4 h-4" />重新生成
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="w-10 h-10 p-0 shrink-0"
-                      onClick={() => setAgentTarget(shot.id)}
-                      title="AI 修改"
-                    >
-                      <Bot className="w-4 h-4" />
                     </Button>
                     <Button
                       className="flex-1"
@@ -1151,25 +1074,18 @@ function StepVideos({
         </pre>
       </Sheet>
 
-      {/* 重新生成弹窗 */}
-      <RegenerateDialog
-        open={!!regenTarget}
-        title={`重新生成镜头 ${regenTarget ?? ""} 视频`}
-        description="请描述需要调整的方向，AI 将仅重新生成此镜头的视频。"
-        onClose={() => setRegenTarget(null)}
-        onConfirm={(feedback) => regenTarget && handleRegen(regenTarget, feedback)}
-      />
-
-      {/* 单镜 AI 修改对话 */}
+      {/* 单镜 AI 修改/重新生成对话（合并） */}
       {agentTarget && (
         <AgentDialog
           open={!!agentTarget}
-          onOpenChange={(v) => !v && setAgentTarget(null)}
+          onOpenChange={(v) => {
+            if (!v) { setAgentTarget(null); onShotsUpdate(); }
+          }}
           targetType="shot_video"
           targetId={agentTarget}
           projectId={projectId}
           title="AI 修改 · 镜头视频"
-          onTaskStarted={() => { setAgentTarget(null); onShotsUpdate(); }}
+          onTaskStarted={() => { onShotsUpdate(); }}
           initialPrompt={shots.find((s) => s.id === agentTarget)?.prompt || shots.find((s) => s.id === agentTarget)?.description}
         />
       )}
