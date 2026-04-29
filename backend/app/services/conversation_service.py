@@ -43,7 +43,11 @@ async def get_conversation(conv_id: PydanticObjectId) -> Conversation | None:
     return await Conversation.get(conv_id)
 
 
-async def _build_artifact_snapshot(target_type: ConversationTarget, target_id: PydanticObjectId) -> dict:
+async def _build_artifact_snapshot(
+    target_type: ConversationTarget,
+    target_id: PydanticObjectId,
+    lightweight: bool = False,
+) -> dict:
     """Fetch current artifact state as a dict snapshot."""
     if target_type == ConversationTarget.shot_script:
         from app.models.shot import Shot
@@ -102,17 +106,21 @@ async def _build_artifact_snapshot(target_type: ConversationTarget, target_id: P
                     "summary": e.summary,
                     "word_count": e.word_count,
                     "estimated_duration": e.estimated_duration,
-                    "script_excerpt": e.script_excerpt,
+                    # 首次对话注入完整剧本片段；后续轮次省略以节省 token
+                    **({"script_excerpt": e.script_excerpt} if not lightweight else {}),
                 }
                 for e in episodes
             ]
-            return {
+            result: dict = {
                 "title": obj.title,
                 "genre": obj.genre,
                 "series_prompt": obj.series_prompt,
-                "script_text": obj.script_text or "",
                 "episodes": episode_list,
             }
+            # 首次对话注入完整原始剧本；后续轮次省略
+            if not lightweight and obj.script_text:
+                result["script_text"] = obj.script_text
+            return result
     return {}
 
 
@@ -136,8 +144,12 @@ async def send_message(
     
     Returns (assistant_reply, updated_conversation).
     """
-    # Build artifact snapshot
-    snapshot = await _build_artifact_snapshot(conversation.target_type, conversation.target_id)
+    # Build artifact snapshot — full on first turn, lightweight on subsequent turns
+    is_first_turn = len(conversation.messages) == 0
+    snapshot = await _build_artifact_snapshot(
+        conversation.target_type, conversation.target_id,
+        lightweight=not is_first_turn,
+    )
 
     # Get system prompt from config
     scope = _scope_for_target(conversation.target_type)
@@ -150,8 +162,9 @@ async def send_message(
     # Build messages list: system + last 20 messages + new user message
     messages: list[dict] = [{"role": "system", "content": system_prompt}]
 
-    # Inject artifact context as first user message
-    if snapshot:
+    # Inject artifact context as first user message (first turn only)
+    # Subsequent turns: snapshot is already in conversation history
+    if snapshot and is_first_turn:
         messages.append({
             "role": "user",
             "content": f"当前制品信息：\n{snapshot}",
@@ -159,6 +172,16 @@ async def send_message(
         messages.append({
             "role": "assistant",
             "content": "好的，我已了解当前制品状态，请告诉我您想如何修改。",
+        })
+    elif snapshot and not is_first_turn:
+        # 后续轮次只注入轻量状态更新（分集列表变化等），不重复注入原始剧本
+        messages.append({
+            "role": "user",
+            "content": f"（当前最新状态：{snapshot}）",
+        })
+        messages.append({
+            "role": "assistant",
+            "content": "收到，已获取最新状态。",
         })
 
     # Add last 20 conversation messages
