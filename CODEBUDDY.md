@@ -131,7 +131,7 @@ normalize_id_middleware  { id: "507f...", title: "..." }  ← 后端统一处理
 
 ## 部署
 
-服务器通过 `ssh 42.193.144.175` 访问，使用 Docker Compose 部署，代码在 `/root/ai-short-film`。
+服务器通过 `ssh root@42.193.144.175` 访问，使用 Docker Compose 部署，代码在 `/root/ai-short-film`。
 
 > **⚠️ 部署注意**：所有 worker 容器（worker-image、worker-llm 等）共享后端 Python 模型代码（如 `AssetStatus` 枚举）。
 > 若只 build `api` 而不 build worker，worker 容器仍使用旧枚举，读取新状态值时 Pydantic 会报 ValidationError，导致任务静默失败。
@@ -139,17 +139,17 @@ normalize_id_middleware  { id: "507f...", title: "..." }  ← 后端统一处理
 
 ```bash
 # 标准部署流程（代码已推到 gitee 后执行）
-ssh 42.193.144.175 "cd /root/ai-short-film && git pull && docker compose build && docker compose up -d"
+ssh root@42.193.144.175 "cd /root/ai-short-film && git pull && docker compose build && docker compose up -d"
 
 # 仅重启不重新 build（配置变更时）
-ssh 42.193.144.175 "cd /root/ai-short-film && docker compose restart"
+ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose restart"
 
 # 查看日志
-ssh 42.193.144.175 "cd /root/ai-short-film && docker compose logs -f api"
-ssh 42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-llm"
+ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f api"
+ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-llm"
 
 # 查看服务状态
-ssh 42.193.144.175 "cd /root/ai-short-film && docker compose ps"
+ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose ps"
 ```
 
 > **⚠️ 容器代码不会自动更新**：`git pull` 只更新宿主机文件，`docker compose restart` 只重启进程，容器内的代码仍是 build 时打包的版本。

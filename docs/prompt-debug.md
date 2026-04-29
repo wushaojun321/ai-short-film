@@ -30,10 +30,10 @@
 
 ```bash
 # 查看图片 worker 日志（资产图片 + 分镜剧照）
-ssh 42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-image"
+ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-image"
 
 # 查看视频 worker 日志（分镜视频）
-ssh 42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-video"
+ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-video"
 ```
 
 ### 日志格式
@@ -76,13 +76,13 @@ ssh 42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-vide
 
 ```bash
 # 只看资产图片提示词
-ssh 42.193.144.175 "cd /root/ai-short-film && docker compose logs worker-image 2>&1 | grep -A 5 'PROMPT START'"
+ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs worker-image 2>&1 | grep -A 5 'PROMPT START'"
 
 # 只看视频提示词
-ssh 42.193.144.175 "cd /root/ai-short-film && docker compose logs worker-video 2>&1 | grep -A 5 'PROMPT START'"
+ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs worker-video 2>&1 | grep -A 5 'PROMPT START'"
 
 # 最近 200 行日志（排查最新一次生成）
-ssh 42.193.144.175 "cd /root/ai-short-film && docker compose logs --tail=200 worker-image"
+ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs --tail=200 worker-image"
 ```
 
 ---
@@ -150,11 +150,11 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 
 ```bash
 # 实时跟踪图片生成提示词
-ssh 42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-image 2>&1 | grep -E 'PROMPT|--- PROMPT'"
+ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-image 2>&1 | grep -E 'PROMPT|--- PROMPT'"
 
 # 实时跟踪视频生成提示词
-ssh 42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-video 2>&1 | grep -E 'PROMPT|--- PROMPT'"
+ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-video 2>&1 | grep -E 'PROMPT|--- PROMPT'"
 
 # 查看所有 worker 日志
-ssh 42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-image worker-video worker-llm"
+ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-image worker-video worker-llm"
 ```
