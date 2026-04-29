@@ -5,12 +5,12 @@ from app.models.asset import Asset
 from app.schemas.project import ProjectCreate, ProjectUpdate
 
 
-async def create_project(data: ProjectCreate) -> Project:
-    existing = await Project.find_one(Project.title == data.title)
+async def create_project(data: ProjectCreate, owner_id: PydanticObjectId) -> Project:
+    existing = await Project.find_one(Project.title == data.title, Project.owner_id == owner_id)
     if existing:
         from fastapi import HTTPException
         raise HTTPException(status_code=409, detail=f"项目名「{data.title}」已存在，请使用其他名称")
-    project = Project(**data.model_dump())
+    project = Project(owner_id=owner_id, **data.model_dump())
     await project.insert()
     return project
 
@@ -19,8 +19,8 @@ async def get_project(project_id: PydanticObjectId) -> Project | None:
     return await Project.get(project_id)
 
 
-async def list_projects() -> list[Project]:
-    return await Project.find_all().to_list()
+async def list_projects(owner_id: PydanticObjectId) -> list[Project]:
+    return await Project.find(Project.owner_id == owner_id).to_list()
 
 
 async def update_project(project: Project, data: ProjectUpdate) -> Project:

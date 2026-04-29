@@ -3,52 +3,41 @@ from beanie import PydanticObjectId
 from app.models.project import Project
 from app.schemas.asset import AssetCreate, AssetUpdate
 from app.services import asset_service
-from app.deps import get_current_user
+from app.deps import get_current_user, get_owned_project
 
 router = APIRouter(prefix="/projects/{project_id}/assets", tags=["assets"], dependencies=[Depends(get_current_user)])
 
 
-async def _get_project(project_id: PydanticObjectId) -> Project:
-    project = await Project.get(project_id)
-    if not project:
-        raise HTTPException(404, "Project not found")
-    return project
-
-
 @router.get("")
-async def list_assets(project_id: PydanticObjectId):
-    await _get_project(project_id)
-    return await asset_service.list_assets(project_id)
+async def list_assets(project: Project = Depends(get_owned_project)):
+    return await asset_service.list_assets(project.id)
 
 
 @router.post("", status_code=201)
-async def create_asset(project_id: PydanticObjectId, data: AssetCreate):
-    project = await _get_project(project_id)
+async def create_asset(data: AssetCreate, project: Project = Depends(get_owned_project)):
     return await asset_service.create_asset(project, data)
 
 
 @router.get("/{asset_id}")
-async def get_asset(project_id: PydanticObjectId, asset_id: PydanticObjectId):
+async def get_asset(asset_id: PydanticObjectId, project: Project = Depends(get_owned_project)):
     asset = await asset_service.get_asset(asset_id)
-    if not asset:
+    if not asset or asset.project_id != project.id:
         raise HTTPException(404, "Asset not found")
     return asset
 
 
 @router.patch("/{asset_id}")
-async def update_asset(
-    project_id: PydanticObjectId, asset_id: PydanticObjectId, data: AssetUpdate
-):
+async def update_asset(asset_id: PydanticObjectId, data: AssetUpdate, project: Project = Depends(get_owned_project)):
     asset = await asset_service.get_asset(asset_id)
-    if not asset:
+    if not asset or asset.project_id != project.id:
         raise HTTPException(404, "Asset not found")
     return await asset_service.update_asset(asset, data)
 
 
 @router.delete("/{asset_id}", status_code=204)
-async def delete_asset(project_id: PydanticObjectId, asset_id: PydanticObjectId):
+async def delete_asset(asset_id: PydanticObjectId, project: Project = Depends(get_owned_project)):
     asset = await asset_service.get_asset(asset_id)
-    if not asset:
+    if not asset or asset.project_id != project.id:
         raise HTTPException(404, "Asset not found")
     from app.models.asset import AssetStatus
     if asset.status in (AssetStatus.queued, AssetStatus.generating):
@@ -57,18 +46,17 @@ async def delete_asset(project_id: PydanticObjectId, asset_id: PydanticObjectId)
 
 
 @router.post("/{asset_id}/confirm")
-async def confirm_asset(project_id: PydanticObjectId, asset_id: PydanticObjectId):
+async def confirm_asset(asset_id: PydanticObjectId, project: Project = Depends(get_owned_project)):
     asset = await asset_service.get_asset(asset_id)
-    if not asset:
+    if not asset or asset.project_id != project.id:
         raise HTTPException(404, "Asset not found")
     return await asset_service.confirm_asset(asset)
 
 
 @router.post("/{asset_id}/regen")
-async def request_regen(project_id: PydanticObjectId, asset_id: PydanticObjectId):
-    """Mark asset for regeneration and immediately enqueue Celery image task."""
+async def request_regen(asset_id: PydanticObjectId, project: Project = Depends(get_owned_project)):
     asset = await asset_service.get_asset(asset_id)
-    if not asset:
+    if not asset or asset.project_id != project.id:
         raise HTTPException(404, "Asset not found")
 
     from app.models.asset import AssetStatus
@@ -82,7 +70,7 @@ async def request_regen(project_id: PydanticObjectId, asset_id: PydanticObjectId
     record = TaskRecord(
         celery_task_id=task.id,
         task_type="gen_asset_image",
-        project_id=project_id,
+        project_id=project.id,
         target_id=asset_id,
         status=TaskStatus.running,
         started_at=datetime.utcnow(),

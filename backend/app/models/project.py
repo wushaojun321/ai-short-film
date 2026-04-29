@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 from typing import Optional
-from beanie import Document
+from beanie import Document, PydanticObjectId
 from pydantic import Field
 
 
@@ -14,6 +14,7 @@ class ProjectInitStatus(str, Enum):
 
 
 class Project(Document):
+    owner_id: Optional[PydanticObjectId] = None  # 创建者用户 ID
     title: str
     genre: str = ""
     format: str = "VERTICAL_9_16"
@@ -30,4 +31,4 @@ class Project(Document):
 
     class Settings:
         name = "projects"
-        indexes = ["title"]
+        indexes = ["title", "owner_id"]
