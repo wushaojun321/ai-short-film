@@ -1,4 +1,4 @@
-"""Shot atomic tools: generate shot image / video, update prompt, bind assets."""
+"""Shot atomic tools: generate shot video, update prompt, bind assets."""
 from __future__ import annotations
 from datetime import datetime
 
@@ -32,7 +32,8 @@ GENERATE_SHOT_VIDEO_SCHEMA = {
     "function": {
         "name": "generate_shot_video",
         "description": (
-            "为分镜生成或重新生成视频片段（使用剧照作为首帧，资产图作为参考图）。"
+            "为分镜生成或重新生成视频片段。可直接根据分镜脚本、提示词和绑定资产生成，"
+            "不需要先生成分镜剧照；若已有剧照，系统会自动作为可选参考。"
             "任务异步执行，立即返回 task_record_id。"
         ),
         "parameters": {
@@ -81,8 +82,8 @@ BIND_ASSETS_TO_SHOT_SCHEMA = {
     },
 }
 
-# 各 target_type 可用的 tool schemas
-SHOT_IMAGE_TOOLS = [GENERATE_SHOT_IMAGE_SCHEMA, UPDATE_SHOT_PROMPT_SCHEMA, BIND_ASSETS_TO_SHOT_SCHEMA]
+# 旧版分镜剧照 Agent 入口已从制作流程移除，保留实现仅用于兼容历史任务/接口。
+SHOT_IMAGE_TOOLS: list[dict] = []
 SHOT_VIDEO_TOOLS = [GENERATE_SHOT_VIDEO_SCHEMA, UPDATE_SHOT_PROMPT_SCHEMA, BIND_ASSETS_TO_SHOT_SCHEMA]
 
 
@@ -139,9 +140,6 @@ async def generate_shot_video(shot_id: str) -> dict:
     shot = await Shot.get(PydanticObjectId(shot_id))
     if not shot:
         return {"error": f"Shot {shot_id} not found"}
-
-    if not shot.image_url:
-        return {"error": f"分镜「{shot.shot_code}」尚无剧照，请先生成图片再生成视频。"}
 
     celery_task = gen_shot_video_task.delay(shot_id)
 

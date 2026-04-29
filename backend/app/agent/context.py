@@ -59,6 +59,10 @@ async def _build_snapshot(target_type: str, target_id: str) -> str:
             if not shot:
                 return ""
             assets_str = ", ".join(b.asset_name for b in shot.required_assets) or "无"
+            video_note = (
+                "\n视频生成说明：分镜视频可直接根据分镜脚本、当前提示词和绑定资产生成，不需要先生成分镜剧照。"
+                if target_type == "shot_video" else ""
+            )
             return (
                 f"类型：分镜（{target_type}）\n"
                 f"shot_id：{target_id}\n"
@@ -67,8 +71,8 @@ async def _build_snapshot(target_type: str, target_id: str) -> str:
                 f"当前提示词：{shot.prompt}\n"
                 f"绑定资产：{assets_str}\n"
                 f"当前状态：{shot.state}\n"
-                f"有无剧照：{'是' if shot.image_url else '否'}\n"
                 f"有无视频：{'是' if shot.video_url else '否'}"
+                f"{video_note}"
             )
 
         if target_type == "episode":

@@ -58,7 +58,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    command: celery -A app.celery_app worker -Q image -c 4 --loglevel=info
+    command: celery -A app.celery_app worker -Q image -c 20 --loglevel=info
     env_file:
       - ./backend/.env
     environment:
@@ -77,7 +77,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    command: celery -A app.celery_app worker -Q video -c 2 --loglevel=info
+    command: celery -A app.celery_app worker -Q video -c 10 --loglevel=info
     env_file:
       - ./backend/.env
     environment:

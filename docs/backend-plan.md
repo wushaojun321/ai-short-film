@@ -621,8 +621,8 @@ app.conf.task_routes = {
 }
 # 启动命令示例（每个 worker 类型单独伸缩）：
 # celery -A app.celery_app worker -Q llm -c 2
-# celery -A app.celery_app worker -Q image -c 4
-# celery -A app.celery_app worker -Q video -c 2
+# celery -A app.celery_app worker -Q image -c 20
+# celery -A app.celery_app worker -Q video -c 10
 # celery -A app.celery_app worker -Q merge -c 1
 ```
 

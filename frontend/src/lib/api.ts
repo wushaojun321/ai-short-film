@@ -321,7 +321,7 @@ export const conversationAPI = {
   create: (data: { target_type: string; target_id: string; project_id: string; title?: string }): Promise<ApiConversation> =>
     client.post("/conversations", data),
 
-  list: (params: { target_id?: string; project_id?: string }): Promise<ApiConversation[]> =>
+  list: (params: { target_id?: string; target_type?: string; project_id?: string }): Promise<ApiConversation[]> =>
     client.get("/conversations", { params }),
 
   get: (convId: string): Promise<ApiConversation> =>

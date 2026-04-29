@@ -58,6 +58,7 @@ async def create_conversation(body: CreateConversationRequest, current_user: Use
 @router.get("")
 async def list_conversations(
     target_id: str | None = None,
+    target_type: ConversationTarget | None = None,
     project_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
@@ -68,6 +69,8 @@ async def list_conversations(
         conditions.append(Conversation.project_id == pid)
     if target_id:
         conditions.append(Conversation.target_id == PydanticObjectId(target_id))
+    if target_type:
+        conditions.append(Conversation.target_type == target_type)
     query = Conversation.find(*conditions) if conditions else Conversation.find(
         # 无 project_id 过滤时，只返回当前用户有权访问的对话（通过 project 过滤）
         # 实际业务前端总会带 project_id，此处返回空保护
@@ -186,11 +189,17 @@ async def create_conversation(body: CreateConversationRequest):
 
 
 @router.get("")
-async def list_conversations(target_id: str | None = None, project_id: str | None = None):
+async def list_conversations(
+    target_id: str | None = None,
+    target_type: ConversationTarget | None = None,
+    project_id: str | None = None,
+):
     """List conversations, optionally filtered by target_id or project_id."""
     conditions = []
     if target_id:
         conditions.append(Conversation.target_id == PydanticObjectId(target_id))
+    if target_type:
+        conditions.append(Conversation.target_type == target_type)
     if project_id:
         conditions.append(Conversation.project_id == PydanticObjectId(project_id))
     query = Conversation.find(*conditions) if conditions else Conversation.find()

@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 interface AgentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** 对话绑定的对象类型（asset / shot_image / shot_video / episode） */
+  /** 对话绑定的对象类型（asset / shot_video / episode） */
   targetType: string;
   targetId: string;
   projectId: string;
@@ -76,7 +76,7 @@ export default function AgentDialog({
   useEffect(() => {
     if (!open) return;
     setLoading(true);
-    conversationAPI.list({ target_id: targetId })
+    conversationAPI.list({ target_id: targetId, target_type: targetType, project_id: projectId })
       .then(async (list) => {
         if (list.length > 0) {
           const existing = list[0];

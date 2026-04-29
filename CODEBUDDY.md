@@ -267,8 +267,8 @@ ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker
 - `frontend`：nginx，80/443，前端静态文件 + API 反代
 - `api`：FastAPI 主进程
 - `worker-llm`：Celery LLM 队列，并发 2
-- `worker-image`：Celery 图像队列，并发 4
-- `worker-video`：Celery 视频队列，并发 2
+- `worker-image`：Celery 图像队列，并发 20
+- `worker-video`：Celery 视频队列，并发 10
 - `worker-merge`：Celery 合并队列，并发 1
 - `mongodb`：MongoDB 7，宿主机端口 27018
 - `redis`：Redis 7，宿主机端口 6380
