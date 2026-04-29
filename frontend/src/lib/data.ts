@@ -11,7 +11,6 @@ export type EpisodeStatus = "not_started" | "in_progress" | "completed";
 
 export type EpisodeStep =
   | "storyboard_script"  // 分镜脚本
-  | "storyboard_images"  // 分镜剧照（含审批）
   | "storyboard_videos"  // 分镜视频（含审批）
   | "dubbing"            // 配音
   | "merge"              // 合并
@@ -32,7 +31,6 @@ export type AssetStatus = "已生成" | "待确认" | "需重生" | "缺失" | "
 
 export const EPISODE_STEPS: { key: EpisodeStep; label: string; shortLabel: string }[] = [
   { key: "storyboard_script",  label: "分镜脚本", shortLabel: "分镜脚本" },
-  { key: "storyboard_images",  label: "分镜剧照", shortLabel: "分镜剧照" },
   { key: "storyboard_videos",  label: "分镜视频", shortLabel: "分镜视频" },
   { key: "dubbing",            label: "配音",     shortLabel: "配音" },
   { key: "merge",              label: "合并成片", shortLabel: "合并" },
@@ -41,7 +39,6 @@ export const EPISODE_STEPS: { key: EpisodeStep; label: string; shortLabel: strin
 
 export const STEP_ORDER: EpisodeStep[] = [
   "storyboard_script",
-  "storyboard_images",
   "storyboard_videos",
   "dubbing",
   "merge",

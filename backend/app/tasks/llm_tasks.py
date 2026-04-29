@@ -391,7 +391,7 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
         await finish_task_record(celery_id, result={"shots": len(shots_data)})
 
         # 生成完成后停留在 storyboard_script，等待用户手动审批后再推进
-        # （前端点击"全部通过"时由 episodeAPI.advanceStep 推进到 storyboard_images）
+        # （前端点击"全部通过"时由 episodeAPI.setStep 推进到 storyboard_videos）
 
         return result
 

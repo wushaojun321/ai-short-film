@@ -24,8 +24,6 @@ class EpisodeStep(str, Enum):
 
 STEP_ORDER = [
     EpisodeStep.storyboard_script,
-    EpisodeStep.storyboard_images,
-    EpisodeStep.image_review,
     EpisodeStep.storyboard_videos,
     EpisodeStep.video_review,
     EpisodeStep.dubbing,

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import {
   CheckCircle2, RefreshCw, Loader2, Play, Volume2,
-  Film, Layers, Clock, Tag, Edit3, Check, Bot, X, ZoomIn, FileText,
+  Film, Layers, Clock, Tag, Edit3, Check, Bot, FileText,
 } from "lucide-react";
 import AgentDialog from "@/components/AgentDialog";
 import { Sheet } from "@/components/ui/sheet";
@@ -113,64 +113,6 @@ function ApprovalBar({
   );
 }
 
-// ─── 全屏图片 Lightbox ────────────────────────────────────────
-
-function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
-  return (
-    <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center" onClick={onClose}>
-      <button className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors" onClick={onClose}>
-        <X className="w-7 h-7" />
-      </button>
-      <img
-        src={src} alt={alt}
-        className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      />
-    </div>
-  );
-}
-
-function LazyImage({ src, alt, className, enlargeable }: { src: string; alt: string; className?: string; enlargeable?: boolean }) {
-  const [loaded, setLoaded] = useState(false);
-  const [errored, setErrored] = useState(false);
-  const [lightbox, setLightbox] = useState(false);
-  return (
-    <div className="relative w-full h-full group">
-      {!loaded && !errored && (
-        <div className="absolute inset-0 flex items-center justify-center bg-soft">
-          <Loader2 className="w-5 h-5 text-brand animate-spin" />
-        </div>
-      )}
-      {errored && (
-        <div className="absolute inset-0 flex items-center justify-center bg-soft">
-          <Film className="w-5 h-5 text-line" />
-        </div>
-      )}
-      <img
-        src={src} alt={alt}
-        className={cn(className, !loaded && "opacity-0", enlargeable && loaded && "cursor-zoom-in")}
-        onLoad={() => setLoaded(true)}
-        onError={() => setErrored(true)}
-        onClick={() => enlargeable && loaded && setLightbox(true)}
-      />
-      {enlargeable && loaded && (
-        <div
-          className="absolute bottom-2 right-2 bg-black/50 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-zoom-in"
-          onClick={() => setLightbox(true)}
-        >
-          <ZoomIn className="w-3.5 h-3.5 text-white" />
-        </div>
-      )}
-      {lightbox && <ImageLightbox src={src} alt={alt} onClose={() => setLightbox(false)} />}
-    </div>
-  );
-}
-
 function LazyVideo({ src, className }: { src: string; className?: string }) {
   const [loaded, setLoaded] = useState(false);
   const [errored, setErrored] = useState(false);
@@ -255,7 +197,7 @@ function StepScript({
     try {
       const reviews = shots.map((s) => ({ shot_id: s.id, approved: true }));
       await shotAPI.batchReview(projectId, episode.id, reviews);
-      await episodeAPI.advanceStep(projectId, episode.id);
+      await episodeAPI.setStep(projectId, episode.id, "storyboard_videos");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "审批失败");
     } finally {
@@ -442,224 +384,7 @@ function StepScript({
   );
 }
 
-// ─── Step 2：分镜剧照（含审批）────────────────────────────────
-
-function StepImages({
-  episode, projectId, isPast,
-}: { episode: EpisodeDetail; projectId: string; isPast?: boolean }) {
-  const { cosUrl } = useCos();
-  const shots = episode.shots;
-
-  // 派生审批状态，直接从 shot.state 计算
-  const approvedCount = isPast
-    ? shots.length
-    : shots.filter((s) => s.state === "approved").length;
-  const allApproved = isPast || (shots.length > 0 && approvedCount === shots.length);
-
-  // 本地 loading 状态（调用生成 API 期间乐观显示）
-  const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
-  const [agentTarget, setAgentTarget] = useState<string | null>(null);
-  const [approving, setApproving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // 由后端 running_tasks 派生，刷新后状态自动恢复
-  const batchGenerating = episode.runningTasks.includes("gen_shot_image");
-
-  // shot state 变为非 generating 时，清除本地 loading（轮询数据到了）
-  useEffect(() => {
-    setLoadingIds((prev) => {
-      if (prev.size === 0) return prev;
-      const next = new Set(prev);
-      for (const id of prev) {
-        const shot = shots.find((s) => s.id === id);
-        if (!shot || shot.state !== "generating") next.delete(id);
-      }
-      return next.size === prev.size ? prev : next;
-    });
-  }, [shots]);
-
-  const hasUngenerated = shots.some((s) => !s.imageUrl && !loadingIds.has(s.id) && s.state !== "generating");
-
-  const handleBatchGenerate = async () => {
-    const targets = shots.filter((s) => !s.imageUrl && !loadingIds.has(s.id) && s.state !== "generating");
-    if (targets.length === 0) return;
-    setError(null);
-    setLoadingIds((prev) => new Set([...prev, ...targets.map((s) => s.id)]));
-    try {
-      await Promise.all(targets.map((s) => generateAPI.shotImage(s.id).catch(() => {
-        setLoadingIds((prev) => { const n = new Set(prev); n.delete(s.id); return n; });
-      })));
-    } catch { /* 单个失败已在上面处理 */ }
-  };
-
-  const handleRegen = async (shotId: string) => {
-    setLoadingIds((prev) => new Set([...prev, shotId]));
-    setError(null);
-    try {
-      await generateAPI.shotImage(shotId);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "重新生成失败");
-      setLoadingIds((prev) => { const n = new Set(prev); n.delete(shotId); return n; });
-    }
-  };
-
-  const handleApprove = async (shotId: string) => {
-    setError(null);
-    try {
-      await shotAPI.review(projectId, episode.id, shotId, { approved: true });
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "审批失败");
-    }
-  };
-
-  const handleApproveAll = async () => {
-    setApproving(true);
-    setError(null);
-    try {
-      const reviews = shots.map((s) => ({ shot_id: s.id, approved: true }));
-      await shotAPI.batchReview(projectId, episode.id, reviews);
-      // 后端: storyboard_images → image_review → storyboard_videos，推进两步
-      await episodeAPI.advanceStep(projectId, episode.id);
-      await episodeAPI.advanceStep(projectId, episode.id);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "批量审批失败");
-    } finally {
-      setApproving(false);
-    }
-  };
-
-  return (
-    <div>
-      {error && (
-        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3">
-          <p className="text-xs text-red-600">{error}</p>
-        </div>
-      )}
-
-      {hasUngenerated && (
-        <div className="mb-4 flex items-center justify-between rounded-xl border border-line bg-soft px-4 py-3">
-          <span className="text-xs text-sub">
-            {shots.filter((s) => !s.imageUrl).length} 个分镜尚未生成剧照
-          </span>
-          <Button size="sm" onClick={handleBatchGenerate} disabled={batchGenerating}>
-            {batchGenerating ? (
-              <><Loader2 className="w-3.5 h-3.5 animate-spin" />生成中…</>
-            ) : (
-              <><Play className="w-3.5 h-3.5" />批量生成全部</>
-            )}
-          </Button>
-        </div>
-      )}
-
-      {/* 只有至少有一张剧照已生成，才显示审批进度条 */}
-      {shots.some((s) => s.imageUrl) && (
-        <ApprovalBar
-          approved={approvedCount}
-          total={shots.length}
-          onApproveAll={handleApproveAll}
-          allApproved={allApproved}
-          approving={approving}
-          notReady={shots.length === 0 || shots.some((s) => !s.imageUrl || loadingIds.has(s.id) || s.state === "generating")}
-          notReadyTip="所有分镜剧照生成完成后方可审批"
-        />
-      )}
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-        {shots.map((shot, idx) => {
-          const isApproved = isPast || shot.state === "approved";
-          const isGenerating = loadingIds.has(shot.id) || shot.state === "generating";
-
-          return (
-            <div key={shot.id} className={cn(
-              "border rounded-xl overflow-hidden transition-all",
-              isApproved ? "border-brand/40" : "border-line",
-            )}>
-              <div className="aspect-[9/16] bg-soft relative">
-                {isGenerating ? (
-                  <div className="w-full h-full flex items-center justify-center flex-col gap-2">
-                    <Loader2 className="w-6 h-6 text-brand animate-spin" />
-                    <span className="text-2xs text-muted">生成中…</span>
-                  </div>
-                ) : shot.imageUrl ? (
-                  <div className="w-full h-full relative overflow-hidden">
-                    <LazyImage
-                      src={cosUrl(shot.imageUrl)}
-                      alt={`镜头 ${idx + 1}`}
-                      className="w-full h-full object-cover"
-                      enlargeable
-                    />
-                    {isApproved && (
-                      <div className="absolute inset-0 bg-brand/10 flex items-center justify-center">
-                        <CheckCircle2 className="w-10 h-10 text-brand drop-shadow" />
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center flex-col gap-1">
-                    <Film className="w-5 h-5 text-line" />
-                    <span className="text-2xs text-muted">待生成</span>
-                  </div>
-                )}
-                <div className="absolute top-2 left-2">
-                  <span className="text-xs bg-black/50 text-white rounded px-1.5 py-0.5">{idx + 1}</span>
-                </div>
-              </div>
-
-              {!isApproved && !isGenerating && (
-                <div className="p-2 flex gap-1.5">
-                  <button
-                    onClick={() => setAgentTarget(shot.id)}
-                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-medium transition-colors bg-soft text-sub hover:bg-brand/10 hover:text-brand"
-                  >
-                    <Bot className="w-3 h-3" />AI 修改
-                  </button>
-                  <button
-                    onClick={() => shot.imageUrl && handleApprove(shot.id)}
-                    disabled={!shot.imageUrl}
-                    className={cn(
-                      "flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                      shot.imageUrl
-                        ? "bg-soft text-sub hover:bg-brand/10 hover:text-brand"
-                        : "bg-soft text-muted cursor-not-allowed"
-                    )}
-                  >
-                    <Check className="w-3 h-3" />通过
-                  </button>
-                </div>
-              )}
-
-              {/* 未生成时显示重新生成按钮 */}
-              {!isApproved && !isGenerating && !shot.imageUrl && (
-                <div className="px-2 pb-2">
-                  <button
-                    onClick={() => handleRegen(shot.id)}
-                    className="w-full flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-medium bg-soft text-sub hover:bg-brand/10 hover:text-brand transition-colors"
-                  >
-                    <RefreshCw className="w-3 h-3" />生成
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {agentTarget && (
-        <AgentDialog
-          open={!!agentTarget}
-          onOpenChange={(v) => !v && setAgentTarget(null)}
-          targetType="shot_image"
-          targetId={agentTarget}
-          projectId={projectId}
-          title="AI 修改 · 镜头剧照"
-          initialPrompt={shots.find((s) => s.id === agentTarget)?.prompt || shots.find((s) => s.id === agentTarget)?.description}
-        />
-      )}
-    </div>
-  );
-}
-
-// ─── Step 3：分镜视频（含审批）──────────────────────────────
+// ─── Step 2：分镜视频（含审批）──────────────────────────────
 
 function StepVideos({
   episode, projectId, isPast,
@@ -737,9 +462,7 @@ function StepVideos({
     try {
       const reviews = shots.map((s) => ({ shot_id: s.id, approved: true }));
       await shotAPI.batchReview(projectId, episode.id, reviews);
-      // 后端: storyboard_videos → video_review → dubbing，推进两步
-      await episodeAPI.advanceStep(projectId, episode.id);
-      await episodeAPI.advanceStep(projectId, episode.id);
+      await episodeAPI.setStep(projectId, episode.id, "dubbing");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "批量审批失败");
     } finally {
@@ -1103,7 +826,6 @@ export default function StepContent({ step, episode, projectId }: StepContentPro
 
   const stepComponents: Record<EpisodeStep, React.ReactNode> = {
     storyboard_script: <StepScript episode={episode} projectId={projectId} isPast={isPast} />,
-    storyboard_images: <StepImages episode={episode} projectId={projectId} isPast={isPast} />,
     storyboard_videos: <StepVideos episode={episode} projectId={projectId} isPast={isPast} />,
     dubbing:           <StepDubbing episode={episode} projectId={projectId} isPast={isPast} />,
     merge:             <StepMerge episode={episode} projectId={projectId} isPast={isPast} />,

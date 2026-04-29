@@ -127,7 +127,7 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
             if not video_prompt:
                 # 兜底：不含敏感词的中文视觉描述
                 video_prompt = (
-                    "竖屏9:16，写实电影风格，根据当前分镜剧照生成短视频，"
+                    "竖屏9:16，写实电影风格，根据分镜脚本和资产设定生成短视频，"
                     "镜头运动稳定，人物动作自然，表情清晰，场景连续，光线有层次，高清质感"
                 )
                 if record:

@@ -29,6 +29,9 @@ async def advance_step(episode: Episode) -> Episode:
     current = episode.current_step
     if current is None:
         next_step = STEP_ORDER[0]
+    elif current in (EpisodeStep.storyboard_images, EpisodeStep.image_review):
+        # 旧流程中的图片生成/审核步骤已移除，历史分集继续推进到分镜视频。
+        next_step = EpisodeStep.storyboard_videos
     else:
         idx = STEP_ORDER.index(current)
         if idx + 1 >= len(STEP_ORDER):

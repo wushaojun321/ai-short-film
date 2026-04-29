@@ -32,11 +32,11 @@ function initStatusToStage(status: string): string {
 
 // ─── Episode ──────────────────────────────────────────────────
 
-// 后端 8 步 → 前端 6 步
+// 后端保留旧图片步骤以兼容历史数据；前端流程跳过图片步骤，直接进入视频生成。
 const STEP_MAP: Record<string, EpisodeStep> = {
   storyboard_script:  "storyboard_script",
-  storyboard_images:  "storyboard_images",
-  image_review:       "storyboard_images",
+  storyboard_images:  "storyboard_videos",
+  image_review:       "storyboard_videos",
   storyboard_videos:  "storyboard_videos",
   video_review:       "storyboard_videos",
   dubbing:            "dubbing",
