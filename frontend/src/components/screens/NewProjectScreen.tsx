@@ -22,6 +22,7 @@ import AgentDialog from "@/components/AgentDialog";
 import { useProjects } from "@/lib/ProjectsContext";
 import { useCos } from "@/lib/CosContext";
 import { cn } from "@/lib/utils";
+import { Sheet } from "@/components/ui/sheet";
 
 // ─── 类型 ─────────────────────────────────────────────────────
 type Phase = 1 | 1.5 | 2 | 3;
@@ -33,6 +34,7 @@ interface EpisodeDraft {
   wordCount: number;
   estimatedDuration: number;
   summary: string;
+  scriptExcerpt: string;
 }
 
 // ─── 步骤指示器 ───────────────────────────────────────────────
@@ -262,6 +264,7 @@ function PhaseWaiting({
           wordCount: (e.word_count as number) ?? 0,
           estimatedDuration: (e.estimated_duration as number) ?? 120,
           summary: (e.summary as string) ?? "",
+          scriptExcerpt: (e.script_excerpt as string) ?? "",
         }));
       }
       if (!result) {
@@ -275,6 +278,7 @@ function PhaseWaiting({
               wordCount: e.word_count,
               estimatedDuration: e.estimated_duration,
               summary: e.summary,
+              scriptExcerpt: e.script_excerpt,
             }));
           }
         } catch { /* ignore */ }
@@ -413,6 +417,7 @@ function Phase2({
   const [assetTab, setAssetTab] = useState("character");
   const [agentOpen, setAgentOpen] = useState(false);
   const [apiEpisodes, setApiEpisodes] = useState<ApiEpisode[]>([]);
+  const [sheetEp, setSheetEp] = useState<EpisodeDraft | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const update = (idx: number, patch: Partial<EpisodeDraft>) => {
@@ -434,6 +439,7 @@ function Phase2({
         wordCount: e.word_count,
         estimatedDuration: e.estimated_duration,
         summary: e.summary,
+        scriptExcerpt: e.script_excerpt,
       })));
       setAssets(assetList);
     } catch { /* ignore */ }
@@ -526,7 +532,15 @@ function Phase2({
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                        <p className="text-xs text-sub mt-0.5 line-clamp-2">{ep.summary}</p>
+                        <p className="text-xs text-sub mt-0.5 line-clamp-1">{ep.summary}</p>
+                        {ep.scriptExcerpt && (
+                          <div
+                            className="mt-1.5 text-xs text-muted bg-soft rounded px-2 py-1.5 line-clamp-3 cursor-pointer hover:bg-line/50 transition-colors whitespace-pre-wrap"
+                            onClick={() => setSheetEp(ep)}
+                          >
+                            {ep.scriptExcerpt}
+                          </div>
+                        )}
                       </>
                     )}
                   </div>
@@ -605,6 +619,19 @@ function Phase2({
         onTaskStarted={loadData}
         initialPrompt={`当前共 ${episodes.length} 集，${assets.length} 个资产（${assets.filter(a => a.asset_type === "character").length} 人物 / ${assets.filter(a => a.asset_type === "scene").length} 场景 / ${assets.filter(a => a.asset_type === "prop").length} 道具）。告诉我你想怎么调整。`}
       />
+
+      <Sheet
+        open={sheetEp !== null}
+        onClose={() => setSheetEp(null)}
+        title={sheetEp ? `第 ${sheetEp.number} 集《${sheetEp.title}》· 原始剧本` : ""}
+        width="w-[560px]"
+      >
+        {sheetEp && (
+          <pre className="text-xs text-text leading-relaxed whitespace-pre-wrap font-sans">
+            {sheetEp.scriptExcerpt}
+          </pre>
+        )}
+      </Sheet>
     </div>
   );
 }
@@ -963,6 +990,7 @@ export default function NewProjectScreen({
                   wordCount: e.word_count,
                   estimatedDuration: e.estimated_duration,
                   summary: e.summary,
+                  scriptExcerpt: e.script_excerpt,
                 })));
                 advanceTo(2);
                 return;

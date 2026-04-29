@@ -50,6 +50,7 @@ export function transformEpisode(e: ApiEpisode): EpisodeDetail {
     number: e.number,
     title: e.title,
     summary: e.summary,
+    scriptExcerpt: e.script_excerpt,
     wordCount: e.word_count,
     estimatedDuration: e.estimated_duration,
     status: e.status as EpisodeDetail["status"],

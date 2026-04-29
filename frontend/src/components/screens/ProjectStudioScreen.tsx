@@ -1,10 +1,11 @@
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
-import { Images } from "lucide-react";
+import { Images, FileText } from "lucide-react";
 import EpisodeSidebar from "@/components/EpisodeSidebar";
 import EpisodeStepBar from "@/components/EpisodeStepBar";
 import StepContent from "@/components/StepContent";
 import { Button } from "@/components/ui/button";
+import { Sheet } from "@/components/ui/sheet";
 import { Project, EpisodeDetail, EpisodeStep, STEP_ORDER } from "@/lib/data";
 import { episodeAPI, shotAPI } from "@/lib/api";
 import { transformEpisode, transformShot } from "@/lib/transforms";
@@ -18,6 +19,7 @@ export default function ProjectStudioScreen({ project }: ProjectStudioScreenProp
   const navigate = useNavigate();
   const [episodes, setEpisodes] = useState<EpisodeDetail[]>([]);
   const [loading, setLoading] = useState(true);
+  const [scriptSheetOpen, setScriptSheetOpen] = useState(false);
 
   const loadEpisodes = useCallback(async () => {
     try {
@@ -118,8 +120,27 @@ export default function ProjectStudioScreen({ project }: ProjectStudioScreenProp
                   {activeEpisode.summary && (
                     <p className="text-sm text-sub mt-1">{activeEpisode.summary}</p>
                   )}
+                  {activeEpisode.scriptExcerpt && (
+                    <p
+                      className="text-xs text-muted mt-1.5 line-clamp-2 cursor-pointer hover:text-sub transition-colors whitespace-pre-wrap"
+                      onClick={() => setScriptSheetOpen(true)}
+                    >
+                      {activeEpisode.scriptExcerpt}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-3 shrink-0 ml-4">
+                  {activeEpisode.scriptExcerpt && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex items-center gap-1.5 text-xs"
+                      onClick={() => setScriptSheetOpen(true)}
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      查看剧本
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"
@@ -161,6 +182,19 @@ export default function ProjectStudioScreen({ project }: ProjectStudioScreenProp
           </div>
         </div>
       </div>
+
+      <Sheet
+        open={scriptSheetOpen}
+        onClose={() => setScriptSheetOpen(false)}
+        title={activeEpisode ? `第 ${activeEpisode.number} 集《${activeEpisode.title}》· 原始剧本` : "原始剧本"}
+        width="w-[560px]"
+      >
+        {activeEpisode?.scriptExcerpt && (
+          <pre className="text-xs text-text leading-relaxed whitespace-pre-wrap font-sans">
+            {activeEpisode.scriptExcerpt}
+          </pre>
+        )}
+      </Sheet>
     </div>
   );
 }

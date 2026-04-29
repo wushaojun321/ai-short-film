@@ -36,7 +36,8 @@ SCRIPT_PARSE = {
     {
       "number": 1,
       "title": "集标题",
-      "summary": "本集简介",
+      "summary": "1-2句话的本集故事概要，用于列表展示，不超过50字",
+      "script_excerpt": "本集对应的原始剧本内容，原文照抄，保留所有对白、舞台提示、场景描述，不得改写或压缩",
       "word_count": 2400,
       "estimated_duration": 120
     }
@@ -257,7 +258,7 @@ ASSET_PROMPT_GEN = {
 # 【单集制作 Step1 - 分镜脚本生成】
 # 用途：为单集生成完整导演式分镜脚本，含景别/机位/运镜/台词/资产绑定
 # 变量：series_prompt（全剧风格），episode_number（集号），episode_title（集标题），
-#       episode_summary（本集简介），asset_list（可用资产列表），
+#       script_excerpt（本集原始剧本原文），asset_list（可用资产列表），
 #       continuity_notes（连续性约束，来自上集提取结果）
 # 输出：JSON 数组，每个镜头含 shot_code/order/duration/description/required_assets/dialogue/speaker
 # 注意：llm_tasks.py 传入的变量与此处定义保持一致
@@ -274,6 +275,8 @@ SHOT_SCRIPT_GEN = {
 3. 每个镜头必须明确：景别、机位方向、机位高度、运镜方式、时间分段动作
 4. 台词必须明确说话人，写死"谁唯一发声"
 5. 每个镜头必须绑定角色资产和场景资产
+6. 【最重要】台词字段必须原文照抄剧本中的对白，禁止改写、缩写、意译或重新表述；对白顺序和内容必须与原剧本完全一致
+7. 场景描述（description）中的动作、情绪、反应也应忠实于剧本原文，不要自由发挥
 
 请输出 JSON 格式的分镜列表：
 [
@@ -287,8 +290,8 @@ SHOT_SCRIPT_GEN = {
     "speaker": "说话人"
   }
 ]""",
-    "user_prompt_template": "全剧风格：\n{series_prompt}\n\n第 {episode_number} 集《{episode_title}》\n简介：{episode_summary}\n\n连续性约束：\n{continuity_notes}\n\n可用资产列表：\n{asset_list}{feedback_section}",
-    "variables": ["series_prompt", "episode_number", "episode_title", "episode_summary", "continuity_notes", "asset_list", "max_shot_duration", "feedback"],
+    "user_prompt_template": "全剧风格：\n{series_prompt}\n\n第 {episode_number} 集《{episode_title}》\n本集剧本：\n{script_excerpt}\n\n连续性约束：\n{continuity_notes}\n\n可用资产列表：\n{asset_list}{feedback_section}",
+    "variables": ["series_prompt", "episode_number", "episode_title", "script_excerpt", "continuity_notes", "asset_list", "max_shot_duration", "feedback"],
 }
 
 # =============================================================================

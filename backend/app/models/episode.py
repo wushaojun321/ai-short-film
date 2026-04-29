@@ -39,6 +39,7 @@ class Episode(Document):
     number: int
     title: str
     summary: str = ""
+    script_excerpt: str = ""
     word_count: int = 0
     estimated_duration: int = 0
     status: EpisodeStatus = EpisodeStatus.not_started

@@ -65,6 +65,7 @@ export interface ApiEpisode {
   number: number;
   title: string;
   summary: string;
+  script_excerpt: string;
   word_count: number;
   estimated_duration: number;
   status: string;

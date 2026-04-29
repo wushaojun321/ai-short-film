@@ -74,6 +74,7 @@ export interface EpisodeDetail {
   number: number;
   title: string;
   summary: string;
+  scriptExcerpt: string;
   wordCount: number;
   estimatedDuration: number; // 秒
   status: EpisodeStatus;
