@@ -847,7 +847,7 @@ function StepVideos({
   const [shots, setShots] = useState<ShotVideoState[]>(
     episode.shots.map((s) => ({
       ...s,
-      videoApproved: isPast === true || s.state === "approved",
+      videoApproved: isPast === true,
       videoGenerated: !!s.videoUrl,
       loadingRegen: false,
     }))
@@ -865,7 +865,7 @@ function StepVideos({
       const existing = prev.find((p) => p.id === s.id);
       return {
         ...s,
-        videoApproved: existing?.videoApproved ?? (isPast === true || s.state === "approved"),
+        videoApproved: existing?.videoApproved ?? (isPast === true),
         videoGenerated: !!s.videoUrl,
         loadingRegen: existing?.loadingRegen ?? false,
       };
