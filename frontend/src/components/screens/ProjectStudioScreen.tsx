@@ -1,5 +1,5 @@
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Images, FileText } from "lucide-react";
 import EpisodeSidebar from "@/components/EpisodeSidebar";
 import EpisodeStepBar from "@/components/EpisodeStepBar";
@@ -7,8 +7,9 @@ import StepContent from "@/components/StepContent";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Project, EpisodeDetail, EpisodeStep, STEP_ORDER } from "@/lib/data";
-import { episodeAPI, shotAPI } from "@/lib/api";
-import { transformEpisode, transformShot } from "@/lib/transforms";
+import { episodeAPI } from "@/lib/api";
+import { transformEpisode } from "@/lib/transforms";
+
 interface ProjectStudioScreenProps {
   project: Project;
   onProjectUpdate: () => void;
@@ -21,20 +22,23 @@ export default function ProjectStudioScreen({ project }: ProjectStudioScreenProp
   const [loading, setLoading] = useState(true);
   const [scriptSheetOpen, setScriptSheetOpen] = useState(false);
 
-  const loadEpisodes = useCallback(async () => {
-    try {
-      const data = await episodeAPI.list(project.id);
+  const episodeId = searchParams.get("episode") ?? episodes[0]?.id;
+  const stepParam = searchParams.get("step") as EpisodeStep | null;
+  const activeEpisode = episodes.find((e) => e.id === episodeId) ?? episodes[0];
+  const activeStep: EpisodeStep =
+    stepParam && STEP_ORDER.includes(stepParam)
+      ? stepParam
+      : activeEpisode?.currentStep ?? "storyboard_script";
+
+  // 记录上次 currentStep，防止轮询循环写 URL
+  const lastCurrentStepRef = useRef<string | null>(null);
+
+  // ── 初始加载 ──────────────────────────────────────────────────
+  useEffect(() => {
+    episodeAPI.list(project.id).then((data) => {
       const eps = data.map(transformEpisode);
       setEpisodes(eps);
-      return eps;
-    } finally {
       setLoading(false);
-    }
-  }, [project.id]);
-
-  useEffect(() => {
-    loadEpisodes().then((eps) => {
-      // 初始化 URL 参数
       if (!searchParams.get("episode") && eps.length > 0) {
         const defaultEp = eps.find((e) => e.status === "in_progress") ?? eps[0];
         const params = new URLSearchParams(searchParams);
@@ -43,45 +47,68 @@ export default function ProjectStudioScreen({ project }: ProjectStudioScreenProp
         setSearchParams(params, { replace: true });
       }
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id]);
 
-  const episodeId = searchParams.get("episode") ?? episodes[0]?.id;
-  const stepParam = searchParams.get("step") as EpisodeStep | null;
-
-  const activeEpisode = episodes.find((e) => e.id === episodeId) ?? episodes[0];
-  const activeStep: EpisodeStep = (stepParam && STEP_ORDER.includes(stepParam))
-    ? stepParam
-    : activeEpisode?.currentStep ?? "storyboard_script";
-
-  // 加载当前集的分镜
-  const loadShots = useCallback(async (ep: EpisodeDetail) => {
-    if (!ep) return ep;
-    const shots = await shotAPI.list(project.id, ep.id);
-    const updated = { ...ep, shots: shots.map(transformShot) };
-    setEpisodes((prev) => prev.map((e) => e.id === ep.id ? updated : e));
-    return updated;
-  }, [project.id]);
-
-  // 重新加载单个 episode（step 推进后调用）
-  const reloadEpisode = useCallback(async (episodeId: string) => {
-    const raw = await episodeAPI.get(project.id, episodeId);
-    const updated = transformEpisode(raw);
-    setEpisodes((prev) => prev.map((e) => e.id === episodeId
-      // 保留已加载的 shots，只更新 episode 元信息
-      ? { ...e, ...updated, shots: e.shots }
-      : e
-    ));
-    // 同步 URL step 到新的 currentStep
-    setSearchParams((prev) => {
-      const p = new URLSearchParams(prev);
-      p.set("step", updated.currentStep);
-      return p;
-    }, { replace: true });
-  }, [project.id, setSearchParams]);
-
+  // ── 集数列表轮询（5s）————————————————————————————————————
   useEffect(() => {
-    if (activeEpisode) loadShots(activeEpisode);
-  }, [activeEpisode?.id]);
+    const poll = async () => {
+      try {
+        const data = await episodeAPI.list(project.id);
+        setEpisodes((prev) =>
+          data.map((raw) => {
+            const transformed = transformEpisode(raw);
+            const existing = prev.find((e) => e.id === transformed.id);
+            // 保留当前集已加载的 shots，避免列表接口覆盖为空
+            return existing
+              ? { ...transformed, shots: existing.shots }
+              : transformed;
+          })
+        );
+      } catch {
+        // 静默失败，不影响使用
+      }
+    };
+    const id = setInterval(poll, 5000);
+    return () => clearInterval(id);
+  }, [project.id]);
+
+  // ── 当前集全量轮询（3s，含 shots）─────────────────────────────
+  useEffect(() => {
+    if (!episodeId) return;
+    lastCurrentStepRef.current = null;
+
+    const poll = async () => {
+      try {
+        const raw = await episodeAPI.get(project.id, episodeId, { include_shots: true });
+        const updated = transformEpisode(raw);
+
+        setEpisodes((prev) =>
+          prev.map((e) => (e.id === updated.id ? updated : e))
+        );
+
+        // currentStep 推进时自动跳转到最新步骤
+        if (updated.currentStep !== lastCurrentStepRef.current) {
+          lastCurrentStepRef.current = updated.currentStep;
+          setSearchParams(
+            (prev) => {
+              const p = new URLSearchParams(prev);
+              p.set("step", updated.currentStep);
+              return p;
+            },
+            { replace: true }
+          );
+        }
+      } catch {
+        // 静默失败
+      }
+    };
+
+    poll(); // 立即执行一次
+    const id = setInterval(poll, 3000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.id, episodeId]);
 
   if (loading) {
     return (
@@ -172,12 +199,9 @@ export default function ProjectStudioScreen({ project }: ProjectStudioScreenProp
             </div>
 
             <StepContent
-              key={`${activeEpisode.id}-${activeEpisode.shots.length}`}
               step={activeStep}
               episode={activeEpisode}
               projectId={project.id}
-              onShotsUpdate={() => loadShots(activeEpisode)}
-              onEpisodeUpdate={() => reloadEpisode(activeEpisode.id)}
             />
           </div>
         </div>

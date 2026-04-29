@@ -72,6 +72,7 @@ export interface ApiEpisode {
   current_step: string;
   continuity_notes: string;
   final_video_url?: string;
+  shots?: ApiShot[];  // 当 include_shots=true 时后端附带
   created_at: string;
   updated_at: string;
 }
@@ -174,9 +175,8 @@ export const episodeAPI = {
   list: (projectId: string): Promise<ApiEpisode[]> =>
     client.get(`/projects/${projectId}/episodes`),
 
-  get: (projectId: string, episodeId: string): Promise<ApiEpisode> =>
-    client.get(`/projects/${projectId}/episodes/${episodeId}`),
-
+  get: (projectId: string, episodeId: string, opts?: { include_shots?: boolean }): Promise<ApiEpisode> =>
+    client.get(`/projects/${projectId}/episodes/${episodeId}`, { params: opts }),
   update: (projectId: string, episodeId: string, data: Partial<ApiEpisode>): Promise<ApiEpisode> =>
     client.patch(`/projects/${projectId}/episodes/${episodeId}`, data),
 

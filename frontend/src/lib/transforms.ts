@@ -55,7 +55,7 @@ export function transformEpisode(e: ApiEpisode): EpisodeDetail {
     estimatedDuration: e.estimated_duration,
     status: e.status as EpisodeDetail["status"],
     currentStep: STEP_MAP[e.current_step] ?? "storyboard_script",
-    shots: [],
+    shots: e.shots ? e.shots.map(transformShot) : [],
     continuityNotes: e.continuity_notes,
     finalVideoUrl: e.final_video_url,
   };

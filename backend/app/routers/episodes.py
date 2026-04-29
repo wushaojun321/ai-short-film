@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from beanie import PydanticObjectId
 from app.models.project import Project
 from app.models.episode import EpisodeStep
+from app.models.shot import Shot
 from app.schemas.episode import EpisodeCreate, EpisodeUpdate, StepAdvanceRequest
 from app.services import episode_service
 
@@ -28,11 +29,20 @@ async def create_episode(project_id: PydanticObjectId, data: EpisodeCreate):
 
 
 @router.get("/{episode_id}")
-async def get_episode(project_id: PydanticObjectId, episode_id: PydanticObjectId):
+async def get_episode(
+    project_id: PydanticObjectId,
+    episode_id: PydanticObjectId,
+    include_shots: bool = Query(False),
+):
     await _get_project(project_id)
     episode = await episode_service.get_episode(episode_id)
     if not episode:
         raise HTTPException(404, "Episode not found")
+    if include_shots:
+        shots = await Shot.find(Shot.episode_id == episode.id).sort("+order").to_list()
+        data = episode.model_dump(by_alias=True)
+        data["shots"] = [s.model_dump(by_alias=True) for s in shots]
+        return data
     return episode
 
 
