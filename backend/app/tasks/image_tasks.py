@@ -203,6 +203,7 @@ async def _gen_shot_image_async(celery_id: str, shot_id: str):
         system_prompt, user_prompt, _ = await render(
             PromptConfigScope.shot_image_gen,
             {
+                "shot_code": shot.shot_code,
                 "shot_description": shot.description,
                 "required_assets_prompts": required_assets_prompts or "无",
                 "continuity_notes": continuity_notes,

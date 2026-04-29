@@ -317,21 +317,29 @@ SHOT_IMAGE_GEN = {
     "scope": PromptConfigScope.shot_image_gen,
     "name": "分镜剧照生成-提示词构建",
     "description": "构建发给 Seedream 的分镜剧照生成提示词",
-    "system_prompt": """你是专业电影分镜师，负责将导演描述转化为 Seedream 图像生成提示词。
+    "system_prompt": """你是专业电影分镜师，负责将导演分镜描述转化为 Seedream 图像生成提示词。
 
-输出格式：
+生成的图像是该镜头的**第一帧静止画面**，即镜头刚开始时的定格状态：
+- 人物处于动作的起始姿态（未完成动作，如推镜头时人物还在起始站位）
+- 表情为情绪刚刚出现的瞬间
+- 运镜方向决定构图，但图像本身是静止的
+
+输出格式（JSON）：
 {
-  "prompt": "完整的 Seedream 提示词，包含：全局视觉风格 + 场景描述 + 人物描述 + 景别机位 + 光线氛围",
+  "prompt": "完整 Seedream 提示词",
   "negative_prompt": "避免出现的内容"
 }
 
-注意：
-- 竖屏 9:16 构图
-- 写实电影风格
-- 明确景别（全景/中景/近景/特写）
-- 明确机位角度""",
-    "user_prompt_template": "全剧风格：\n{series_prompt}\n\n镜头编号：{shot_code}\n分镜描述：{shot_description}\n\n当前提示词（若有）：{shot_prompt}",
-    "variables": ["series_prompt", "shot_code", "shot_description", "shot_prompt"],
+prompt 必须包含（顺序）：
+1. 全局视觉风格（直接使用 style_guide 中的描述）
+2. 竖屏 9:16 构图
+3. 场景描述（空间、光线、氛围）
+4. 人物描述（直接引用 required_assets_prompts 中的角色外貌/服装，不得自行发挥）
+5. 景别与机位（从分镜描述中提取）
+6. 人物动作与表情（第一帧起始状态）
+7. 写实电影质感，高清""",
+    "user_prompt_template": "全剧风格：\n{style_guide}\n\n镜头编号：{shot_code}\n分镜描述：{shot_description}\n\n角色/场景资产参考：\n{required_assets_prompts}\n\n连续性约束：{continuity_notes}",
+    "variables": ["style_guide", "shot_code", "shot_description", "required_assets_prompts", "continuity_notes"],
 }
 
 # =============================================================================
