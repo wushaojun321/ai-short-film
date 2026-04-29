@@ -2,6 +2,9 @@ from beanie import PydanticObjectId
 from app.models.project import Project, ProjectInitStatus
 from app.models.episode import Episode
 from app.models.asset import Asset
+from app.models.shot import Shot
+from app.models.task_record import TaskRecord
+from app.models.conversation import Conversation
 from app.schemas.project import ProjectCreate, ProjectUpdate
 
 
@@ -31,11 +34,12 @@ async def update_project(project: Project, data: ProjectUpdate) -> Project:
 
 
 async def delete_project(project: Project) -> None:
-    # cascade delete episodes, shots, assets
-    episodes = await Episode.find(Episode.project_id == project.id).to_list()
-    for ep in episodes:
-        await ep.delete()
+    # Cascade delete project-owned documents. Generated files in object storage are not removed here.
+    await Shot.find(Shot.project_id == project.id).delete()
+    await Episode.find(Episode.project_id == project.id).delete()
     await Asset.find(Asset.project_id == project.id).delete()
+    await TaskRecord.find(TaskRecord.project_id == project.id).delete()
+    await Conversation.find(Conversation.project_id == project.id).delete()
     await project.delete()
 
 

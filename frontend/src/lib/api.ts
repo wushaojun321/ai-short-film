@@ -170,6 +170,9 @@ export const projectAPI = {
   update: (projectId: string, data: Partial<ApiProject>): Promise<ApiProject> =>
     client.patch(`/projects/${projectId}`, data),
 
+  delete: (projectId: string): Promise<void> =>
+    client.delete(`/projects/${projectId}`),
+
   uploadScript: (projectId: string, file: File): Promise<ApiProject> => {
     const fd = new FormData();
     fd.append("file", file);
