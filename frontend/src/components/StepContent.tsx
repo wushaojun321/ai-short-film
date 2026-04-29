@@ -668,9 +668,10 @@ function StepVideos({
   const shots = episode.shots;
   const [selected, setSelected] = useState(0);
 
-  // 派生
-  const approvedCount = isPast ? shots.length : shots.filter((s) => s.state === "approved").length;
-  const allApproved = isPast || (shots.length > 0 && approvedCount === shots.length);
+  // 派生（视频审批：只有有 videoUrl 的 shot 才算在审批范围内）
+  const videoShots = shots.filter((s) => s.videoUrl);
+  const approvedCount = isPast ? shots.length : videoShots.filter((s) => s.state === "approved").length;
+  const allApproved = isPast || (videoShots.length > 0 && videoShots.length === shots.length && approvedCount === shots.length);
 
   // 本地 loading 状态
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
@@ -786,7 +787,7 @@ function StepVideos({
         {/* 左侧列表 */}
         <div className="space-y-1.5 lg:col-span-1">
           {shots.map((s, idx) => {
-            const isApproved = isPast || s.state === "approved";
+            const isApproved = isPast || (!!s.videoUrl && s.state === "approved");
             const isGenerating = loadingIds.has(s.id) || s.state === "rendering";
             return (
               <button
@@ -844,7 +845,7 @@ function StepVideos({
                     <p className="text-xs text-muted">尚未生成</p>
                   </div>
                 )}
-                {(isPast || shot.state === "approved") && shot.videoUrl && (
+                {(isPast || (!!shot.videoUrl && shot.state === "approved")) && shot.videoUrl && (
                   <div className="absolute inset-0 bg-brand/20 flex items-center justify-center">
                     <CheckCircle2 className="w-14 h-14 text-brand drop-shadow-lg" />
                   </div>
@@ -863,7 +864,7 @@ function StepVideos({
                   </button>
                 )}
 
-                {!(isPast || shot.state === "approved") && !(loadingIds.has(shot.id) || shot.state === "rendering") && (
+                {!(isPast || (!!shot.videoUrl && shot.state === "approved")) && !(loadingIds.has(shot.id) || shot.state === "rendering") && (
                   <div className="flex gap-2">
                     <Button variant="outline" className="flex-1" onClick={() => setAgentTarget(shot.id)}>
                       <RefreshCw className="w-4 h-4" />重新生成
@@ -873,7 +874,7 @@ function StepVideos({
                     </Button>
                   </div>
                 )}
-                {(isPast || shot.state === "approved") && (
+                {(isPast || (!!shot.videoUrl && shot.state === "approved")) && (
                   <div className="flex justify-center">
                     <Badge variant="success" className="text-sm px-4 py-1.5">
                       <CheckCircle2 className="w-4 h-4 mr-1.5" />已审批通过
