@@ -590,6 +590,7 @@ function StepImages({
       loadingRegen: false,
     }))
   );
+  // 注：imageApproved 以 s.state === "approved" 为准，isPast 时整体通过
   const [regenTarget, setRegenTarget] = useState<string | null>(null);
   const [agentTarget, setAgentTarget] = useState<string | null>(null);
   const [allApproved, setAllApproved] = useState(isPast === true);
@@ -598,12 +599,15 @@ function StepImages({
   const [error, setError] = useState<string | null>(null);
 
   // episode.shots 更新时同步 imageUrl（保留 loadingRegen 和 imageApproved）
+  // imageApproved 以后端 state 为准：approved → true；其他状态（含重新生成后的 asset_ready）→ false
+  // isPast 时整体视为通过，不逐 shot 判断
   useEffect(() => {
     setShots((prev) => episode.shots.map((s) => {
       const existing = prev.find((p) => p.id === s.id);
+      const imageApproved = isPast === true || s.state === "approved";
       return {
         ...s,
-        imageApproved: existing?.imageApproved ?? (isPast === true || s.state === "approved"),
+        imageApproved,
         loadingRegen: existing?.loadingRegen ?? false,
       };
     }));
