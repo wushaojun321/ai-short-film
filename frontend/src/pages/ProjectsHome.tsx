@@ -1,8 +1,16 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, ChevronRight, AlertTriangle, CheckCircle2, Clock, Play, Layers } from "lucide-react";
+import {
+  AlertTriangle, CheckCircle2, ChevronRight, Clock,
+  Layers, Loader2, Play, Plus, Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { Project } from "@/lib/data";
+import { projectAPI } from "@/lib/api";
 import { useProjects } from "@/lib/ProjectsContext";
 import { cn } from "@/lib/utils";
 
@@ -20,107 +28,170 @@ const initStatusConfig: Record<Project["initStatus"], {
 
 function ProjectCard({ project }: { project: Project }) {
   const navigate = useNavigate();
+  const { reload } = useProjects();
   const cfg = initStatusConfig[project.initStatus];
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await projectAPI.delete(project.id);
+      setDeleteOpen(false);
+      reload();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "删除项目失败，请稍后重试");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
-    <div
-      onClick={() => navigate(`/projects/${project.id}`)}
-      className={cn(
-        "group relative bg-white rounded-2xl border border-line p-5 cursor-pointer",
-        "transition-all duration-200 hover:shadow-lg hover:border-primary/20 hover:-translate-y-0.5",
-        "animate-fade-in"
-      )}
-    >
-      {/* 顶部行 */}
-      <div className="flex items-start justify-between gap-3 mb-5">
-        <div className="flex items-start gap-3 min-w-0">
-          {/* 项目图标 */}
+    <>
+      <div
+        onClick={() => navigate(`/projects/${project.id}`)}
+        className={cn(
+          "group relative bg-white rounded-2xl border border-line p-5 cursor-pointer",
+          "transition-all duration-200 hover:shadow-lg hover:border-primary/20 hover:-translate-y-0.5",
+          "animate-fade-in"
+        )}
+      >
+        <div className="flex items-start justify-between gap-3 mb-5">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className={cn(
+              "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs",
+              project.initStatus === "initialized" ? "bg-primary text-white" : "bg-soft text-sub"
+            )}>
+              <Play className="w-4.5 h-4.5" style={{ width: "1.125rem", height: "1.125rem" }} />
+            </div>
+            <div className="min-w-0">
+              <h3 className="font-bold text-text text-base leading-snug group-hover:text-primary transition-colors line-clamp-2">
+                {project.title}
+              </h3>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className={cn("w-1.5 h-1.5 rounded-full", cfg.dot)} />
+            <Badge variant={cfg.variant}>{cfg.label}</Badge>
+            <button
+              type="button"
+              title="删除项目"
+              aria-label="删除项目"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeleteError(null);
+                setDeleteOpen(true);
+              }}
+              className={cn(
+                "ml-1 inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent",
+                "text-muted opacity-70 transition-all hover:border-danger/30 hover:bg-danger-soft hover:text-danger",
+                "focus:outline-none focus:ring-2 focus:ring-danger/20"
+              )}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {project.initStatus === "initialized" && (
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-muted">制作进度</span>
+              <span className="text-xs font-bold text-primary tabular-nums">{project.progress}%</span>
+            </div>
+            <div className="h-1.5 bg-soft rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-brand to-brand/80 rounded-full transition-all duration-500"
+                style={{ width: `${project.progress}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="bg-elev rounded-xl p-3 text-center">
+            <div className="text-lg font-bold text-text tabular-nums">{project.renderedEpisodes}</div>
+            <div className="text-2xs text-muted mt-0.5">已完成</div>
+          </div>
+          <div className="bg-elev rounded-xl p-3 text-center">
+            <div className="text-lg font-bold text-text tabular-nums">{project.episodes || "—"}</div>
+            <div className="text-2xs text-muted mt-0.5">总集数</div>
+          </div>
           <div className={cn(
-            "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs",
-            project.initStatus === "initialized"
-              ? "bg-primary text-white"
-              : "bg-soft text-sub"
+            "rounded-xl p-3 text-center",
+            project.blockers && project.blockers > 0 ? "bg-danger-soft" : "bg-elev"
           )}>
-            <Play className="w-4.5 h-4.5" style={{ width: "1.125rem", height: "1.125rem" }} />
-          </div>
-          <div className="min-w-0">
-            <h3 className="font-bold text-text text-base leading-snug group-hover:text-primary transition-colors line-clamp-2">
-              {project.title}
-            </h3>
+            <div className={cn(
+              "text-lg font-bold tabular-nums",
+              project.blockers && project.blockers > 0 ? "text-danger" : "text-text"
+            )}>
+              {project.blockers ?? 0}
+            </div>
+            <div className="text-2xs text-muted mt-0.5">阻塞</div>
           </div>
         </div>
 
-        {/* 状态徽章 */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <div className={cn("w-1.5 h-1.5 rounded-full", cfg.dot)} />
-          <Badge variant={cfg.variant}>{cfg.label}</Badge>
-        </div>
-      </div>
-
-      {/* 进度条（已初始化项目） */}
-      {project.initStatus === "initialized" && (
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted">制作进度</span>
-            <span className="text-xs font-bold text-primary tabular-nums">{project.progress}%</span>
-          </div>
-          <div className="h-1.5 bg-soft rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-brand to-brand/80 rounded-full transition-all duration-500"
-              style={{ width: `${project.progress}%` }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* 统计数据 */}
-      <div className="grid grid-cols-3 gap-2 mb-4">
-        <div className="bg-elev rounded-xl p-3 text-center">
-          <div className="text-lg font-bold text-text tabular-nums">{project.renderedEpisodes}</div>
-          <div className="text-2xs text-muted mt-0.5">已完成</div>
-        </div>
-        <div className="bg-elev rounded-xl p-3 text-center">
-          <div className="text-lg font-bold text-text tabular-nums">{project.episodes || "—"}</div>
-          <div className="text-2xs text-muted mt-0.5">总集数</div>
-        </div>
-        <div className={cn(
-          "rounded-xl p-3 text-center",
-          project.blockers && project.blockers > 0 ? "bg-danger-soft" : "bg-elev"
-        )}>
+        {project.note && (
           <div className={cn(
-            "text-lg font-bold tabular-nums",
-            project.blockers && project.blockers > 0 ? "text-danger" : "text-text"
+            "flex items-start gap-2 text-xs px-3 py-2.5 rounded-xl",
+            project.blockers && project.blockers > 0 ? "bg-warn-soft text-warn" : "bg-elev text-sub"
           )}>
-            {project.blockers ?? 0}
+            {project.blockers && project.blockers > 0
+              ? <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              : <Clock className="w-3.5 h-3.5 shrink-0 mt-0.5 text-muted" />
+            }
+            <span className="line-clamp-2">{project.note}</span>
           </div>
-          <div className="text-2xs text-muted mt-0.5">阻塞</div>
+        )}
+
+        <div className="mt-4 pt-3 border-t border-line flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+          <span className="text-xs text-muted">{project.format}</span>
+          <span className="text-xs font-semibold text-brand flex items-center gap-1">
+            进入项目 <ChevronRight className="w-3.5 h-3.5" />
+          </span>
         </div>
       </div>
 
-      {/* 备注 */}
-      {project.note && (
-        <div className={cn(
-          "flex items-start gap-2 text-xs px-3 py-2.5 rounded-xl",
-          project.blockers && project.blockers > 0
-            ? "bg-warn-soft text-warn"
-            : "bg-elev text-sub"
-        )}>
-          {project.blockers && project.blockers > 0
-            ? <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-            : <Clock className="w-3.5 h-3.5 shrink-0 mt-0.5 text-muted" />
-          }
-          <span className="line-clamp-2">{project.note}</span>
-        </div>
-      )}
-
-      {/* 悬浮底部行 */}
-      <div className="mt-4 pt-3 border-t border-line flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-        <span className="text-xs text-muted">{project.format}</span>
-        <span className="text-xs font-semibold text-brand flex items-center gap-1">
-          进入项目 <ChevronRight className="w-3.5 h-3.5" />
-        </span>
-      </div>
-    </div>
+      <Dialog open={deleteOpen} onOpenChange={(open) => !deleting && setDeleteOpen(open)}>
+        <DialogContent className="max-w-md" onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-danger" />
+              删除项目
+            </DialogTitle>
+            <DialogDescription>
+              将删除「{project.title}」以及它的分集、资产、分镜和任务记录。此操作无法撤销。
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError && (
+            <div className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">
+              {deleteError}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+              取消
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  删除中...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4" />
+                  确认删除
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -152,7 +223,6 @@ export default function ProjectsHome() {
 
   return (
     <div className="min-h-screen bg-elev/40">
-      {/* 页面 Hero */}
       <div className="bg-white border-b border-line">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
           <div className="flex items-end justify-between gap-6">
@@ -184,7 +254,6 @@ export default function ProjectsHome() {
         </div>
       </div>
 
-      {/* 项目网格 */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         {error && (
           <div className="mb-6 px-4 py-3 rounded-xl bg-danger-soft text-danger text-sm flex items-center gap-2">
