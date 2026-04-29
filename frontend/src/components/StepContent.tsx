@@ -769,6 +769,8 @@ function StepVideos({
         </div>
       )}
 
+      {/* 只有至少有一个视频已生成，才显示审批进度条 */}
+      {shots.some((s) => s.videoUrl) && (
       <ApprovalBar
         approved={approvedCount}
         total={shots.length}
@@ -778,6 +780,7 @@ function StepVideos({
         notReady={shots.length === 0 || shots.some((s) => !s.videoUrl || loadingIds.has(s.id) || s.state === "rendering")}
         notReadyTip="所有分镜视频生成完成后方可审批"
       />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* 左侧列表 */}
