@@ -1029,7 +1029,9 @@ function StepVideos({
                   <div className="text-xs text-muted mt-0.5">{s.duration}s</div>
                 </div>
                 {/* 状态图标 */}
-                {isApproved ? (
+                {(s.loadingRegen || loadingShotIds.has(s.id)) ? (
+                  <div className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse shrink-0" />
+                ) : isApproved ? (
                   <CheckCircle2 className="w-4 h-4 text-brand shrink-0" />
                 ) : s.videoGenerated ? (
                   <div className="w-1.5 h-1.5 rounded-full bg-warn shrink-0" />
