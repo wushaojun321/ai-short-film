@@ -371,7 +371,8 @@ SHOT_VIDEO_GEN = {
 9. 台词与说话人（明确唯一发声人，其他人不得张嘴）
 10. 反向约束
 
-以 JSON 格式输出：{"prompt": "完整英文提示词文本"}""",
+以 JSON 格式输出：{"prompt": "完整提示词文本"}
+注意：提示词用中文撰写，台词原文保留。""",
     "user_prompt_template": "镜头编号：{shot_code}\n分镜描述：{shot_description}\n台词：{dialogue}\n角色参考：\n{character_prompts}\n场景参考：{scene_prompt}\n\n当前提示词（若有）：{shot_prompt}",
     "variables": ["shot_code", "shot_description", "dialogue", "character_prompts", "scene_prompt", "shot_prompt"],
 }
