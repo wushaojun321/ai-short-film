@@ -781,17 +781,10 @@ function StepImages({
               {!isApproved && !isGenerating && (
                 <div className="p-2 flex gap-1.5">
                   <button
-                    onClick={() => setRegenTarget(shot.id)}
-                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-medium transition-colors bg-soft text-sub hover:bg-warn-soft hover:text-warn"
-                  >
-                    <RefreshCw className="w-3 h-3" />重新生成
-                  </button>
-                  <button
                     onClick={() => setAgentTarget(shot.id)}
-                    className="flex items-center justify-center py-1.5 px-2 rounded-lg text-xs transition-colors bg-soft text-sub hover:bg-brand/10 hover:text-brand"
-                    title="AI 修改"
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-medium transition-colors bg-soft text-sub hover:bg-brand/10 hover:text-brand"
                   >
-                    <Bot className="w-3 h-3" />
+                    <Bot className="w-3 h-3" />AI 修改
                   </button>
                   <button
                     onClick={() => shot.imageUrl && handleApprove(shot.id)}
