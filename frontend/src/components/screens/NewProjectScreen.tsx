@@ -535,14 +535,12 @@ function Phase2({
                           </button>
                         </div>
                         <p className="text-xs text-sub mt-0.5 line-clamp-1">{ep.summary}</p>
-                        {ep.scriptExcerpt && (
-                          <div
-                            className="mt-1.5 text-xs text-muted bg-soft rounded px-2 py-1.5 line-clamp-3 cursor-pointer hover:bg-line/50 transition-colors whitespace-pre-wrap"
-                            onClick={() => setSheetEp(ep)}
-                          >
-                            {ep.scriptExcerpt}
-                          </div>
-                        )}
+                        <div
+                          className="mt-1.5 text-xs text-muted bg-soft rounded px-2 py-1.5 line-clamp-3 cursor-pointer hover:bg-line/50 transition-colors whitespace-pre-wrap"
+                          onClick={() => setSheetEp(ep)}
+                        >
+                          {ep.scriptExcerpt || "（暂无剧本原文，重新解析后可见）"}
+                        </div>
                       </>
                     )}
                   </div>
@@ -621,32 +619,29 @@ function Phase2({
                             </div>
                           </div>
                         ) : (
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0 flex-1">
+                          <div>
+                            <div className="flex items-center gap-1">
                               <p className="text-sm font-medium text-text truncate">{a.name}</p>
-                              <p className="text-xs text-muted mt-1 line-clamp-3 leading-relaxed">{a.prompt || "（暂无提示词）"}</p>
-                            </div>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <Badge variant="secondary" className="text-xs">{ASSET_TYPE_ZH[a.asset_type] ?? a.asset_type}</Badge>
                               <button
                                 onClick={() => {
                                   setAssetEdits((prev) => ({ ...prev, [a.id]: { name: a.name, prompt: a.prompt ?? "" } }));
                                   setEditingAssetId(a.id);
                                 }}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-muted hover:text-brand rounded"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-muted hover:text-brand rounded shrink-0"
                               >
-                                <Edit2 className="w-3.5 h-3.5" />
+                                <Edit2 className="w-3 h-3" />
                               </button>
                               <button
                                 onClick={async () => {
                                   await assetAPI.delete(projectId, a.id);
                                   loadData();
                                 }}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-muted hover:text-danger rounded"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-muted hover:text-danger rounded shrink-0"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <Trash2 className="w-3 h-3" />
                               </button>
                             </div>
+                            <p className="text-xs text-muted mt-1 line-clamp-3 leading-relaxed">{a.prompt || "（暂无提示词）"}</p>
                           </div>
                         )}
                       </div>
