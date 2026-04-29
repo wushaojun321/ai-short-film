@@ -77,6 +77,7 @@ const SHOT_STATE_MAP: Record<string, ShotState> = {
 export function transformShot(s: ApiShot): Shot {
   return {
     id: s.id,
+    shotCode: s.shot_code,
     order: s.order,
     duration: s.duration,
     description: s.description,

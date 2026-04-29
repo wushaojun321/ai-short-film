@@ -61,6 +61,7 @@ export interface ShotDialogueLine {
 
 export interface Shot {
   id: string;
+  shotCode: string;
   order: number;
   duration: number; // 秒
   description: string;

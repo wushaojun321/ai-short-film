@@ -226,14 +226,21 @@ function StepScript({
   const [error, setError] = useState<string | null>(null);
   const [agentTarget, setAgentTarget] = useState<string | null>(null);
 
+  // 当 shots 出现时（由父组件 3s 轮询驱动），清除生成中状态
+  useEffect(() => {
+    if (generating && shots.length > 0) {
+      setGenerating(false);
+    }
+  }, [shots.length, generating]);
+
   const handleGenerate = async () => {
     setError(null);
     setGenerating(true);
     try {
       await generateAPI.shotScript(episode.id);
+      // 不在这里 setGenerating(false)，由上面的 useEffect 在轮询拿到 shots 后清除
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "生成失败");
-    } finally {
       setGenerating(false);
     }
   };
@@ -337,7 +344,7 @@ function StepScript({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-2">
-                    <span className="text-sm font-medium text-text">镜头 {shot.id}</span>
+                    <span className="text-sm font-medium text-text">镜头 {shot.shotCode}</span>
                     <Badge variant={approved ? "success" : cfg.variant}>
                       {approved ? "已通过" : cfg.label}
                     </Badge>
@@ -426,16 +433,16 @@ function StepScript({
         title="AI 重新生成分镜脚本"
       />
 
-      {/* 单镜 AI 修改对话 */}
+      {/* 单镜 AI 修改对话 — 绑定 episode，让 AI 知道上下文 */}
       {agentTarget && (
         <AgentDialog
           open={!!agentTarget}
           onOpenChange={(v) => !v && setAgentTarget(null)}
-          targetType="shot_script"
-          targetId={agentTarget}
+          targetType="episode"
+          targetId={episode.id}
           projectId={projectId}
           title="AI 修改 · 镜头描述"
-          initialPrompt={shots.find((s) => s.id === agentTarget)?.description}
+          initialPrompt={`请修改镜头 ${shots.find((s) => s.id === agentTarget)?.shotCode} 的描述：${shots.find((s) => s.id === agentTarget)?.description}`}
         />
       )}
     </div>
@@ -805,7 +812,7 @@ function StepVideos({
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs font-medium text-text truncate">镜头 {s.id}</div>
+                  <div className="text-xs font-medium text-text truncate">镜头 {s.shotCode}</div>
                   <div className="text-xs text-muted mt-0.5">{s.duration}s</div>
                 </div>
                 {isGenerating ? (
@@ -885,7 +892,7 @@ function StepVideos({
       <Sheet
         open={promptSheetOpen}
         onClose={() => setPromptSheetOpen(false)}
-        title={`镜头 ${shot?.id ?? ""} · 视频生成提示词`}
+        title={`镜头 ${shot?.shotCode ?? ""} · 视频生成提示词`}
       >
         <pre className="text-xs text-sub leading-relaxed whitespace-pre-wrap break-words font-sans">
           {shot?.prompt || "暂无提示词"}
@@ -1105,7 +1112,7 @@ export default function StepContent({ step, episode, projectId }: StepContentPro
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-6">
+    <div className="flex-1 overflow-y-auto">
       {stepComponents[step]}
     </div>
   );
