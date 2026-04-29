@@ -1,7 +1,10 @@
 """Video generation Celery tasks using Seedance."""
 from __future__ import annotations
+import logging
 from app.celery_app import celery_app
 from app.tasks.base import run_async, finish_task_record
+
+logger = logging.getLogger(__name__)
 
 
 @celery_app.task(bind=True, name="app.tasks.video.gen_shot_video", queue="video")
@@ -134,6 +137,12 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
             if record:
                 attempt_label = f"第 {attempt + 1} 次" if attempt > 0 else ""
                 await record.set({"progress": 10, "logs": (record.logs or []) + [f"[video] {attempt_label}正在生成视频…"]})
+
+            logger.info(
+                "[SHOT VIDEO PROMPT] shot_id=%s shot=%s attempt=%d/%d first_frame=%s ref_images=%d\n--- PROMPT START ---\n%s\n--- PROMPT END ---",
+                shot_id, shot.shot_code, attempt + 1, MAX_RETRIES,
+                bool(first_frame_url), len(reference_images), video_prompt,
+            )
 
             try:
                 loop = asyncio.get_event_loop()

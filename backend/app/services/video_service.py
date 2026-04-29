@@ -1,11 +1,14 @@
 """Volcano Engine Seedance video generation service."""
 from __future__ import annotations
+import logging
 import time
 import uuid
 import httpx
 from volcenginesdkarkruntime import Ark
 from app.config import settings
 import app.services.storage_service as storage_service
+
+logger = logging.getLogger(__name__)
 
 POLL_INTERVAL = 30  # seconds
 POLL_TIMEOUT = 600  # 10 minutes
@@ -79,6 +82,12 @@ def generate_video_sync(
     extra_params: dict = {"ratio": ratio, "resolution": resolution}
     if not has_images:
         extra_params["duration"] = duration
+
+    logger.info(
+        "[VIDEO PROMPT] model=%s ratio=%s duration=%ss resolution=%s has_images=%s first_frame=%s ref_images=%d\n--- PROMPT START ---\n%s\n--- PROMPT END ---",
+        settings.ark_video_model, ratio, duration, resolution, has_images,
+        bool(first_frame_url), len(reference_images or []), prompt,
+    )
 
     create_result = client.content_generation.tasks.create(
         model=settings.ark_video_model,

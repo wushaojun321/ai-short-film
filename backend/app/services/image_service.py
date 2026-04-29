@@ -1,10 +1,13 @@
 """Volcano Engine Seedream image generation service."""
 from __future__ import annotations
+import logging
 import uuid
 import httpx
 from volcenginesdkarkruntime import Ark
 from app.config import settings
 import app.services.storage_service as storage_service
+
+logger = logging.getLogger(__name__)
 
 
 def get_ark_client() -> Ark:
@@ -25,6 +28,10 @@ async def generate_image(
     
     Seedream URLs expire in 24h → we immediately re-upload to COS.
     """
+    logger.info(
+        "[IMAGE PROMPT] model=%s size=%s watermark=%s\n--- PROMPT START ---\n%s\n--- PROMPT END ---",
+        settings.ark_image_model, size, watermark, prompt,
+    )
     client = get_ark_client()
     result = client.images.generate(
         model=settings.ark_image_model,

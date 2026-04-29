@@ -1,7 +1,10 @@
 """Image generation Celery tasks: asset images, shot storyboard images."""
 from __future__ import annotations
+import logging
 from app.celery_app import celery_app
 from app.tasks.base import run_async, finish_task_record
+
+logger = logging.getLogger(__name__)
 
 
 @celery_app.task(bind=True, name="app.tasks.image.gen_asset", queue="image")
@@ -93,6 +96,11 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
             if record:
                 attempt_label = f"第 {attempt + 1} 次" if attempt > 0 else ""
                 await record.set({"progress": 30, "logs": (record.logs or []) + [f"[image] {attempt_label}正在生成图像…"]})
+
+            logger.info(
+                "[ASSET IMAGE PROMPT] asset_id=%s asset=%s attempt=%d/%d\n--- PROMPT START ---\n%s\n--- PROMPT END ---",
+                asset_id, asset.name, attempt + 1, MAX_RETRIES, full_prompt,
+            )
 
             try:
                 image_url = await image_service.generate_image(
@@ -250,6 +258,11 @@ async def _gen_shot_image_async(celery_id: str, shot_id: str):
             if record:
                 attempt_label = f"第 {attempt + 1} 次" if attempt > 0 else ""
                 await record.set({"progress": 30, "logs": (record.logs or []) + [f"[image] {attempt_label}正在生成图像…"]})
+
+            logger.info(
+                "[SHOT IMAGE PROMPT] shot_id=%s shot=%s attempt=%d/%d\n--- PROMPT START ---\n%s\n--- PROMPT END ---",
+                shot_id, shot.shot_code, attempt + 1, MAX_RETRIES, full_prompt,
+            )
 
             try:
                 image_url = await image_service.generate_image(
