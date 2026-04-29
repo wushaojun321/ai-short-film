@@ -11,6 +11,7 @@ AI 辅助短剧（竖屏 9:16）从剧本到成片的生产系统。当前前端
 - **Mock 数据**：`frontend/src/lib/data.ts`
 - **核心文档**：`docs/workflow-spec.md`（完整工作流规范）
 - **后端规划**：`docs/backend-plan.md`（Python/FastAPI/Beanie/Celery 后端实现计划）
+- **提示词调试**：`docs/prompt-debug.md`（如何从日志获取提示词并迭代调整）
 - **火山 API 文档**：`docs/volcano/`（Seedream 文生图 + Seedance 视频生成 API 参考）
 
 ## 目录结构
