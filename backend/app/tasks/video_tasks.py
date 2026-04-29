@@ -51,14 +51,17 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
                 elif asset.asset_type == AssetType.scene:
                     scene_parts.append(asset.prompt or binding.asset_name)
 
+        dialogue_text = f"{shot.speaker}：{shot.dialogue}" if shot.speaker and shot.dialogue else (shot.dialogue or "无台词")
+
         system_prompt, user_prompt, _ = await render(
             PromptConfigScope.shot_video_gen,
             {
+                "shot_code": shot.shot_code,
                 "shot_description": shot.description,
                 "character_prompts": "\n".join(character_parts) if character_parts else "无",
                 "scene_prompt": "；".join(scene_parts) if scene_parts else "无",
-                "camera_motion": shot.description,  # description contains camera info
-                "dialogue": shot.prompt or "无",
+                "dialogue": dialogue_text,
+                "shot_prompt": shot.prompt or "",
             },
         )
 

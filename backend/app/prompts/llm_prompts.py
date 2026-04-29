@@ -361,8 +361,8 @@ SHOT_VIDEO_GEN = {
 10. 反向约束
 
 输出：直接返回提示词文本""",
-    "user_prompt_template": "镜头编号：{shot_code}\n分镜描述：{shot_description}\n\n当前提示词（若有）：{shot_prompt}",
-    "variables": ["shot_code", "shot_description", "shot_prompt"],
+    "user_prompt_template": "镜头编号：{shot_code}\n分镜描述：{shot_description}\n台词：{dialogue}\n角色参考：\n{character_prompts}\n场景参考：{scene_prompt}\n\n当前提示词（若有）：{shot_prompt}",
+    "variables": ["shot_code", "shot_description", "dialogue", "character_prompts", "scene_prompt", "shot_prompt"],
 }
 
 # =============================================================================
