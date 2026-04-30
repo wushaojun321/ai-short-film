@@ -879,7 +879,9 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
       const refreshed = await assetAPI.list(projectId).catch(() => list);
       if (!cancelled) {
         setAssets(refreshed);
-        const stillPending = refreshed.some((a) => !a.preview_url);
+        const stillPending = refreshed.some((a) =>
+          !a.preview_url || a.status === "generating" || a.status === "queued"
+        );
         if (stillPending) scheduleNextPoll(tick);
       }
     };
