@@ -40,13 +40,12 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
         if record:
             await record.set({"progress": 5})
 
-        # Build video prompt: gather asset prompts categorized by type.
+        # Build video prompt: gather asset references categorized by type.
         character_parts = []
         scene_parts = []
         prop_parts = []
-        other_parts = []
-        asset_prompt_parts = []
-        referenced_assets: list[Asset] = []
+        reference_image_parts = []
+        reference_images: list[str] = []
         if shot.required_assets:
             asset_ids = [binding.asset_id for binding in shot.required_assets]
             assets = await Asset.find({"_id": {"$in": asset_ids}}).to_list()
@@ -57,26 +56,34 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
         for binding in shot.required_assets:
             asset = asset_map.get(str(binding.asset_id))
             if asset:
-                referenced_assets.append(asset)
-                asset_prompt = asset.prompt or binding.asset_name
                 asset_type_label = {
                     AssetType.character: "人物",
                     AssetType.scene: "场景",
                     AssetType.prop: "道具",
                     AssetType.template: "模板",
                 }.get(asset.asset_type, "资产")
-                asset_line = f"- {binding.asset_name}（{asset_type_label}）：{asset_prompt}"
-                asset_prompt_parts.append(asset_line)
-                if asset.asset_type == AssetType.character:
-                    character_parts.append(f"{binding.asset_name}：{asset_prompt}")
-                elif asset.asset_type == AssetType.scene:
-                    scene_parts.append(f"{binding.asset_name}：{asset_prompt}")
-                elif asset.asset_type == AssetType.prop:
-                    prop_parts.append(f"{binding.asset_name}：{asset_prompt}")
+                if asset.preview_url and len(reference_images) < 9:
+                    image_index = len(reference_images) + 1
+                    reference_images.append(presign_if_cos(asset.preview_url))
+                    reference_image_parts.append(f"[图{image_index}] {binding.asset_name}（{asset_type_label}）")
+                    asset_ref = f"[图{image_index}]{binding.asset_name}"
                 else:
-                    other_parts.append(f"{binding.asset_name}：{asset_prompt}")
+                    asset_ref = binding.asset_name
+                if asset.asset_type == AssetType.character:
+                    character_parts.append(f"{asset_ref}（{asset_type_label}）")
+                elif asset.asset_type == AssetType.scene:
+                    scene_parts.append(f"{asset_ref}（{asset_type_label}）")
+                elif asset.asset_type == AssetType.prop:
+                    prop_parts.append(f"{asset_ref}（{asset_type_label}）")
 
-        asset_prompt_block = "\n".join(asset_prompt_parts) if asset_prompt_parts else "无"
+        reference_image_block = "\n".join(reference_image_parts) if reference_image_parts else "无"
+        direct_reference_section = (
+            "【直接参考资产图片】\n"
+            f"{reference_image_block}\n"
+            "生成时必须按上方图号直接参考请求体中的 reference_image，不要把资产只当作文字描述。"
+            if reference_image_parts
+            else "【直接参考资产图片】\n无可用资产参考图片"
+        )
 
         if shot.dialogues:
             dialogue_text = "；".join(
@@ -98,24 +105,18 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
                 "seg1": seg1,
                 "seg2": seg2,
                 "shot_description": shot.description,
+                "reference_images": reference_image_block,
                 "character_prompts": "\n".join(character_parts) if character_parts else "无",
                 "scene_prompt": "\n".join(scene_parts) if scene_parts else "无",
                 "prop_prompts": "\n".join(prop_parts) if prop_parts else "无",
                 "dialogue": dialogue_text,
-                "shot_prompt": shot.prompt or "",
+                "shot_prompt": "",
             },
         )
 
         # ── 重试循环：最多 3 次，遇到敏感词错误时提取词 + 重新生成 prompt ──────
         from app.services import sensitive_word_service
 
-        # Gather reference asset images (pre-signed so Volcano Engine can access COS)
-        reference_images: list[str] = []
-        for asset in referenced_assets:
-            if asset and asset.preview_url:
-                reference_images.append(presign_if_cos(asset.preview_url))
-
-        first_frame_url = presign_if_cos(shot.image_url) if shot.image_url else None
         submitted_prompt = ""
 
         MAX_RETRIES = 3
@@ -159,18 +160,11 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
                     f"分镜描述：{shot.description}\n"
                     f"台词：{dialogue_text}"
                 ),
-                f"【引用资产】\n{asset_prompt_block}",
-                (
-                    "【资产类型补充】\n"
-                    f"人物：{chr(10).join(character_parts) if character_parts else '无'}\n"
-                    f"场景：{chr(10).join(scene_parts) if scene_parts else '无'}\n"
-                    f"道具：{chr(10).join(prop_parts) if prop_parts else '无'}\n"
-                    f"其他：{chr(10).join(other_parts) if other_parts else '无'}"
-                ),
+                direct_reference_section,
             ])
 
             # 立即写入最终真实提交文本，前端生成中即可看到。
-            await shot.set({"prompt": submitted_prompt, "submitted_prompt": submitted_prompt})
+            await shot.set({"submitted_prompt": submitted_prompt})
             if record:
                 await record.set({"logs": (record.logs or []) + [f"[prompt] 最终提交提示词：{submitted_prompt}"]})
 
@@ -179,9 +173,9 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
                 await record.set({"progress": 10, "logs": (record.logs or []) + [f"[video] {attempt_label}正在生成视频…"]})
 
             logger.info(
-                "[SHOT VIDEO PROMPT] shot_id=%s shot=%s attempt=%d/%d first_frame=%s ref_images=%d\n--- PROMPT START ---\n%s\n--- PROMPT END ---",
+                "[SHOT VIDEO PROMPT] shot_id=%s shot=%s attempt=%d/%d ref_images=%d\n--- PROMPT START ---\n%s\n--- PROMPT END ---",
                 shot_id, shot.shot_code, attempt + 1, MAX_RETRIES,
-                bool(first_frame_url), len(reference_images), submitted_prompt,
+                len(reference_images), submitted_prompt,
             )
 
             try:
@@ -190,7 +184,6 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
                     None,
                     lambda vp=submitted_prompt: video_service.generate_video_sync(
                         prompt=vp,
-                        first_frame_url=first_frame_url,
                         reference_images=reference_images if reference_images else None,
                         ratio="9:16",
                         duration=duration,
@@ -222,7 +215,6 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
             "video_url": video_url,
             "state": ShotState.rendered,
             "generation_task_id": celery_id,
-            "prompt": submitted_prompt,
             "submitted_prompt": submitted_prompt,
         }
         if last_frame_url:

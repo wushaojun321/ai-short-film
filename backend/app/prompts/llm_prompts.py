@@ -370,20 +370,21 @@ SHOT_VIDEO_GEN = {
 
 提示词结构（必须包含）：
 1. 全局视觉风格
-2. 场景参考
-3. 人物参考（每个角色明确身份、服装、性别，加排斥项）
-4. 镜头功能
-5. 固定站位
-6. 景别与机位
-7. 运镜
-8. 时间分段动作（视频时长 {duration} 秒，均匀分为三段：0-{seg1}s / {seg1}-{seg2}s / {seg2}-{duration}s，每段写明对应动作，覆盖完整时长）
-9. 台词与说话人（明确唯一发声人，其他人不得张嘴）
-10. 反向约束
+2. 直接参考图片说明：如果存在 [图1]、[图2] 等参考图片，必须在提示词中使用这些图号指代对应资产
+3. 场景参考
+4. 人物参考（每个角色明确身份、服装、性别，加排斥项）
+5. 镜头功能
+6. 固定站位
+7. 景别与机位
+8. 运镜
+9. 时间分段动作（视频时长 {duration} 秒，均匀分为三段：0-{seg1}s / {seg1}-{seg2}s / {seg2}-{duration}s，每段写明对应动作，覆盖完整时长）
+10. 台词与说话人（明确唯一发声人，其他人不得张嘴）
+11. 反向约束
 
 以 JSON 格式输出：{"prompt": "完整提示词文本"}
 注意：提示词用中文撰写，台词原文保留。""",
-    "user_prompt_template": "镜头编号：{shot_code}\n视频时长：{duration}秒\n分镜描述：{shot_description}\n台词：{dialogue}\n角色参考：\n{character_prompts}\n场景参考：\n{scene_prompt}\n道具参考：\n{prop_prompts}\n\n当前提示词（若有）：{shot_prompt}",
-    "variables": ["shot_code", "duration", "seg1", "seg2", "shot_description", "dialogue", "character_prompts", "scene_prompt", "prop_prompts", "shot_prompt"],
+    "user_prompt_template": "镜头编号：{shot_code}\n视频时长：{duration}秒\n分镜描述：{shot_description}\n台词：{dialogue}\n直接参考图片：\n{reference_images}\n角色参考：\n{character_prompts}\n场景参考：\n{scene_prompt}\n道具参考：\n{prop_prompts}\n\n当前提示词（若有）：{shot_prompt}",
+    "variables": ["shot_code", "duration", "seg1", "seg2", "shot_description", "dialogue", "reference_images", "character_prompts", "scene_prompt", "prop_prompts", "shot_prompt"],
 }
 
 # =============================================================================
