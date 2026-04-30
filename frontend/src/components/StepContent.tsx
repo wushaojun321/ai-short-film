@@ -55,14 +55,18 @@ interface ApprovalBarProps {
   regenerating?: boolean;
   notReady?: boolean;
   notReadyTip?: string;
+  compact?: boolean;
 }
 
 function ApprovalBar({
   approved, total, onApproveAll, onRegenerate, regenerateLabel, allApproved, approving,
-  regenerating, notReady, notReadyTip,
+  regenerating, notReady, notReadyTip, compact,
 }: ApprovalBarProps) {
   return (
-    <div className="flex items-center gap-4 mb-5 py-3 px-4 bg-soft rounded-xl border border-line">
+    <div className={cn(
+      "flex items-center gap-4 px-4 bg-soft rounded-xl border border-line",
+      compact ? "py-2.5" : "mb-5 py-3"
+    )}>
       <div className="flex-1">
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-xs text-sub">审批进度</span>
@@ -487,15 +491,15 @@ function StepVideos({
   };
 
   return (
-    <div>
+    <div className="space-y-3">
       {error && (
-        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3">
           <p className="text-xs text-red-600">{error}</p>
         </div>
       )}
 
       {hasUngenerated && (
-        <div className="mb-4 flex items-center justify-between rounded-xl border border-line bg-soft px-4 py-3">
+        <div className="flex items-center justify-between rounded-xl border border-line bg-soft px-4 py-2.5">
           <span className="text-xs text-sub">
             {shots.filter((s) => !s.videoUrl).length} 个分镜尚未生成视频
           </span>
@@ -519,58 +523,16 @@ function StepVideos({
         approving={approving}
         notReady={shots.length === 0 || shots.some((s) => !s.videoUrl || loadingIds.has(s.id) || s.state === "rendering")}
         notReadyTip="所有分镜视频生成完成后方可审批"
+        compact
       />
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* 左侧列表 */}
-        <div className="space-y-1.5 lg:col-span-1">
-          {shots.map((s, idx) => {
-            const isApproved = isPast || (!!s.videoUrl && s.state === "approved");
-            const isGenerating = loadingIds.has(s.id) || s.state === "rendering";
-            return (
-              <button
-                key={s.id}
-                onClick={() => setSelected(idx)}
-                className={cn(
-                  "w-full flex items-center gap-3 p-2.5 rounded-xl border text-left transition-all",
-                  selected === idx ? "border-primary bg-primary-soft" : "border-line hover:bg-soft"
-                )}
-              >
-                <div className="w-10 h-14 rounded-lg bg-soft shrink-0 flex items-center justify-center border border-line overflow-hidden">
-                  {isGenerating ? (
-                    <Loader2 className="w-4 h-4 text-brand animate-spin" />
-                  ) : s.videoUrl ? (
-                    <div className="w-full h-full bg-gradient-to-b from-soft to-line flex items-center justify-center">
-                      <Play className="w-3 h-3 text-sub" />
-                    </div>
-                  ) : (
-                    <Film className="w-4 h-4 text-line" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-medium text-text truncate">镜头 {s.shotCode}</div>
-                  <div className="text-xs text-muted mt-0.5">{s.duration}s</div>
-                </div>
-                {isGenerating ? (
-                  <div className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse shrink-0" />
-                ) : isApproved ? (
-                  <CheckCircle2 className="w-4 h-4 text-brand shrink-0" />
-                ) : s.videoUrl ? (
-                  <div className="w-1.5 h-1.5 rounded-full bg-warn shrink-0" />
-                ) : (
-                  <div className="w-1.5 h-1.5 rounded-full bg-line shrink-0" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* 右侧预览 */}
-        <div className="lg:col-span-2">
-          {shot && (
-            <div>
-              <div className="aspect-[9/16] max-w-xs mx-auto bg-soft rounded-2xl border border-line flex items-center justify-center mb-4 relative overflow-hidden">
+      <div className="space-y-3">
+        {/* 中央预览 */}
+        {shot && (
+          <div className="flex flex-col items-center">
+            <div className="w-full max-w-[420px]">
+              <div className="mx-auto h-[clamp(300px,38vh,460px)] aspect-[9/16] max-w-full bg-soft rounded-2xl border border-line flex items-center justify-center mb-3 relative overflow-hidden shadow-sm">
                 {(loadingIds.has(shot.id) || shot.state === "rendering") ? (
                   <div className="flex flex-col items-center gap-2">
                     <Loader2 className="w-8 h-8 text-brand animate-spin" />
@@ -591,49 +553,100 @@ function StepVideos({
                 )}
               </div>
 
-              <div className="max-w-xs mx-auto">
-                <p className="text-xs text-sub text-center mb-3 px-2 leading-relaxed">{shot.description}</p>
+              <p className="text-xs text-sub text-center mb-2 px-2 leading-relaxed line-clamp-2">{shot.description}</p>
 
-                {submittedPrompt && (
-                  <button
-                    onClick={() => setPromptSheetOpen(true)}
-                    className="w-full flex items-center justify-center gap-1.5 py-1.5 mb-3 rounded-lg text-xs text-muted hover:text-brand hover:bg-brand/5 transition-colors border border-dashed border-line hover:border-brand/30"
+              {submittedPrompt && (
+                <button
+                  onClick={() => setPromptSheetOpen(true)}
+                  className="w-full flex items-center justify-center gap-1.5 py-1 mb-2 rounded-lg text-xs text-muted hover:text-brand hover:bg-brand/5 transition-colors border border-dashed border-line hover:border-brand/30"
+                >
+                  <FileText className="w-3 h-3" />查看最终提交提示词
+                </button>
+              )}
+
+              {!(isPast || (!!shot.videoUrl && shot.state === "approved")) && !(loadingIds.has(shot.id) || shot.state === "rendering") && (
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant={shot.videoUrl ? "outline" : "default"}
+                    className="col-span-2"
+                    onClick={() => handleRegen(shot.id)}
                   >
-                    <FileText className="w-3 h-3" />查看最终提交提示词
-                  </button>
-                )}
-
-                {!(isPast || (!!shot.videoUrl && shot.state === "approved")) && !(loadingIds.has(shot.id) || shot.state === "rendering") && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      variant={shot.videoUrl ? "outline" : "default"}
-                      className="col-span-2"
-                      onClick={() => handleRegen(shot.id)}
-                    >
-                      {shot.videoUrl ? (
-                        <><RefreshCw className="w-4 h-4" />重新生成本镜头</>
-                      ) : (
-                        <><Play className="w-4 h-4" />生成本镜头</>
-                      )}
-                    </Button>
-                    <Button variant="outline" onClick={() => setAgentTarget(shot.id)}>
-                      <Bot className="w-4 h-4" />AI 修改
-                    </Button>
-                    <Button onClick={() => handleApprove(shot.id)} disabled={!shot.videoUrl}>
-                      <Check className="w-4 h-4" />审批通过
-                    </Button>
-                  </div>
-                )}
-                {(isPast || (!!shot.videoUrl && shot.state === "approved")) && (
-                  <div className="flex justify-center">
-                    <Badge variant="success" className="text-sm px-4 py-1.5">
-                      <CheckCircle2 className="w-4 h-4 mr-1.5" />已审批通过
-                    </Badge>
-                  </div>
-                )}
-              </div>
+                    {shot.videoUrl ? (
+                      <><RefreshCw className="w-4 h-4" />重新生成本镜头</>
+                    ) : (
+                      <><Play className="w-4 h-4" />生成本镜头</>
+                    )}
+                  </Button>
+                  <Button variant="outline" onClick={() => setAgentTarget(shot.id)}>
+                    <Bot className="w-4 h-4" />AI 修改
+                  </Button>
+                  <Button onClick={() => handleApprove(shot.id)} disabled={!shot.videoUrl}>
+                    <Check className="w-4 h-4" />审批通过
+                  </Button>
+                </div>
+              )}
+              {(isPast || (!!shot.videoUrl && shot.state === "approved")) && (
+                <div className="flex justify-center">
+                  <Badge variant="success" className="text-sm px-4 py-1.5">
+                    <CheckCircle2 className="w-4 h-4 mr-1.5" />已审批通过
+                  </Badge>
+                </div>
+              )}
             </div>
-          )}
+          </div>
+        )}
+
+        {/* 底部横向镜头列表 */}
+        <div className="rounded-2xl border border-line bg-white px-3 py-2">
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="text-xs font-medium text-sub">镜头列表</span>
+            <span className="text-xs text-muted">
+              {selected + 1} / {shots.length}
+            </span>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {shots.map((s, idx) => {
+              const isApproved = isPast || (!!s.videoUrl && s.state === "approved");
+              const isGenerating = loadingIds.has(s.id) || s.state === "rendering";
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setSelected(idx)}
+                  className={cn(
+                    "min-w-[150px] max-w-[150px] rounded-xl border p-2 text-left transition-all",
+                    selected === idx ? "border-primary bg-primary-soft shadow-sm" : "border-line hover:bg-soft"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-9 h-12 rounded-lg bg-soft flex items-center justify-center border border-line overflow-hidden shrink-0">
+                      {isGenerating ? (
+                        <Loader2 className="w-4 h-4 text-brand animate-spin" />
+                      ) : s.videoUrl ? (
+                        <Play className="w-3.5 h-3.5 text-sub" />
+                      ) : (
+                        <Film className="w-4 h-4 text-line" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium text-text truncate">镜头 {s.shotCode}</div>
+                      <div className="text-xs text-muted mt-0.5">{s.duration}s</div>
+                    </div>
+                    <div className="ml-auto shrink-0">
+                    {isGenerating ? (
+                      <div className="mt-1 w-1.5 h-1.5 rounded-full bg-brand animate-pulse shrink-0" />
+                    ) : isApproved ? (
+                      <CheckCircle2 className="mt-0.5 w-4 h-4 text-brand shrink-0" />
+                    ) : s.videoUrl ? (
+                      <div className="mt-1 w-1.5 h-1.5 rounded-full bg-warn shrink-0" />
+                    ) : (
+                      <div className="mt-1 w-1.5 h-1.5 rounded-full bg-line shrink-0" />
+                    )}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 

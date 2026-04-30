@@ -9,6 +9,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { Project, EpisodeDetail, EpisodeStep, STEP_ORDER } from "@/lib/data";
 import { episodeAPI } from "@/lib/api";
 import { transformEpisode } from "@/lib/transforms";
+import { cn } from "@/lib/utils";
 
 interface ProjectStudioScreenProps {
   project: Project;
@@ -120,6 +121,12 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
 
   if (!activeEpisode) return null;
 
+  const shotTotalDuration = activeEpisode.shots.reduce((sum, shot) => sum + (shot.duration || 0), 0);
+  const displayDuration = shotTotalDuration > 0 ? shotTotalDuration : activeEpisode.estimatedDuration;
+  const displayDurationLabel = shotTotalDuration > 0 ? "分镜总时长" : "预估时长";
+  const displayDurationText = `${Math.floor(displayDuration / 60)}:${(displayDuration % 60).toString().padStart(2, "0")}`;
+  const isVideoStep = activeStep === "storyboard_videos";
+
   return (
     <div className="flex h-[calc(100vh-56px)]">
       <EpisodeSidebar
@@ -137,8 +144,8 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
         />
 
         <div className="flex-1 overflow-y-auto bg-white">
-          <div className="max-w-5xl mx-auto px-6 py-6">
-            <div className="mb-6 pb-4 border-b border-line">
+          <div className={cn("mx-auto px-6", isVideoStep ? "max-w-6xl py-4" : "max-w-5xl py-6")}>
+            <div className={cn("border-b border-line", isVideoStep ? "mb-3 pb-3" : "mb-6 pb-4")}>
               <div className="flex items-start justify-between">
                 <div>
                   <h2 className="text-lg font-semibold text-text">
@@ -149,7 +156,10 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
                   )}
                   {activeEpisode.scriptExcerpt && (
                     <p
-                      className="text-xs text-muted mt-1.5 line-clamp-2 cursor-pointer hover:text-sub transition-colors whitespace-pre-wrap"
+                      className={cn(
+                        "text-xs text-muted mt-1.5 cursor-pointer hover:text-sub transition-colors whitespace-pre-wrap",
+                        isVideoStep ? "line-clamp-1" : "line-clamp-2"
+                      )}
                       onClick={() => setScriptSheetOpen(true)}
                     >
                       {activeEpisode.scriptExcerpt}
@@ -178,13 +188,12 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
                     资产库
                   </Button>
                   <div className="flex gap-4 text-right">
-                    {activeEpisode.estimatedDuration > 0 && (
+                    {displayDuration > 0 && (
                       <div>
                         <div className="text-sm font-semibold text-text">
-                          {Math.floor(activeEpisode.estimatedDuration / 60)}:
-                          {(activeEpisode.estimatedDuration % 60).toString().padStart(2, "0")}
+                          {displayDurationText}
                         </div>
-                        <div className="text-xs text-muted">预估时长</div>
+                        <div className="text-xs text-muted">{displayDurationLabel}</div>
                       </div>
                     )}
                     {activeEpisode.shots.length > 0 && (
