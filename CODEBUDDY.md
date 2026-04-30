@@ -242,7 +242,10 @@ Celery 队列和 Docker Compose 服务对应关系：
 
 ```bash
 # 标准部署流程（代码已推到 gitee 后执行）
-ssh root@42.193.144.175 "cd /root/ai-short-film && git pull && docker compose build && docker compose up -d"
+ssh root@42.193.144.175 "cd /root/ai-short-film && ./scripts/update-server.sh"
+
+# 只重建/重启部分服务
+ssh root@42.193.144.175 "cd /root/ai-short-film && SERVICES='api worker-llm worker-video' ./scripts/update-server.sh"
 
 # 仅重启不重新 build（只改环境变量或临时重启时）
 ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose restart"
