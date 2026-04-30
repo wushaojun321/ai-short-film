@@ -7,6 +7,23 @@ from app.tasks.base import run_async, finish_task_record
 logger = logging.getLogger(__name__)
 
 
+ASSET_NEGATIVE_PROMPT = (
+    "不要动漫风，不要插画风，不要游戏CG，不要3D建模，不要二次元，不要卡通，"
+    "不要角色立绘，不要设定图，不要塑料皮肤，不要过度磨皮，不要蜡像感，"
+    "不要夸张大眼，不要娃娃脸，不要美颜滤镜感，不要低质感服装，不要材质像塑料，"
+    "不要模糊、变形、多余肢体、不自然比例"
+)
+
+
+def _merge_negative_prompt(prompt: str, negative_prompt: str | None = None) -> str:
+    """Append negative style constraints to the actual Seedream prompt."""
+    parts = [ASSET_NEGATIVE_PROMPT]
+    if negative_prompt:
+        parts.append(negative_prompt.strip())
+    merged = "；".join(part for part in parts if part)
+    return f"{prompt.strip()}\n\n反向约束：{merged}"
+
+
 @celery_app.task(bind=True, name="app.tasks.image.gen_asset", queue="image")
 def gen_asset_image_task(self, asset_id: str):
     """Generate preview image for an asset using Seedream."""
@@ -67,6 +84,7 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
             )
 
             full_prompt = None
+            negative_prompt = None
             try:
                 raw = await llm_service.chat_json(
                     system_prompt=system_prompt + blocked_note,
@@ -75,6 +93,7 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
                 if isinstance(raw, str):
                     raw = json.loads(raw)
                 positive = raw.get("positive_prompt", "")
+                negative_prompt = raw.get("negative_prompt", "")
                 if positive:
                     full_prompt = positive
                     optimized_prompt = positive
@@ -86,12 +105,13 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
                 # 兜底：用资产名称构造中性中文 prompt，避免原始 prompt 中可能的敏感词
                 asset_type_label = {"character": "人物", "scene": "场景", "prop": "道具"}.get(asset_type_str, "主体")
                 full_prompt = (
-                    f"竖屏9:16，{asset_type_label}标准参考图，名称：{asset.name}，"
-                    "白色纯色背景，主体清晰完整，细节丰富，写实电影质感，高清，"
-                    "避免模糊、变形、多余肢体、不自然比例"
+                    f"竖屏9:16，{asset_type_label}影视参考图，名称：{asset.name}，"
+                    "真实摄影质感，主体清晰完整，真实材质细节丰富，电影级写实光影，高清，"
+                    "人物资产使用真人演员定妆照风格，场景资产使用影视场景参考照风格，道具资产使用真实产品摄影风格"
                 )
                 if record:
                     await record.set({"logs": (record.logs or []) + ["[prompt] 使用兜底安全提示词（LLM 优化失败）"]})
+            submitted_prompt = _merge_negative_prompt(full_prompt, negative_prompt)
 
             if record:
                 attempt_label = f"第 {attempt + 1} 次" if attempt > 0 else ""
@@ -99,13 +119,13 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
 
             logger.info(
                 "[ASSET IMAGE PROMPT] asset_id=%s asset=%s attempt=%d/%d\n--- PROMPT START ---\n%s\n--- PROMPT END ---",
-                asset_id, asset.name, attempt + 1, MAX_RETRIES, full_prompt,
+                asset_id, asset.name, attempt + 1, MAX_RETRIES, submitted_prompt,
             )
 
             try:
                 image_url = await image_service.generate_image(
-                    prompt=full_prompt,
-                    size="2048x2048",
+                    prompt=submitted_prompt,
+                    size="1600x2848",  # 9:16 vertical 2K, avoids square character-card bias
                 )
                 # 将最终使用的优化 prompt 存回 asset
                 await asset.set({"prompt": optimized_prompt})
@@ -113,7 +133,7 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
             except Exception as gen_err:
                 err_str = str(gen_err)
                 if "SensitiveContent" in err_str:
-                    words = await sensitive_word_service.extract_and_save(full_prompt, "image")
+                    words = await sensitive_word_service.extract_and_save(submitted_prompt, "image")
                     log_msg = f"[retry {attempt + 1}/{MAX_RETRIES}] 敏感词触发审核，已记录词汇：{words or '(提取失败)'}"
                     if record:
                         await record.set({"logs": (record.logs or []) + [log_msg]})
@@ -127,7 +147,7 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
         new_version = AssetVersion(
             version=version_str,
             url=image_url,
-            prompt=full_prompt,
+            prompt=submitted_prompt,
             created_at=datetime.utcnow(),
         )
 
