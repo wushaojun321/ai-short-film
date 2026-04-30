@@ -19,6 +19,8 @@ REMOTE="${REMOTE:-origin}"
 SERVICES="${SERVICES:-}"
 PRUNE="${PRUNE:-0}"
 ALLOW_DIRTY="${ALLOW_DIRTY:-0}"
+HEALTH_RETRIES="${HEALTH_RETRIES:-30}"
+HEALTH_INTERVAL="${HEALTH_INTERVAL:-2}"
 
 log() {
   printf '\n[%s] %s\n' "$(date '+%F %T')" "$*"
@@ -41,25 +43,39 @@ compose() {
 
 run_health_check() {
   log "Checking API health inside api container..."
-  compose exec -T api python - <<'PY'
+  compose exec -T \
+    -e HEALTH_RETRIES="$HEALTH_RETRIES" \
+    -e HEALTH_INTERVAL="$HEALTH_INTERVAL" \
+    api python - <<'PY'
 import json
+import os
 import sys
+import time
 import urllib.request
 
 url = "http://127.0.0.1:8000/health"
-try:
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    with opener.open(url, timeout=10) as response:
-        payload = json.loads(response.read().decode("utf-8"))
-except Exception as exc:
-    print(f"health check failed: {exc}", file=sys.stderr)
-    sys.exit(1)
+retries = int(os.environ.get("HEALTH_RETRIES", "30"))
+interval = float(os.environ.get("HEALTH_INTERVAL", "2"))
+opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+last_error = None
 
-if payload.get("status") != "ok":
-    print(f"unexpected health payload: {payload}", file=sys.stderr)
-    sys.exit(1)
+for attempt in range(1, retries + 1):
+    try:
+        with opener.open(url, timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        if payload.get("status") == "ok":
+            print("api health ok")
+            sys.exit(0)
+        last_error = f"unexpected health payload: {payload}"
+    except Exception as exc:
+        last_error = str(exc)
 
-print("api health ok")
+    if attempt < retries:
+        print(f"api health not ready ({attempt}/{retries}): {last_error}", file=sys.stderr)
+        time.sleep(interval)
+
+print(f"health check failed after {retries} attempts: {last_error}", file=sys.stderr)
+sys.exit(1)
 PY
 }
 
