@@ -52,7 +52,7 @@ async def enqueue_parse_script(
 @router.post("/episodes/{episode_id}/shot-script")
 async def enqueue_shot_script(
     episode_id: PydanticObjectId,
-    max_shot_duration: int = 5,
+    max_shot_duration: int = 8,
     feedback: str | None = None,
     current_user=Depends(get_current_user),
 ):

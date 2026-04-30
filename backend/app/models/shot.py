@@ -32,6 +32,10 @@ class Shot(Document):
     shot_code: str                         # "S01", "S02" ...
     order: int
     duration: int = 5
+    segment_code: str = ""
+    segment_name: str = ""
+    segment_function: str = ""
+    shot_function: str = ""
     description: str = ""
     dialogues: list[ShotDialogueLine] = []  # 一个镜头可有多句对白
     prompt: str = ""

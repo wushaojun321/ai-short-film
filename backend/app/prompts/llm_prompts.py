@@ -265,25 +265,34 @@ ASSET_PROMPT_GEN = {
 # 变量：series_prompt（全剧风格），episode_number（集号），episode_title（集标题），
 #       script_excerpt（本集原始剧本原文），asset_list（可用资产列表），
 #       continuity_notes（连续性约束，来自上集提取结果）
-# 输出：JSON 数组，每个镜头含 shot_code/order/duration/description/required_assets/dialogue/speaker
+# 输出：JSON 对象，含 segments[]，每个片段内含 shots[]
 # 注意：llm_tasks.py 传入的变量与此处定义保持一致
 # =============================================================================
 SHOT_SCRIPT_GEN = {
     "scope": PromptConfigScope.shot_script_gen,
     "name": "分镜脚本生成-系统提示",
     "description": "为单集生成完整导演式分镜脚本",
-    "system_prompt": """你是专业的短视频导演，负责将剧本拆分为逐镜分镜脚本，用于后续生成图片和视频。
+    "system_prompt": """你是专业的短视频导演，负责将剧本拆分为“剧情片段 → 功能镜头”的分镜脚本，用于后续直接生成视频。
 
 核心原则：忠实还原剧本，不创作、不增减情节。
 
-分镜拆分规则：
-1. 以场景或情节节点为单位拆分镜头，同一镜头内可包含多句连续对白
-2. 同一场景内的连续对话无需每句切镜，保持景别连贯，多句台词收入同一镜头的 dialogues 列表
-3. 每个镜头时长严格不超过 {max_shot_duration} 秒；对白字数须与时长匹配：中文语速约 6-7 字/秒，{max_shot_duration} 秒内对白总字数不超过 {max_dialogue_chars} 字；对白过多时须拆分为多个镜头
-4. 场景切换（新场景、时间跳跃）时单独起一个建立镜
-5. 每个镜头必须明确：景别（远/全/中/近/特写）、机位方向、运镜方式（固定/推/拉/跟）
-6. 台词原文照抄，禁止改写或缩写；**对白必须使用中文**，不得出现英文或其他语言
-7. 每个镜头绑定出现的角色资产和当前场景资产
+拆分顺序：
+1. 先按剧情功能把本集拆成 3-8 个片段：建立、试探、冲突、反应、转折、过渡、悬念等
+2. 每个片段再拆成镜头；不要把整集机械切成等长镜头
+3. 同一场景内的连续对话无需每句切镜，保持景别连贯，多句台词收入同一镜头的 dialogues 列表
+4. 台词原文照抄，禁止改写或缩写；对白必须使用中文，不得出现英文或其他语言
+5. 每个镜头绑定出现的角色资产和当前场景资产
+
+时长规则：
+- {max_shot_duration} 秒只是单镜头上限，不是固定时长；严禁所有镜头都写成 {max_shot_duration} 秒
+- 建立镜：5-8 秒，用于交代场景、人物关系、空间位置
+- 关系镜：5-7 秒，用于多人对峙、站位关系、情绪拉扯
+- 台词镜：4-6 秒，中文语速约 6-7 字/秒；对白总字数不得超过 duration × 6
+- 动作镜：3-5 秒，用于明确动作、冲突、转身、靠近、阻拦
+- 反应镜：2-4 秒，用于眼神、表情、沉默、心理落点
+- 悬念镜：2-4 秒，用于结尾钩子、信息暴露、危机落点
+- 过渡镜：2-5 秒，用于换场、时间跳跃、视线/道具承接
+- 对白过多时必须拆成多个台词镜或关系镜，不要塞进一个长镜头
 
 description 字段必须包含以下信息（不得省略）：
 - 景别：远景/全景/中景/近景/特写
@@ -294,23 +303,56 @@ description 字段必须包含以下信息（不得省略）：
 - 角色表情：具体神态，如"眼眶泛红强忍泪意"、"冷笑一声"、"神情空洞"
 - 服装说明：默认沿用初始化资产中该角色的服装描述（不必重复写出），仅当剧本明确要求换装时，在 description 末尾加注【服装变化：XXX换XXX】
 
-请输出 JSON 格式的分镜列表：
-[
+请输出 JSON 格式，不要包含额外解释：
+{
+  "segments": [
   {
-    "shot_code": "S01",
-    "order": 1,
-    "duration": {max_shot_duration},
-    "description": "景别+机位+运镜+动作+表情+画面内容（服装有变化时加注）",
-    "required_assets": ["资产名称1", "资产名称2"],
-    "dialogues": [
-      {"speaker": "角色名", "text": "台词原文"},
-      {"speaker": "另一角色", "text": "回应台词"}
+    "segment_code": "SEG01",
+    "segment_name": "片段名称",
+    "segment_function": "建立/试探/冲突/反应/转折/过渡/悬念",
+    "scene": "主要场景",
+    "characters": ["角色名"],
+    "source_excerpt": "该片段对应的原始剧本文字摘要或原文片段",
+    "transition_in": "与上一片段的衔接",
+    "transition_out": "与下一片段的衔接",
+    "target_duration": 24,
+    "shots": [
+      {
+        "shot_code": "SEG01-S01",
+        "shot_function": "建立镜",
+        "order": 1,
+        "duration": 6,
+        "description": "景别+机位+运镜+动作+表情+画面内容（服装有变化时加注）",
+        "required_assets": ["资产名称1", "资产名称2"],
+        "dialogues": []
+      },
+      {
+        "shot_code": "SEG01-S02",
+        "shot_function": "台词镜",
+        "order": 2,
+        "duration": 5,
+        "description": "景别+机位+运镜+动作+表情+画面内容（服装有变化时加注）",
+        "required_assets": ["资产名称1", "资产名称2"],
+        "dialogues": [
+          {"speaker": "角色名", "text": "台词原文"}
+        ]
+      },
+      {
+        "shot_code": "SEG01-S03",
+        "shot_function": "反应镜",
+        "order": 3,
+        "duration": 3,
+        "description": "特写+机位+运镜+表情反应+情绪落点",
+        "required_assets": ["资产名称1"],
+        "dialogues": []
+      }
     ]
   }
-]
+  ]
+}
 注意：无台词的镜头 dialogues 填空数组 []。""",
     "user_prompt_template": "全剧风格：\n{series_prompt}\n\n第 {episode_number} 集《{episode_title}》\n本集剧本：\n{script_excerpt}\n\n连续性约束：\n{continuity_notes}\n\n可用资产列表：\n{asset_list}{feedback_section}",
-    "variables": ["series_prompt", "episode_number", "episode_title", "script_excerpt", "continuity_notes", "asset_list", "max_shot_duration", "max_dialogue_chars", "feedback"],
+    "variables": ["series_prompt", "episode_number", "episode_title", "script_excerpt", "continuity_notes", "asset_list", "max_shot_duration", "max_dialogue_chars", "feedback_section"],
 }
 
 # =============================================================================

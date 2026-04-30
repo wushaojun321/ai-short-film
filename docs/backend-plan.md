@@ -197,6 +197,10 @@ class Shot(Document):
     shot_code: str                        # "S01", "S02" ...
     order: int
     duration: int                         # 秒
+    segment_code: str = ""                # 短期折中版：所属片段编号
+    segment_name: str = ""                # 短期折中版：所属片段名称
+    segment_function: str = ""            # 建立/试探/冲突/反应/过渡/悬念等
+    shot_function: str = ""               # 建立镜/关系镜/台词镜/动作镜/反应镜等
     description: str                      # 导演式分镜描述
     dialogues: list[ShotDialogueLine] = [] # 一个镜头可有多句对白
     prompt: str = ""                      # 最终提交视频模型的提示词
@@ -645,8 +649,8 @@ def parse_script_task(self, project_id: str):
     ...
 
 @celery_app.task(bind=True, name="app.tasks.llm.gen_shot_script", queue="llm")
-def gen_shot_script_task(self, episode_id: str, max_shot_duration: int = 10, feedback: str | None = None):
-    """为整集生成所有分镜脚本"""
+def gen_shot_script_task(self, episode_id: str, max_shot_duration: int = 8, feedback: str | None = None):
+    """为整集生成所有分镜脚本；当前短期版会先输出 segments，再展平成 Shot"""
     ...
 ```
 

@@ -266,13 +266,80 @@ async def _parse_script_async(celery_id: str, project_id: str):
         raise
 
 
+def _duration_bounds_for_function(shot_function: str, max_shot_duration: int) -> tuple[int, int]:
+    """Return the preferred duration range for a functional shot type."""
+    fn = shot_function or ""
+    if "建立" in fn:
+        lo, hi = 5, 8
+    elif "关系" in fn:
+        lo, hi = 5, 7
+    elif "台词" in fn or "对话" in fn:
+        lo, hi = 4, 6
+    elif "动作" in fn or "冲突" in fn:
+        lo, hi = 3, 5
+    elif "反应" in fn:
+        lo, hi = 2, 4
+    elif "悬念" in fn or "落点" in fn or "钩子" in fn:
+        lo, hi = 2, 4
+    elif "过渡" in fn or "转场" in fn:
+        lo, hi = 2, 5
+    else:
+        lo, hi = 3, 6
+
+    hi = min(hi, max(max_shot_duration, 1))
+    lo = min(lo, hi)
+    return lo, hi
+
+
+def _normalize_shot_duration(raw_duration, shot_function: str, max_shot_duration: int) -> int:
+    """Clamp LLM duration to a functional range instead of accepting fixed repeated values."""
+    lo, hi = _duration_bounds_for_function(shot_function, max_shot_duration)
+    try:
+        duration = int(raw_duration)
+    except (TypeError, ValueError):
+        duration = round((lo + hi) / 2)
+    return max(lo, min(duration, hi))
+
+
+def _extract_shot_list(result) -> list[tuple[dict, dict]]:
+    """Flatten new segments[] output while preserving compatibility with old flat shot arrays."""
+    if isinstance(result, list):
+        return [({}, s) for s in result if isinstance(s, dict)]
+    if isinstance(result, dict) and "shot_code" in result:
+        return [({}, result)]
+    if not isinstance(result, dict):
+        return []
+
+    segments = result.get("segments")
+    if isinstance(segments, list):
+        flattened: list[tuple[dict, dict]] = []
+        for seg in segments:
+            if not isinstance(seg, dict):
+                continue
+            shots = seg.get("shots") or seg.get("shot_list") or seg.get("storyboard") or []
+            if isinstance(shots, dict) and "shot_code" in shots:
+                shots = [shots]
+            if not isinstance(shots, list):
+                continue
+            for shot in shots:
+                if isinstance(shot, dict):
+                    flattened.append((seg, shot))
+        if flattened:
+            return flattened
+
+    shots_data = result.get("shots") or result.get("storyboard") or result.get("shot_list") or []
+    if isinstance(shots_data, dict) and "shot_code" in shots_data:
+        shots_data = [shots_data]
+    return [({}, s) for s in shots_data if isinstance(s, dict)]
+
+
 @celery_app.task(bind=True, name="app.tasks.llm.gen_shot_script", queue="llm")
-def gen_shot_script_task(self, episode_id: str, max_shot_duration: int = 10, feedback: str | None = None):
+def gen_shot_script_task(self, episode_id: str, max_shot_duration: int = 8, feedback: str | None = None):
     """Generate storyboard script for an episode."""
     return run_async(_gen_shot_script_async(self.request.id, episode_id, max_shot_duration, feedback))
 
 
-async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_duration: int = 10, feedback: str | None = None):
+async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_duration: int = 8, feedback: str | None = None):
     from app.database import init_db
     await init_db()
 
@@ -329,22 +396,16 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
             await episode.set({"current_step": EpisodeStep.storyboard_script})
         await Shot.find(Shot.episode_id == episode.id).delete()
 
-        # Create shots — LLM may return array or dict with various key names
-        if isinstance(result, list):
-            shots_data = result
-        elif isinstance(result, dict) and "shot_code" in result:
-            # LLM returned a single shot object instead of an array
-            shots_data = [result]
-        else:
-            shots_data = (
-                result.get("shots")
-                or result.get("storyboard")
-                or result.get("shot_list")
-                or []
-            )
+        # Create shots — supports the new segments[].shots structure and the old flat formats.
+        flattened_shots = _extract_shot_list(result)
         # Build asset name→id map once for efficiency
         asset_map = {a.name: a for a in assets}
-        for idx, s in enumerate(shots_data):
+        for idx, (segment, s) in enumerate(flattened_shots):
+            segment_code = str(segment.get("segment_code") or segment.get("code") or "")
+            segment_name = str(segment.get("segment_name") or segment.get("name") or segment.get("title") or "")
+            segment_function = str(segment.get("segment_function") or segment.get("function") or "")
+            shot_function = str(s.get("shot_function") or s.get("function") or "")
+
             # Resolve asset bindings from LLM output
             required_assets: list[ShotAssetBinding] = []
             for ra in s.get("required_assets", []):
@@ -378,8 +439,12 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
                 project_id=episode.project_id,
                 episode_id=episode.id,
                 shot_code=shot_code,
-                order=s.get("order", idx + 1),
-                duration=s.get("duration", 5),
+                order=idx + 1,
+                duration=_normalize_shot_duration(s.get("duration"), shot_function, max_shot_duration),
+                segment_code=segment_code,
+                segment_name=segment_name,
+                segment_function=segment_function,
+                shot_function=shot_function,
                 description=s.get("description", ""),
                 dialogues=dialogues,
                 prompt=s.get("prompt", ""),
@@ -388,7 +453,7 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
             )
             await shot.insert()
 
-        await finish_task_record(celery_id, result={"shots": len(shots_data)})
+        await finish_task_record(celery_id, result={"shots": len(flattened_shots)})
 
         # 生成完成后停留在 storyboard_script，等待用户手动审批后再推进
         # （前端点击"全部通过"时由 episodeAPI.setStep 推进到 storyboard_videos）

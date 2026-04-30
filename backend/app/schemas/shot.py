@@ -7,6 +7,10 @@ class ShotCreate(BaseModel):
     shot_code: str
     order: int
     duration: int = 5
+    segment_code: str = ""
+    segment_name: str = ""
+    segment_function: str = ""
+    shot_function: str = ""
     description: str = ""
     prompt: str = ""
 
@@ -15,6 +19,10 @@ class ShotUpdate(BaseModel):
     shot_code: Optional[str] = None
     order: Optional[int] = None
     duration: Optional[int] = None
+    segment_code: Optional[str] = None
+    segment_name: Optional[str] = None
+    segment_function: Optional[str] = None
+    shot_function: Optional[str] = None
     description: Optional[str] = None
     prompt: Optional[str] = None
     submitted_prompt: Optional[str] = None

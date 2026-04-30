@@ -283,6 +283,21 @@ function StepScript({
                     <Badge variant={approved ? "success" : cfg.variant}>
                       {approved ? "已通过" : cfg.label}
                     </Badge>
+                    {shot.segmentName && (
+                      <span className="inline-flex items-center gap-1 text-xs text-sub bg-soft px-2 py-0.5 rounded-full">
+                        <Layers className="w-3 h-3" />{shot.segmentName}
+                      </span>
+                    )}
+                    {shot.segmentFunction && (
+                      <span className="text-xs text-sub bg-soft px-2 py-0.5 rounded-full">
+                        {shot.segmentFunction}
+                      </span>
+                    )}
+                    {shot.shotFunction && (
+                      <span className="text-xs text-brand bg-brand-soft px-2 py-0.5 rounded-full">
+                        {shot.shotFunction}
+                      </span>
+                    )}
                     <span className="flex items-center gap-1 text-xs text-muted">
                       <Clock className="w-3 h-3" />{shot.duration}s
                     </span>

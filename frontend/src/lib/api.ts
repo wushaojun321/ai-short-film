@@ -103,6 +103,10 @@ export interface ApiShot {
   shot_code: string;
   order: number;
   duration: number;
+  segment_code?: string;
+  segment_name?: string;
+  segment_function?: string;
+  shot_function?: string;
   description: string;
   dialogues: Array<{ speaker: string; text: string }>;
   // 兼容旧数据

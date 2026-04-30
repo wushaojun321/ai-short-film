@@ -82,6 +82,10 @@ export function transformShot(s: ApiShot): Shot {
     shotCode: s.shot_code,
     order: s.order,
     duration: s.duration,
+    segmentCode: s.segment_code || undefined,
+    segmentName: s.segment_name || undefined,
+    segmentFunction: s.segment_function || undefined,
+    shotFunction: s.shot_function || undefined,
     description: s.description,
     dialogues: s.dialogues ?? (
       // 兼容旧格式：dialogue/speaker 字符串

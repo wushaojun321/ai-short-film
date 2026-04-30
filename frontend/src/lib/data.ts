@@ -61,6 +61,10 @@ export interface Shot {
   shotCode: string;
   order: number;
   duration: number; // 秒
+  segmentCode?: string;
+  segmentName?: string;
+  segmentFunction?: string;
+  shotFunction?: string;
   description: string;
   dialogues: ShotDialogueLine[];
   assets: string[];
