@@ -52,7 +52,9 @@ client.interceptors.response.use(
     if (err?.response?.status === 401) {
       localStorage.removeItem("auth_token");
       localStorage.removeItem("auth_username");
-      window.location.href = "/login";
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
       return Promise.reject(new Error("登录已过期，请重新登录"));
     }
     return Promise.reject(new Error(extractErrorMessage(err)));

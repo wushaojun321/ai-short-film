@@ -14,6 +14,7 @@
 import COS from "cos-js-sdk-v5";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { stsAPI, type StsToken } from "@/lib/api";
+import { useAuth } from "@/lib/AuthContext";
 
 interface CosContextValue {
   cosUrl: (url: string | null | undefined) => string;
@@ -26,6 +27,7 @@ const CosContext = createContext<CosContextValue>({
 });
 
 export function CosProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const cosRef = useRef<InstanceType<typeof COS> | null>(null);
   const tokenRef = useRef<StsToken | null>(null);
   const [ready, setReady] = useState(false);
@@ -53,10 +55,18 @@ export function CosProvider({ children }: { children: React.ReactNode }) {
 
   // 初次加载
   useEffect(() => {
+    if (!user) {
+      cosRef.current = null;
+      tokenRef.current = null;
+      setReady(false);
+      setSignedCache(new Map());
+      pendingRef.current.clear();
+      return;
+    }
     stsAPI.getToken()
       .then(initCos)
       .catch((e) => console.warn("[COS] STS 获取失败，图片可能无法显示:", e));
-  }, []);
+  }, [user]);
 
   // 在 token 过期前 5 分钟自动刷新，并清空缓存让图片重新签名
   useEffect(() => {

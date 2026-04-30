@@ -11,6 +11,7 @@ set -Eeuo pipefail
 #   BRANCH=main ./scripts/update-server.sh
 #   SERVICES="api worker-llm worker-image worker-video worker-merge frontend" ./scripts/update-server.sh
 #   PRUNE=1 ./scripts/update-server.sh
+#   ./scripts/update-server.sh --health-only
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="${REPO_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
@@ -47,7 +48,8 @@ import urllib.request
 
 url = "http://127.0.0.1:8000/health"
 try:
-    with urllib.request.urlopen(url, timeout=10) as response:
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    with opener.open(url, timeout=10) as response:
         payload = json.loads(response.read().decode("utf-8"))
 except Exception as exc:
     print(f"health check failed: {exc}", file=sys.stderr)
@@ -66,6 +68,11 @@ cd "$REPO_DIR"
 [[ -d .git ]] || die "$REPO_DIR is not a git repository."
 [[ -f docker-compose.yml ]] || die "$REPO_DIR/docker-compose.yml not found."
 [[ -f backend/.env ]] || die "backend/.env not found. Refusing to deploy without runtime secrets."
+
+if [[ "${1:-}" == "--health-only" ]]; then
+  run_health_check
+  exit 0
+fi
 
 if [[ "$ALLOW_DIRTY" != "1" ]] && ! git diff --quiet; then
   die "Working tree has local modifications. Commit/stash them or rerun with ALLOW_DIRTY=1."
