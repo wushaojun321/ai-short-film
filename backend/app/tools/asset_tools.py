@@ -63,6 +63,15 @@ async def generate_asset_image(asset_id: str, prompt_override: str | None = None
     if not asset:
         return {"error": f"Asset {asset_id} not found"}
 
+    if asset.status in (AssetStatus.queued, AssetStatus.generating):
+        return {
+            "asset_id": asset_id,
+            "asset_name": asset.name,
+            "status": "skipped",
+            "task_id": asset.generation_task_id,
+            "message": f"资产「{asset.name}」已有图片生成任务在进行中，已跳过重复提交。",
+        }
+
     if prompt_override:
         await asset.set({"prompt": prompt_override})
 
@@ -83,7 +92,7 @@ async def generate_asset_image(asset_id: str, prompt_override: str | None = None
     # Mark queued immediately; worker will change to generating when it starts
     await asset.set({
         "status": AssetStatus.queued,
-        "generation_task_id": str(record.id),
+        "generation_task_id": celery_task.id,
     })
 
     return {

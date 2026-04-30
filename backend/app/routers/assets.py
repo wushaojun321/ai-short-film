@@ -64,6 +64,15 @@ async def request_regen(asset_id: PydanticObjectId, project: Project = Depends(g
     from app.tasks.image_tasks import gen_asset_image_task
     from datetime import datetime
 
+    if asset.status in (AssetStatus.queued, AssetStatus.generating):
+        return {
+            "status": asset.status,
+            "task_id": asset.generation_task_id,
+            "record_id": None,
+            "skipped": True,
+            "reason": "already queued or generating",
+        }
+
     await asset.set({"status": AssetStatus.queued})
     task = gen_asset_image_task.delay(str(asset_id))
 
