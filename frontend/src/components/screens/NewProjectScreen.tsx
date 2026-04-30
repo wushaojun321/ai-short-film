@@ -244,7 +244,7 @@ function PhaseWaiting({
         }
       },
       2000,
-      180000,
+      900000,
     ).then(async (task) => {
       const finalLogs = task.logs ?? [];
       if (finalLogs.length > seenLogsRef.current) {
@@ -320,7 +320,7 @@ function PhaseWaiting({
           <p className="text-sm text-sub leading-relaxed">
             {error ?? (finished
               ? "分集规划和资产清单已全部生成，即将进入确认步骤。"
-              : "正在理解剧情结构、提取人物关系并规划分集方案，通常需要 10–30 秒。")}
+              : "正在理解剧情结构、提取人物关系并规划分集方案，长剧本或多集数项目可能需要数分钟。")}
           </p>
         </div>
       </div>
