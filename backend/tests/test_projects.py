@@ -1,5 +1,7 @@
 """Tests for project CRUD and initialization flow."""
 import pytest
+from io import BytesIO
+from zipfile import ZipFile
 from tests.conftest import create_project, upload_script
 
 pytestmark = pytest.mark.asyncio
@@ -87,6 +89,56 @@ class TestProjectInitFlow:
         # Verify project now has script text
         proj_r = await client.get(f"/api/v1/projects/{proj['_id']}")
         assert proj_r.json()["script_text"] == content.decode()
+
+    async def test_upload_script_decodes_gbk_text(self, client, mock_cos):
+        proj = await create_project(client)
+        text = "这是 GBK 编码剧本。"
+        r = await client.post(
+            f"/api/v1/projects/{proj['_id']}/upload-script",
+            files={"file": ("script.txt", text.encode("gbk"), "text/plain")},
+        )
+        assert r.status_code == 200
+        assert r.json()["script_text_length"] == len(text)
+
+        proj_r = await client.get(f"/api/v1/projects/{proj['_id']}")
+        assert proj_r.json()["script_text"] == text
+
+    async def test_upload_script_extracts_docx_text(self, client, mock_cos):
+        proj = await create_project(client)
+        docx = BytesIO()
+        document_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>第一场：雨夜。</w:t></w:r></w:p>
+    <w:p><w:r><w:t>主角推门而入。</w:t></w:r></w:p>
+  </w:body>
+</w:document>"""
+        with ZipFile(docx, "w") as zf:
+            zf.writestr("word/document.xml", document_xml)
+
+        r = await client.post(
+            f"/api/v1/projects/{proj['_id']}/upload-script",
+            files={
+                "file": (
+                    "script.docx",
+                    docx.getvalue(),
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                )
+            },
+        )
+        assert r.status_code == 200
+
+        proj_r = await client.get(f"/api/v1/projects/{proj['_id']}")
+        assert proj_r.json()["script_text"] == "第一场：雨夜。\n主角推门而入。"
+
+    async def test_upload_script_rejects_empty_text(self, client, mock_cos):
+        proj = await create_project(client)
+        r = await client.post(
+            f"/api/v1/projects/{proj['_id']}/upload-script",
+            files={"file": ("empty.txt", b"   \n\t", "text/plain")},
+        )
+        assert r.status_code == 400
+        assert "未能从文件中提取到剧本文本" in r.json()["detail"]
 
     async def test_parse_script_requires_uploaded(self, client):
         proj = await create_project(client)

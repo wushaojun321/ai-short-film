@@ -7,6 +7,7 @@ from app.schemas.project import ProjectCreate, ProjectUpdate, ParseScriptRequest
 from app.services import project_service
 import app.services.storage_service as storage_service
 from app.deps import get_current_user, get_owned_project
+from app.utils.script_extract import ScriptTextExtractionError, extract_script_text
 
 router = APIRouter(prefix="/projects", tags=["projects"], dependencies=[Depends(get_current_user)])
 
@@ -42,6 +43,11 @@ async def upload_script(
     project: Project = Depends(get_owned_project),
 ):
     content = await file.read()
+    try:
+        script_text = extract_script_text(file.filename or "", content, file.content_type)
+    except ScriptTextExtractionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
     filename = f"projects/{project.id}/script/{file.filename}"
     url = await storage_service.upload_bytes(
         data=content,
@@ -49,18 +55,16 @@ async def upload_script(
         content_type=file.content_type or "application/octet-stream",
     )
 
-    script_text: str | None = None
-    try:
-        script_text = content.decode("utf-8")
-    except Exception:
-        pass
-
     await project.set({
         "script_file_url": url,
         "script_text": script_text,
         "init_status": ProjectInitStatus.script_uploaded,
     })
-    return {"script_file_url": url, "init_status": ProjectInitStatus.script_uploaded}
+    return {
+        "script_file_url": url,
+        "init_status": ProjectInitStatus.script_uploaded,
+        "script_text_length": len(script_text),
+    }
 
 
 @router.post("/{project_id}/confirm-episodes")
