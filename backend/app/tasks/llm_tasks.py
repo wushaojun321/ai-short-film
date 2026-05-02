@@ -221,6 +221,9 @@ async def _parse_script_async(celery_id: str, project_id: str):
                 "script_excerpt": ep.script_excerpt,
                 "word_count": ep.word_count,
                 "estimated_duration": ep.estimated_duration,
+                "source_start_line": start_line,
+                "source_end_line": end_line,
+                "source_integrity": ep.source_integrity,
                 "source_block_ranges": [{"start_block": source_range.start_block, "end_block": source_range.end_block}],
                 "dialogue_count": dialogue_count,
             })

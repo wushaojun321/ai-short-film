@@ -30,6 +30,9 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
     stepParam && STEP_ORDER.includes(stepParam)
       ? stepParam
       : activeEpisode?.currentStep ?? "storyboard_script";
+  const sourceLineRange = activeEpisode?.sourceStartLine && activeEpisode?.sourceEndLine
+    ? `L${activeEpisode.sourceStartLine}-${activeEpisode.sourceEndLine}`
+    : "未索引";
 
   // 记录上次 currentStep，防止轮询循环写 URL
   const lastCurrentStepRef = useRef<string | null>(null);
@@ -154,6 +157,18 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
                   {activeEpisode.summary && (
                     <p className="text-sm text-sub mt-1">{activeEpisode.summary}</p>
                   )}
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+                    <span className="rounded bg-soft px-1.5 py-0.5">原文 {sourceLineRange}</span>
+                    <span className="rounded bg-soft px-1.5 py-0.5">对白 {activeEpisode.dialogueCount ?? 0}</span>
+                    {activeEpisode.sourceIntegrity && (
+                      <span className={cn(
+                        "rounded px-1.5 py-0.5",
+                        activeEpisode.sourceIntegrity === "original" ? "bg-brand-soft text-brand" : "bg-warn/10 text-warn"
+                      )}>
+                        {activeEpisode.sourceIntegrity === "original" ? "原文完整" : activeEpisode.sourceIntegrity}
+                      </span>
+                    )}
+                  </div>
                   {activeEpisode.scriptExcerpt && (
                     <p
                       className={cn(

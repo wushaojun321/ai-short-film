@@ -91,6 +91,11 @@ export interface ApiEpisode {
   status: string;
   current_step: string;
   continuity_notes: string;
+  source_block_ids?: string[];
+  source_start_line?: number;
+  source_end_line?: number;
+  dialogue_count?: number;
+  source_integrity?: string;
   final_video_url?: string;
   shots?: ApiShot[];  // 当 include_shots=true 时后端附带
   running_tasks?: Array<{ task_type: string; status: string; progress: number }>;  // 当前 pending/running 的任务

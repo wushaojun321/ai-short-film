@@ -35,6 +35,10 @@ interface EpisodeDraft {
   estimatedDuration: number;
   summary: string;
   scriptExcerpt: string;
+  sourceStartLine?: number;
+  sourceEndLine?: number;
+  dialogueCount?: number;
+  sourceIntegrity?: string;
 }
 
 // ─── 步骤指示器 ───────────────────────────────────────────────
@@ -265,6 +269,10 @@ function PhaseWaiting({
           estimatedDuration: (e.estimated_duration as number) ?? 120,
           summary: (e.summary as string) ?? "",
           scriptExcerpt: (e.script_excerpt as string) ?? "",
+          sourceStartLine: (e.source_start_line as number) || undefined,
+          sourceEndLine: (e.source_end_line as number) || undefined,
+          dialogueCount: (e.dialogue_count as number) ?? undefined,
+          sourceIntegrity: (e.source_integrity as string) || undefined,
         }));
       }
       if (!result) {
@@ -279,6 +287,10 @@ function PhaseWaiting({
               estimatedDuration: e.estimated_duration,
               summary: e.summary,
               scriptExcerpt: e.script_excerpt,
+              sourceStartLine: e.source_start_line || undefined,
+              sourceEndLine: e.source_end_line || undefined,
+              dialogueCount: e.dialogue_count ?? undefined,
+              sourceIntegrity: e.source_integrity || undefined,
             }));
           }
         } catch { /* ignore */ }
@@ -450,6 +462,10 @@ function Phase2({
         estimatedDuration: e.estimated_duration,
         summary: e.summary,
         scriptExcerpt: e.script_excerpt,
+        sourceStartLine: e.source_start_line || undefined,
+        sourceEndLine: e.source_end_line || undefined,
+        dialogueCount: e.dialogue_count ?? undefined,
+        sourceIntegrity: e.source_integrity || undefined,
       })));
       setAssets(assetList);
     } catch { /* ignore */ }
@@ -469,7 +485,11 @@ function Phase2({
   }, [projectId]);
 
   const totalDuration = episodes.reduce((s, e) => s + e.estimatedDuration, 0);
+  const totalDialogues = episodes.reduce((s, e) => s + (e.dialogueCount ?? 0), 0);
+  const originalEpisodes = episodes.filter((e) => e.sourceIntegrity === "original").length;
   const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+  const lineRange = (ep: EpisodeDraft) =>
+    ep.sourceStartLine && ep.sourceEndLine ? `L${ep.sourceStartLine}-${ep.sourceEndLine}` : "未索引";
 
   const assetTabs = [...new Set(assets.map((a) => a.asset_type))].filter((t) =>
     ["character", "scene", "prop"].includes(t)
@@ -506,6 +526,8 @@ function Phase2({
         <div className="flex gap-4 text-right shrink-0 ml-4">
           <div><div className="text-lg font-semibold text-text">{episodes.length}</div><div className="text-xs text-muted">总集数</div></div>
           <div><div className="text-lg font-semibold text-text">{fmt(totalDuration)}</div><div className="text-xs text-muted">预估时长</div></div>
+          <div><div className="text-lg font-semibold text-text">{totalDialogues}</div><div className="text-xs text-muted">对白行</div></div>
+          <div><div className="text-lg font-semibold text-text">{originalEpisodes}/{episodes.length || 0}</div><div className="text-xs text-muted">原文回填</div></div>
           <div><div className="text-lg font-semibold text-text">{assets.length}</div><div className="text-xs text-muted">资产数</div></div>
         </div>
       </div>
@@ -543,6 +565,18 @@ function Phase2({
                           </button>
                         </div>
                         <p className="text-xs text-sub mt-0.5 line-clamp-1">{ep.summary}</p>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+                          <span className="rounded bg-soft px-1.5 py-0.5">原文 {lineRange(ep)}</span>
+                          <span className="rounded bg-soft px-1.5 py-0.5">对白 {ep.dialogueCount ?? 0}</span>
+                          {ep.sourceIntegrity && (
+                            <span className={cn(
+                              "rounded px-1.5 py-0.5",
+                              ep.sourceIntegrity === "original" ? "bg-brand-soft text-brand" : "bg-warn/10 text-warn"
+                            )}>
+                              {ep.sourceIntegrity === "original" ? "原文完整" : ep.sourceIntegrity}
+                            </span>
+                          )}
+                        </div>
                         <div
                           className="mt-1.5 text-xs text-muted bg-soft rounded px-2 py-1.5 line-clamp-3 cursor-pointer hover:bg-line/50 transition-colors whitespace-pre-wrap"
                           onClick={() => setSheetEp(ep)}
@@ -1148,6 +1182,10 @@ export default function NewProjectScreen({
                   estimatedDuration: e.estimated_duration,
                   summary: e.summary,
                   scriptExcerpt: e.script_excerpt,
+                  sourceStartLine: e.source_start_line || undefined,
+                  sourceEndLine: e.source_end_line || undefined,
+                  dialogueCount: e.dialogue_count ?? undefined,
+                  sourceIntegrity: e.source_integrity || undefined,
                 })));
                 advanceTo(2);
                 return;

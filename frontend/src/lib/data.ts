@@ -97,6 +97,10 @@ export interface EpisodeDetail {
   scriptExcerpt: string;
   wordCount: number;
   estimatedDuration: number; // 秒
+  sourceStartLine?: number;
+  sourceEndLine?: number;
+  dialogueCount?: number;
+  sourceIntegrity?: string;
   status: EpisodeStatus;
   currentStep: EpisodeStep;
   shots: Shot[];
