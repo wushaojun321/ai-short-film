@@ -170,6 +170,7 @@ function StepScript({
   const [approving, setApproving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [agentTarget, setAgentTarget] = useState<string | null>(null);
+  const [promptShot, setPromptShot] = useState<Shot | null>(null);
 
   // 由后端 running_tasks 派生，刷新后状态自动恢复
   const generating = episode.runningTasks.includes("gen_shot_script");
@@ -207,6 +208,44 @@ function StepScript({
     } finally {
       setApproving(false);
     }
+  };
+
+  const buildShotScriptPrompt = (shot: Shot) => {
+    const lines = [
+      `镜头编号：${shot.shotCode}`,
+      `所属片段：${shot.segmentCode || "无"} ${shot.segmentName || ""}`.trim(),
+      `片段功能：${shot.segmentFunction || "无"}`,
+      `镜头功能：${shot.shotFunction || "无"}`,
+      `视频时长：${shot.duration}秒`,
+      `与上一镜衔接：${shot.transitionIn || "无"}`,
+      `与下一镜衔接：${shot.transitionOut || "无"}`,
+      `起始状态：${shot.startState || "无"}`,
+      `结束状态：${shot.endState || "无"}`,
+      `画面方向/空间轴线：${shot.screenDirection || "无"}`,
+      `连续性约束：${shot.continuityNotes || "无"}`,
+      `是否使用上一镜尾帧：${shot.usePrevLastFrame ? "是" : "否"}`,
+      "",
+      "分镜描述：",
+      shot.description || "无",
+      "",
+      "绑定资产：",
+      shot.assets.length > 0 ? shot.assets.join("、") : "无",
+      "",
+      "台词与表演：",
+      shot.dialogues.length > 0
+        ? shot.dialogues.map((line, i) => [
+            `${i + 1}. ${line.speaker ? `${line.speaker}：` : ""}${line.text}`,
+            `   情绪：${line.emotion || "无"}`,
+            `   语气：${line.delivery || "无"}`,
+            `   动作：${line.action || "无"}`,
+            `   表情：${line.expression || "无"}`,
+          ].join("\n")).join("\n")
+        : "无台词",
+    ];
+    if (shot.submittedPrompt || shot.prompt) {
+      lines.push("", "原始提示词/提交内容：", shot.submittedPrompt || shot.prompt || "");
+    }
+    return lines.join("\n");
   };
 
   if (!generated) {
@@ -329,24 +368,27 @@ function StepScript({
                   ) : (
                     <div className="group/desc flex items-start gap-2">
                       <p className="text-xs text-sub leading-relaxed flex-1">{shot.description}</p>
-                      {!approved && (
-                        <>
-                          <button
-                            onClick={() => handleStartEdit(shot)}
-                            className="opacity-0 group-hover/desc:opacity-100 transition-opacity shrink-0 p-1 rounded hover:bg-soft text-muted hover:text-primary"
-                            title="编辑描述"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => setAgentTarget(shot.id)}
-                            className="opacity-0 group-hover/desc:opacity-100 transition-opacity shrink-0 p-1 rounded hover:bg-soft text-muted hover:text-brand"
-                            title="AI 修改"
-                          >
-                            <Bot className="w-3.5 h-3.5" />
-                          </button>
-                        </>
-                      )}
+                      <button
+                        onClick={() => setPromptShot(shot)}
+                        className="opacity-0 group-hover/desc:opacity-100 transition-opacity shrink-0 p-1 rounded hover:bg-soft text-muted hover:text-brand"
+                        title="查看完整提交提示词"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleStartEdit(shot)}
+                        className="opacity-0 group-hover/desc:opacity-100 transition-opacity shrink-0 p-1 rounded hover:bg-soft text-muted hover:text-primary"
+                        title="编辑描述"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setAgentTarget(shot.id)}
+                        className="opacity-0 group-hover/desc:opacity-100 transition-opacity shrink-0 p-1 rounded hover:bg-soft text-muted hover:text-brand"
+                        title="AI 修改"
+                      >
+                        <Bot className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   )}
 
@@ -394,6 +436,16 @@ function StepScript({
         projectId={projectId}
         title="AI 重新生成分镜脚本"
       />
+
+      <Sheet
+        open={!!promptShot}
+        onClose={() => setPromptShot(null)}
+        title={`镜头 ${promptShot?.shotCode ?? ""} · 完整提交提示词`}
+      >
+        <pre className="text-xs text-sub leading-relaxed whitespace-pre-wrap break-words font-sans">
+          {promptShot ? buildShotScriptPrompt(promptShot) : ""}
+        </pre>
+      </Sheet>
 
       {/* 单镜 AI 修改对话 — 绑定 episode，让 AI 知道上下文 */}
       {agentTarget && (
