@@ -86,6 +86,13 @@ export function transformShot(s: ApiShot): Shot {
     segmentName: s.segment_name || undefined,
     segmentFunction: s.segment_function || undefined,
     shotFunction: s.shot_function || undefined,
+    transitionIn: s.transition_in || undefined,
+    transitionOut: s.transition_out || undefined,
+    startState: s.start_state || undefined,
+    endState: s.end_state || undefined,
+    screenDirection: s.screen_direction || undefined,
+    continuityNotes: s.continuity_notes || undefined,
+    usePrevLastFrame: s.use_prev_last_frame ?? undefined,
     description: s.description,
     dialogues: s.dialogues ?? (
       // 兼容旧格式：dialogue/speaker 字符串

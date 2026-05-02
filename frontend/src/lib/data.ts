@@ -65,6 +65,13 @@ export interface Shot {
   segmentName?: string;
   segmentFunction?: string;
   shotFunction?: string;
+  transitionIn?: string;
+  transitionOut?: string;
+  startState?: string;
+  endState?: string;
+  screenDirection?: string;
+  continuityNotes?: string;
+  usePrevLastFrame?: boolean;
   description: string;
   dialogues: ShotDialogueLine[];
   assets: string[];

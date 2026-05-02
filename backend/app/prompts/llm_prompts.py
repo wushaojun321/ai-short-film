@@ -291,6 +291,7 @@ SHOT_SCRIPT_GEN = {
 3. 同一场景内的连续对话无需每句切镜，保持景别连贯，多句台词收入同一镜头的 dialogues 列表
 4. 台词原文照抄，禁止改写或缩写；对白必须使用中文，不得出现英文或其他语言
 5. 每个镜头绑定出现的角色资产和当前场景资产
+6. 每个镜头必须写清与前后镜的衔接、起始状态、结束状态、画面方向和连续性约束
 
 时长规则：
 - {max_shot_duration} 秒只是单镜头上限，不是固定时长；严禁所有镜头都写成 {max_shot_duration} 秒
@@ -312,6 +313,15 @@ description 字段必须包含以下信息（不得省略）：
 - 角色表情：具体神态，如"眼眶泛红强忍泪意"、"冷笑一声"、"神情空洞"
 - 服装说明：默认沿用初始化资产中该角色的服装描述（不必重复写出），仅当剧本明确要求换装时，在 description 末尾加注【服装变化：XXX换XXX】
 
+连续性字段规则：
+- transition_in：本镜如何承接上一镜，写具体剪辑/动作/视线/声音衔接；片段首镜写"片段首镜，承接上一片段：..."
+- transition_out：本镜如何引出下一镜，写具体落点；不要只写"切下一镜"
+- start_state：本镜开始时人物站位、姿态、视线、道具、情绪和场景光线状态
+- end_state：本镜结束时人物站位、姿态、视线、道具、情绪和场景光线状态
+- screen_direction：画面方向和空间轴线，例如"李云湘画面左侧，谢风凌画面右侧，视线从左向右"
+- continuity_notes：本镜必须延续或禁止变化的硬规则，例如服装、伤势、道具、蒙眼布、站位、谁不能张嘴
+- use_prev_last_frame：片段内连续动作/同场景承接镜填 true；片段首镜、明显换场、时间跳跃填 false
+
 请输出 JSON 格式，不要包含额外解释：
 {
   "segments": [
@@ -331,6 +341,13 @@ description 字段必须包含以下信息（不得省略）：
         "shot_function": "建立镜",
         "order": 1,
         "duration": 6,
+        "transition_in": "片段首镜，承接上一片段的情绪或场景信息",
+        "transition_out": "以某个动作/视线/声音/道具引出下一镜",
+        "start_state": "本镜开始时的人物、站位、姿态、视线、道具、情绪、光线",
+        "end_state": "本镜结束时的人物、站位、姿态、视线、道具、情绪、光线",
+        "screen_direction": "画面方向和空间轴线",
+        "continuity_notes": "本镜必须保持的连续性硬规则",
+        "use_prev_last_frame": false,
         "description": "景别+机位+运镜+动作+表情+画面内容（服装有变化时加注）",
         "required_assets": ["资产名称1", "资产名称2"],
         "dialogues": []
@@ -340,6 +357,13 @@ description 字段必须包含以下信息（不得省略）：
         "shot_function": "台词镜",
         "order": 2,
         "duration": 5,
+        "transition_in": "承接上一镜结尾状态",
+        "transition_out": "以说话人表情或听者反应引出下一镜",
+        "start_state": "本镜开始状态",
+        "end_state": "本镜结束状态",
+        "screen_direction": "画面方向和空间轴线",
+        "continuity_notes": "连续性硬规则",
+        "use_prev_last_frame": true,
         "description": "景别+机位+运镜+动作+表情+画面内容（服装有变化时加注）",
         "required_assets": ["资产名称1", "资产名称2"],
         "dialogues": [
@@ -351,6 +375,13 @@ description 字段必须包含以下信息（不得省略）：
         "shot_function": "反应镜",
         "order": 3,
         "duration": 3,
+        "transition_in": "承接上一镜台词尾音或动作落点",
+        "transition_out": "以眼神/沉默/动作停顿引出下一镜",
+        "start_state": "本镜开始状态",
+        "end_state": "本镜结束状态",
+        "screen_direction": "画面方向和空间轴线",
+        "continuity_notes": "连续性硬规则",
+        "use_prev_last_frame": true,
         "description": "特写+机位+运镜+表情反应+情绪落点",
         "required_assets": ["资产名称1"],
         "dialogues": []
@@ -430,12 +461,19 @@ SHOT_VIDEO_GEN = {
 8. 运镜
 9. 时间分段动作（视频时长 {duration} 秒，均匀分为三段：0-{seg1}s / {seg1}-{seg2}s / {seg2}-{duration}s，每段写明对应动作，覆盖完整时长）
 10. 台词与说话人（明确唯一发声人，其他人不得张嘴）
-11. 反向约束
+11. 连续性约束：必须严格承接上一镜结尾状态、本镜起始状态和本镜结束状态
+12. 反向约束
+
+连续性要求：
+- 如果存在"上一镜尾帧辅助图"，只能把它当作动作、站位、光线和情绪承接参考
+- 不得因为上一镜尾帧而替代当前镜头绑定的角色资产和场景资产
+- 不得无理由改变人物左右位置、视线方向、手中道具、服装、伤势、蒙眼布和场景光线
+- 如果本镜是片段首镜或转场镜，必须按 transition_in 写清换场方式，不要强行延续上一镜画面
 
 以 JSON 格式输出：{"prompt": "完整提示词文本"}
 注意：提示词用中文撰写，台词原文保留。""",
-    "user_prompt_template": "镜头编号：{shot_code}\n视频时长：{duration}秒\n分镜描述：{shot_description}\n台词：{dialogue}\n直接参考图片：\n{reference_images}\n角色参考：\n{character_prompts}\n场景参考：\n{scene_prompt}\n道具参考：\n{prop_prompts}\n\n当前提示词（若有）：{shot_prompt}",
-    "variables": ["shot_code", "duration", "seg1", "seg2", "shot_description", "dialogue", "reference_images", "character_prompts", "scene_prompt", "prop_prompts", "shot_prompt"],
+    "user_prompt_template": "镜头编号：{shot_code}\n所属片段：{segment_code} {segment_name}（{segment_function}）\n镜头功能：{shot_function}\n视频时长：{duration}秒\n分镜描述：{shot_description}\n\n连续性上下文：\n{continuity_context}\n\n台词：{dialogue}\n直接参考图片：\n{reference_images}\n角色参考：\n{character_prompts}\n场景参考：\n{scene_prompt}\n道具参考：\n{prop_prompts}\n\n当前提示词（若有）：{shot_prompt}",
+    "variables": ["shot_code", "segment_code", "segment_name", "segment_function", "shot_function", "duration", "seg1", "seg2", "shot_description", "continuity_context", "dialogue", "reference_images", "character_prompts", "scene_prompt", "prop_prompts", "shot_prompt"],
 }
 
 # =============================================================================

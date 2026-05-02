@@ -13,7 +13,74 @@ def gen_shot_video_task(self, shot_id: str):
     return run_async(_gen_shot_video_async(self.request.id, shot_id))
 
 
-async def _gen_shot_video_async(celery_id: str, shot_id: str):
+@celery_app.task(bind=True, name="app.tasks.video.gen_episode_videos", queue="video")
+def gen_episode_videos_task(self, episode_id: str):
+    """Generate all missing shot videos for an episode in order."""
+    return run_async(_gen_episode_videos_async(self.request.id, episode_id))
+
+
+def _should_use_prev_last_frame(shot, prev_shot) -> bool:
+    if not prev_shot or not getattr(prev_shot, "last_frame_url", None):
+        return False
+    if getattr(shot, "use_prev_last_frame", False):
+        return True
+    return bool(shot.segment_code and prev_shot.segment_code == shot.segment_code)
+
+
+async def _gen_episode_videos_async(celery_id: str, episode_id: str):
+    from app.database import init_db
+    await init_db()
+
+    from beanie import PydanticObjectId
+    from app.models.episode import Episode
+    from app.models.shot import Shot, ShotState
+    from app.models.task_record import TaskRecord
+    from app.tasks.base import finish_task_record
+
+    try:
+        episode = await Episode.get(PydanticObjectId(episode_id))
+        if not episode:
+            raise ValueError("Episode not found")
+
+        record = await TaskRecord.find_one(TaskRecord.celery_task_id == celery_id)
+        shots = await Shot.find(Shot.episode_id == episode.id).sort("+order").to_list()
+        targets = [
+            shot for shot in shots
+            if not shot.video_url and shot.state not in (ShotState.rendering, ShotState.approved)
+        ]
+        total = len(targets)
+        if record:
+            await record.set({
+                "progress": 5,
+                "logs": [f"[video] 按镜头顺序生成本集视频，共 {total} 个待生成镜头"],
+            })
+
+        if not targets:
+            await finish_task_record(celery_id, result={"shots": 0})
+            return {"shots": 0}
+
+        for idx, shot in enumerate(targets):
+            if record:
+                await record.set({
+                    "progress": 5 + int(idx / total * 90),
+                    "logs": (record.logs or []) + [f"[video] 开始生成 {shot.shot_code}（{idx + 1}/{total}）"],
+                })
+            await _gen_shot_video_async(celery_id, str(shot.id), manage_record=False)
+            if record:
+                await record.set({
+                    "progress": 5 + int((idx + 1) / total * 90),
+                    "logs": (record.logs or []) + [f"[video] {shot.shot_code} 生成完成"],
+                })
+
+        await finish_task_record(celery_id, result={"shots": total})
+        return {"shots": total}
+
+    except Exception as e:
+        await finish_task_record(celery_id, error=str(e))
+        raise
+
+
+async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: bool = True):
     from app.database import init_db
     await init_db()
 
@@ -36,7 +103,7 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
         # Mark as rendering immediately so frontend shows loading
         await shot.set({"state": ShotState.rendering, "generation_task_id": celery_id})
 
-        record = await TaskRecord.find_one(TaskRecord.celery_task_id == celery_id)
+        record = await TaskRecord.find_one(TaskRecord.celery_task_id == celery_id) if manage_record else None
         if record:
             await record.set({"progress": 5})
 
@@ -76,13 +143,27 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
                 elif asset.asset_type == AssetType.prop:
                     prop_parts.append(f"{asset_ref}（{asset_type_label}）")
 
+        prev_shots = await Shot.find(
+            Shot.episode_id == shot.episode_id,
+            Shot.order < shot.order,
+        ).sort("-order").limit(1).to_list()
+        prev_shot = prev_shots[0] if prev_shots else None
+        previous_last_frame_label = "无"
+        previous_last_frame_url = None
+        if _should_use_prev_last_frame(shot, prev_shot) and len(reference_images) < 10:
+            previous_last_frame_url = presign_if_cos(prev_shot.last_frame_url)
+            image_index = len(reference_images) + 1
+            reference_images.append(previous_last_frame_url)
+            previous_last_frame_label = f"[图{image_index}] 上一镜尾帧（仅作连续性辅助）"
+            reference_image_parts.append(previous_last_frame_label)
+
         reference_image_block = "\n".join(reference_image_parts) if reference_image_parts else "无"
         direct_reference_section = (
-            "【直接参考资产图片】\n"
+            "【直接参考图片】\n"
             f"{reference_image_block}\n"
-            "生成时必须按上方图号直接参考请求体中的 reference_image，不要把资产只当作文字描述。"
+            "生成时必须按上方图号直接参考请求体中的 reference_image。角色资产和场景资产是身份与空间锚点，上一镜尾帧如存在，只用于动作、站位、光线和情绪承接。"
             if reference_image_parts
-            else "【直接参考资产图片】\n无可用资产参考图片"
+            else "【直接参考图片】\n无可用参考图片"
         )
 
         if shot.dialogues:
@@ -96,15 +177,29 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
         duration = shot.duration or 5
         seg1 = round(duration / 3)
         seg2 = round(duration * 2 / 3)
+        continuity_context = "\n".join([
+            f"与上一镜衔接：{shot.transition_in or '无'}",
+            f"与下一镜衔接：{shot.transition_out or '无'}",
+            f"本镜起始状态：{shot.start_state or '无'}",
+            f"本镜结束状态：{shot.end_state or '无'}",
+            f"画面方向/空间轴线：{shot.screen_direction or '无'}",
+            f"连续性硬规则：{shot.continuity_notes or '无'}",
+            f"上一镜尾帧辅助图：{previous_last_frame_label}",
+        ])
 
         system_prompt, user_prompt, _ = await render(
             PromptConfigScope.shot_video_gen,
             {
                 "shot_code": shot.shot_code,
+                "segment_code": shot.segment_code or "无",
+                "segment_name": shot.segment_name or "无",
+                "segment_function": shot.segment_function or "无",
+                "shot_function": shot.shot_function or "无",
                 "duration": duration,
                 "seg1": seg1,
                 "seg2": seg2,
                 "shot_description": shot.description,
+                "continuity_context": continuity_context,
                 "reference_images": reference_image_block,
                 "character_prompts": "\n".join(character_parts) if character_parts else "无",
                 "scene_prompt": "\n".join(scene_parts) if scene_parts else "无",
@@ -158,7 +253,8 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
                     f"镜头编号：{shot.shot_code}\n"
                     f"视频时长：{duration}秒\n"
                     f"分镜描述：{shot.description}\n"
-                    f"台词：{dialogue_text}"
+                    f"台词：{dialogue_text}\n"
+                    f"连续性上下文：\n{continuity_context}"
                 ),
                 direct_reference_section,
             ])
@@ -209,7 +305,11 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
 
         # Re-upload video to COS
         video_url = await video_service.upload_video_to_cos(result["video_url"])
-        last_frame_url = result.get("last_frame_url")
+        raw_last_frame_url = result.get("last_frame_url")
+        last_frame_url = (
+            await video_service.upload_last_frame_to_cos(raw_last_frame_url)
+            if raw_last_frame_url else None
+        )
 
         updates: dict = {
             "video_url": video_url,
@@ -222,7 +322,8 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
 
         await shot.set(updates)
 
-        await finish_task_record(celery_id, result={"video_url": video_url, "last_frame_url": last_frame_url})
+        if manage_record:
+            await finish_task_record(celery_id, result={"video_url": video_url, "last_frame_url": last_frame_url})
         return {"video_url": video_url}
 
     except Exception as e:
@@ -232,5 +333,6 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str):
                 await shot.set({"state": ShotState.asset_ready})
         except Exception:
             pass
-        await finish_task_record(celery_id, error=str(e))
+        if manage_record:
+            await finish_task_record(celery_id, error=str(e))
         raise

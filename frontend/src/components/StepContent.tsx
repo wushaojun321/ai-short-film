@@ -450,10 +450,15 @@ function StepVideos({
     setError(null);
     setLoadingIds((prev) => new Set([...prev, ...targets.map((s) => s.id)]));
     try {
-      await Promise.all(targets.map((s) => generateAPI.shotVideo(s.id).catch(() => {
-        setLoadingIds((prev) => { const n = new Set(prev); n.delete(s.id); return n; });
-      })));
-    } catch { /* 单个失败已在上面处理 */ }
+      await generateAPI.episodeShotVideos(episode.id);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "批量生成失败");
+      setLoadingIds((prev) => {
+        const next = new Set(prev);
+        targets.forEach((s) => next.delete(s.id));
+        return next;
+      });
+    }
   };
 
   const handleRegen = async (shotId: string) => {

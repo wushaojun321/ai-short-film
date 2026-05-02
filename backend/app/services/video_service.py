@@ -128,3 +128,9 @@ async def upload_video_to_cos(video_url: str) -> str:
     """Download Seedance video URL and re-upload to COS."""
     object_key = f"videos/{uuid.uuid4().hex}.mp4"
     return await storage_service.upload_from_url(video_url, object_key)
+
+
+async def upload_last_frame_to_cos(last_frame_url: str) -> str:
+    """Persist Seedance last-frame URL to COS before the temporary URL expires."""
+    object_key = f"last_frames/{uuid.uuid4().hex}.jpg"
+    return await storage_service.upload_from_url(last_frame_url, object_key)

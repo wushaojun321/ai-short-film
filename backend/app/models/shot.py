@@ -36,6 +36,13 @@ class Shot(Document):
     segment_name: str = ""
     segment_function: str = ""
     shot_function: str = ""
+    transition_in: str = ""
+    transition_out: str = ""
+    start_state: str = ""
+    end_state: str = ""
+    screen_direction: str = ""
+    continuity_notes: str = ""
+    use_prev_last_frame: bool = False
     description: str = ""
     dialogues: list[ShotDialogueLine] = []  # 一个镜头可有多句对白
     prompt: str = ""

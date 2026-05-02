@@ -109,6 +109,13 @@ export interface ApiShot {
   segment_name?: string;
   segment_function?: string;
   shot_function?: string;
+  transition_in?: string;
+  transition_out?: string;
+  start_state?: string;
+  end_state?: string;
+  screen_direction?: string;
+  continuity_notes?: string;
+  use_prev_last_frame?: boolean;
   description: string;
   dialogues: Array<{ speaker: string; text: string }>;
   // 兼容旧数据
@@ -285,6 +292,9 @@ export const generateAPI = {
 
   shotVideo: (shotId: string): Promise<ApiGenResponse> =>
     client.post(`/generate/shots/${shotId}/video`),
+
+  episodeShotVideos: (episodeId: string): Promise<ApiGenResponse> =>
+    client.post(`/generate/episodes/${episodeId}/shot-videos`),
 
   mergeEpisode: (episodeId: string): Promise<ApiGenResponse> =>
     client.post(`/generate/episodes/${episodeId}/merge`),

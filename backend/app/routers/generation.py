@@ -168,6 +168,39 @@ async def enqueue_shot_video(shot_id: PydanticObjectId, current_user=Depends(get
     return {"task_id": task.id, "record_id": str(record.id)}
 
 
+@router.post("/episodes/{episode_id}/shot-videos")
+async def enqueue_episode_shot_videos(episode_id: PydanticObjectId, current_user=Depends(get_current_user)):
+    episode = await Episode.get(episode_id)
+    if not episode:
+        raise HTTPException(404, "Episode not found")
+    project = await Project.get(episode.project_id)
+    if not project or project.owner_id != current_user.id:
+        raise HTTPException(404, "Episode not found")
+
+    running = await TaskRecord.find_one(
+        TaskRecord.episode_id == episode.id,
+        TaskRecord.task_type == "gen_shot_video",
+        {"status": {"$in": ["pending", "running"]}},
+    )
+    if running:
+        return {"task_id": running.celery_task_id, "record_id": str(running.id), "skipped": True, "reason": "already running"}
+
+    from app.tasks.video_tasks import gen_episode_videos_task
+    from datetime import datetime
+
+    task = gen_episode_videos_task.delay(str(episode_id))
+    record = TaskRecord(
+        celery_task_id=task.id,
+        task_type="gen_shot_video",
+        project_id=episode.project_id,
+        episode_id=episode.id,
+        status=TaskStatus.running,
+        started_at=datetime.utcnow(),
+    )
+    await record.insert()
+    return {"task_id": task.id, "record_id": str(record.id)}
+
+
 # ── Episode merge ─────────────────────────────────────────────
 
 @router.post("/episodes/{episode_id}/merge")

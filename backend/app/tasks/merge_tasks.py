@@ -4,6 +4,11 @@ from app.celery_app import celery_app
 from app.tasks.base import run_async, finish_task_record
 
 
+TARGET_WIDTH = 720
+TARGET_HEIGHT = 1280
+SEGMENT_GAP_SECONDS = 0.18
+
+
 @celery_app.task(bind=True, name="app.tasks.merge.merge_episode", queue="merge")
 def merge_episode_task(self, episode_id: str):
     """Download approved shot videos and merge into final episode video."""
@@ -24,6 +29,90 @@ async def _merge_episode_async(celery_id: str, episode_id: str):
     from app.models.shot import Shot, ShotState
     from app.models.task_record import TaskRecord
     import app.services.storage_service as storage_service
+
+    def run_ffmpeg(cmd: list[str], timeout: int = 3600) -> None:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        if result.returncode != 0:
+            raise RuntimeError(f"ffmpeg failed: {result.stderr}")
+
+    def probe_duration(path: str) -> float:
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "error", "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1", path,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if result.returncode != 0:
+            return 0.0
+        try:
+            return float(result.stdout.strip() or 0)
+        except ValueError:
+            return 0.0
+
+    def has_audio_stream(path: str) -> bool:
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "error", "-select_streams", "a:0",
+                "-show_entries", "stream=index", "-of", "csv=p=0", path,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        return result.returncode == 0 and bool(result.stdout.strip())
+
+    def should_insert_segment_gap(prev_shot: Shot | None, shot: Shot) -> bool:
+        if not prev_shot:
+            return False
+        if prev_shot.segment_code and shot.segment_code and prev_shot.segment_code != shot.segment_code:
+            transition_text = f"{prev_shot.transition_out} {shot.transition_in}"
+            continuous_words = ("承接", "同场", "视线", "动作连续", "声音延续", "直接接")
+            return not any(word in transition_text for word in continuous_words)
+        return False
+
+    def make_black_gap(path: str) -> None:
+        run_ffmpeg([
+            "ffmpeg", "-f", "lavfi", "-i",
+            f"color=c=black:s={TARGET_WIDTH}x{TARGET_HEIGHT}:d={SEGMENT_GAP_SECONDS}",
+            "-f", "lavfi", "-i",
+            f"anullsrc=channel_layout=stereo:sample_rate=48000:d={SEGMENT_GAP_SECONDS}",
+            "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-ar", "48000", "-ac", "2", "-y", path,
+        ], timeout=120)
+
+    def normalize_clip(input_path: str, output_path: str) -> None:
+        duration = probe_duration(input_path)
+        fade_out_start = max(duration - 0.12, 0) if duration else 0
+        vf = (
+            f"scale={TARGET_WIDTH}:{TARGET_HEIGHT}:force_original_aspect_ratio=decrease,"
+            f"pad={TARGET_WIDTH}:{TARGET_HEIGHT}:(ow-iw)/2:(oh-ih)/2,"
+            "setsar=1,format=yuv420p"
+        )
+        af = f"afade=t=in:st=0:d=0.06,afade=t=out:st={fade_out_start:.2f}:d=0.12"
+        if has_audio_stream(input_path):
+            cmd = [
+                "ffmpeg", "-i", input_path,
+                "-vf", vf, "-af", af,
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+                "-c:a", "aac", "-ar", "48000", "-ac", "2",
+                "-movflags", "+faststart", "-y", output_path,
+            ]
+        else:
+            silent_duration = max(duration, 0.1)
+            cmd = [
+                "ffmpeg", "-i", input_path,
+                "-f", "lavfi", "-i",
+                f"anullsrc=channel_layout=stereo:sample_rate=48000:d={silent_duration}",
+                "-map", "0:v:0", "-map", "1:a:0",
+                "-vf", vf,
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+                "-c:a", "aac", "-ar", "48000", "-ac", "2",
+                "-shortest", "-movflags", "+faststart", "-y", output_path,
+            ]
+        run_ffmpeg(cmd)
 
     try:
         episode = await Episode.get(PydanticObjectId(episode_id))
@@ -56,7 +145,15 @@ async def _merge_episode_async(celery_id: str, episode_id: str):
                 local_path = os.path.join(tmpdir, f"shot_{i:03d}.mp4")
                 from app.services.storage_service import presign_if_cos
                 await storage_service.download_file(presign_if_cos(shot.video_url), local_path)
-                video_paths.append(local_path)
+                processed_path = os.path.join(tmpdir, f"shot_{i:03d}_normalized.mp4")
+                normalize_clip(local_path, processed_path)
+
+                if i > 0 and should_insert_segment_gap(shots[i - 1], shot):
+                    gap_path = os.path.join(tmpdir, f"gap_{i:03d}.mp4")
+                    make_black_gap(gap_path)
+                    video_paths.append(gap_path)
+
+                video_paths.append(processed_path)
 
                 if record:
                     progress = 10 + int((i + 1) / total * 50)
@@ -73,14 +170,12 @@ async def _merge_episode_async(celery_id: str, episode_id: str):
 
             output_path = os.path.join(tmpdir, f"episode_{episode.number:02d}.mp4")
 
-            # Run ffmpeg
+            # Run ffmpeg. Clips are normalized first so concat remains reliable.
             cmd = [
                 "ffmpeg", "-f", "concat", "-safe", "0",
                 "-i", concat_path, "-c", "copy", "-y", output_path,
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
-            if result.returncode != 0:
-                raise RuntimeError(f"ffmpeg failed: {result.stderr}")
+            run_ffmpeg(cmd)
 
             if record:
                 await record.set({"progress": 85})

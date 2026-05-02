@@ -82,6 +82,14 @@ class TestGenerationEndpoints:
             r = await client.post(f"/api/v1/generate/shots/{sid}/video")
         assert r.status_code == 200
 
+    async def test_enqueue_episode_shot_videos(self, client):
+        pid, eid, _ = await setup_shot(client)
+        with patch("app.tasks.video_tasks.gen_episode_videos_task") as mock_task:
+            mock_task.delay.return_value = MagicMock(id="mock-celery-id-episode-videos")
+            r = await client.post(f"/api/v1/generate/episodes/{eid}/shot-videos")
+        assert r.status_code == 200
+        assert "task_id" in r.json()
+
     async def test_enqueue_episode_merge(self, client):
         pid, eid, _ = await setup_shot(client)
         with patch("app.tasks.merge_tasks.merge_episode_task") as mock_task:

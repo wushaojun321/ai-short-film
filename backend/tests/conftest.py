@@ -133,7 +133,9 @@ def mock_video():
                    "task_id": "mock-task-id",
                }), \
          patch("app.services.video_service.upload_video_to_cos",
-               new=AsyncMock(return_value="https://cos.example.com/video.mp4")):
+               new=AsyncMock(return_value="https://cos.example.com/video.mp4")), \
+         patch("app.services.video_service.upload_last_frame_to_cos",
+               new=AsyncMock(return_value="https://cos.example.com/last_frame.jpg")):
         yield
 
 
