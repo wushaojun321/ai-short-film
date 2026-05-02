@@ -451,6 +451,8 @@ function StepVideos({
   const hasUngenerated = shots.some((s) => !s.videoUrl && !loadingIds.has(s.id) && s.state !== "rendering");
   const shot = shots[selected] ?? shots[0];
   const submittedPrompt = shot?.submittedPrompt;
+  const shotBusy = !!shot && (loadingIds.has(shot.id) || shot.state === "rendering");
+  const shotApproved = !!shot && (isPast || (!!shot.videoUrl && shot.state === "approved"));
 
   const handleBatchGenerate = async () => {
     const targets = shots.filter((s) => !s.videoUrl && !loadingIds.has(s.id) && s.state !== "rendering");
@@ -559,9 +561,10 @@ function StepVideos({
                     <p className="text-xs text-muted">尚未生成</p>
                   </div>
                 )}
-                {(isPast || (!!shot.videoUrl && shot.state === "approved")) && shot.videoUrl && (
-                  <div className="absolute inset-0 bg-brand/20 flex items-center justify-center">
-                    <CheckCircle2 className="w-14 h-14 text-brand drop-shadow-lg" />
+                {shotApproved && shot.videoUrl && (
+                  <div className="pointer-events-none absolute right-2 top-2 flex items-center gap-1 rounded-full bg-brand/90 px-2 py-1 text-[11px] font-medium text-white shadow-sm">
+                    <CheckCircle2 className="w-3 h-3" />
+                    已通过
                   </div>
                 )}
               </div>
@@ -577,7 +580,7 @@ function StepVideos({
                 </button>
               )}
 
-              {!(isPast || (!!shot.videoUrl && shot.state === "approved")) && !(loadingIds.has(shot.id) || shot.state === "rendering") && (
+              {!shotBusy && (
                 <div className="grid grid-cols-2 gap-2">
                   <Button
                     variant={shot.videoUrl ? "outline" : "default"}
@@ -593,16 +596,9 @@ function StepVideos({
                   <Button variant="outline" onClick={() => setAgentTarget(shot.id)}>
                     <Bot className="w-4 h-4" />AI 修改
                   </Button>
-                  <Button onClick={() => handleApprove(shot.id)} disabled={!shot.videoUrl}>
-                    <Check className="w-4 h-4" />审批通过
+                  <Button onClick={() => handleApprove(shot.id)} disabled={!shot.videoUrl || shotApproved}>
+                    <Check className="w-4 h-4" />{shotApproved ? "已审批" : "审批通过"}
                   </Button>
-                </div>
-              )}
-              {(isPast || (!!shot.videoUrl && shot.state === "approved")) && (
-                <div className="flex justify-center">
-                  <Badge variant="success" className="text-sm px-4 py-1.5">
-                    <CheckCircle2 className="w-4 h-4 mr-1.5" />已审批通过
-                  </Badge>
                 </div>
               )}
             </div>
