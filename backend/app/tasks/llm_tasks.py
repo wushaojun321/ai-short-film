@@ -241,6 +241,7 @@ async def _parse_script_async(celery_id: str, project_id: str):
                         name=a.get("name", ""),
                         asset_type=asset_type,
                         prompt=asset_prompt,
+                        voice_profile=a.get("voice_profile", "") if asset_type == AssetType.character else "",
                         status=AssetStatus.pending,
                     )
                     await asset.insert()
@@ -425,7 +426,14 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
             if isinstance(raw_dialogues, list):
                 from app.models.shot import ShotDialogueLine
                 dialogues = [
-                    ShotDialogueLine(speaker=d.get("speaker", ""), text=d.get("text", ""))
+                    ShotDialogueLine(
+                        speaker=d.get("speaker", ""),
+                        text=d.get("text", ""),
+                        emotion=d.get("emotion", ""),
+                        delivery=d.get("delivery", ""),
+                        action=d.get("action", ""),
+                        expression=d.get("expression", ""),
+                    )
                     for d in raw_dialogues if isinstance(d, dict) and d.get("text")
                 ]
             else:

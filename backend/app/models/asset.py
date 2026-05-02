@@ -35,6 +35,7 @@ class Asset(Document):
     asset_type: AssetType
     status: AssetStatus = AssetStatus.pending
     prompt: str = ""
+    voice_profile: str = ""
     preview_url: Optional[str] = None
     versions: list[AssetVersion] = []
     generation_task_id: Optional[str] = None

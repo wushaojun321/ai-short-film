@@ -366,6 +366,14 @@ function StepScript({
                         <div key={i} className="px-2 py-1.5 bg-soft rounded text-xs text-text leading-relaxed border-l-2 border-brand/40">
                           {line.speaker && <span className="font-medium text-brand mr-1">{line.speaker}：</span>}
                           {line.text}
+                          {(line.emotion || line.delivery || line.action || line.expression) && (
+                            <div className="mt-1 text-[11px] leading-relaxed text-muted">
+                              {line.emotion && <span>情绪：{line.emotion}；</span>}
+                              {line.delivery && <span>语气：{line.delivery}；</span>}
+                              {line.action && <span>动作：{line.action}；</span>}
+                              {line.expression && <span>表情：{line.expression}</span>}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>

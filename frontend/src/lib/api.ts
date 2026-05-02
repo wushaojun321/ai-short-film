@@ -98,6 +98,15 @@ export interface ApiEpisode {
   updated_at: string;
 }
 
+export interface ApiShotDialogueLine {
+  speaker: string;
+  text: string;
+  emotion?: string;
+  delivery?: string;
+  action?: string;
+  expression?: string;
+}
+
 export interface ApiShot {
   id: string;
   project_id: string;
@@ -117,7 +126,7 @@ export interface ApiShot {
   continuity_notes?: string;
   use_prev_last_frame?: boolean;
   description: string;
-  dialogues: Array<{ speaker: string; text: string }>;
+  dialogues: ApiShotDialogueLine[];
   // 兼容旧数据
   dialogue?: string;
   speaker?: string;
@@ -141,6 +150,7 @@ export interface ApiAsset {
   asset_type: string;
   status: string;
   prompt: string;
+  voice_profile?: string;
   preview_url?: string;
   versions: Array<{ version: number; preview_url?: string; prompt: string; created_at: string }>;
   generation_task_id?: string;

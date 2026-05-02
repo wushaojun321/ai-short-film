@@ -24,6 +24,10 @@ class ShotAssetBinding(BaseModel):
 class ShotDialogueLine(BaseModel):
     speaker: str = ""
     text: str = ""
+    emotion: str = ""
+    delivery: str = ""
+    action: str = ""
+    expression: str = ""
 
 
 class Shot(Document):

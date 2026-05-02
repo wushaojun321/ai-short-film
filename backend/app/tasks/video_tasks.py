@@ -27,6 +27,15 @@ def _should_use_prev_last_frame(shot, prev_shot) -> bool:
     return bool(shot.segment_code and prev_shot.segment_code == shot.segment_code)
 
 
+def _fallback_voice_profile(name: str, prompt: str = "") -> str:
+    base = prompt or name
+    if any(word in base for word in ("女性", "女子", "公主", "长公主", "皇后", "侍女")):
+        return f"{name}固定音色：成年女性声线，吐字清晰，情绪随剧情变化但年龄感和音色质感保持一致，不要变成少女撒娇音，不要尖叫失真。"
+    if any(word in base for word in ("少年", "年轻")):
+        return f"{name}固定音色：年轻男性声线，清晰自然，语速稳定，情绪表达克制，不要变成女性音色或夸张动漫腔。"
+    return f"{name}固定音色：成年男性声线，音色稳定，吐字清晰，语速中等，情绪克制，不要变成女性音色，不要忽高忽低。"
+
+
 async def _gen_episode_videos_async(celery_id: str, episode_id: str):
     from app.database import init_db
     await init_db()
@@ -111,6 +120,8 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
         character_parts = []
         scene_parts = []
         prop_parts = []
+        voice_profile_parts = []
+        voice_profile_map: dict[str, str] = {}
         reference_image_parts = []
         reference_images: list[str] = []
         if shot.required_assets:
@@ -138,6 +149,9 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
                     asset_ref = binding.asset_name
                 if asset.asset_type == AssetType.character:
                     character_parts.append(f"{asset_ref}（{asset_type_label}）")
+                    voice_profile = asset.voice_profile or _fallback_voice_profile(asset.name, asset.prompt)
+                    voice_profile_map[asset.name] = voice_profile
+                    voice_profile_parts.append(f"{asset.name}：{voice_profile}")
                 elif asset.asset_type == AssetType.scene:
                     scene_parts.append(f"{asset_ref}（{asset_type_label}）")
                 elif asset.asset_type == AssetType.prop:
@@ -171,8 +185,40 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
                 f"{d.speaker}：{d.text}" if d.speaker else d.text
                 for d in shot.dialogues
             )
+            speakers = [d.speaker for d in shot.dialogues if d.speaker]
+            unique_speakers = []
+            for speaker in speakers:
+                if speaker not in unique_speakers:
+                    unique_speakers.append(speaker)
+            muted_characters = [
+                name for name in voice_profile_map
+                if name not in unique_speakers
+            ]
+            dialogue_performance = "\n".join(
+                [
+                    "\n".join([
+                        f"- 说话人：{d.speaker or '未指定'}",
+                        f"  台词：{d.text}",
+                        f"  固定音色：{voice_profile_map.get(d.speaker, _fallback_voice_profile(d.speaker or '角色'))}",
+                        f"  情绪：{d.emotion or '按剧情情绪自然表达'}",
+                        f"  语气/语速/停顿：{d.delivery or '吐字清晰，语速自然，台词与口型同步'}",
+                        f"  同步动作：{d.action or '按分镜描述执行，不额外加戏'}",
+                        f"  表情眼神：{d.expression or '按分镜描述执行'}",
+                    ])
+                    for d in shot.dialogues
+                ] + (
+                    [f"非发声角色必须闭嘴，只做无声反应：{', '.join(muted_characters)}"]
+                    if muted_characters else ["除列出的说话人外，其他画面人物不得张嘴发声。"]
+                )
+            )
         else:
             dialogue_text = "无台词"
+            dialogue_performance = (
+                "本镜无台词。所有人物必须闭嘴，不得发声，不得出现画外人声；"
+                "只通过表情、眼神、身体动作和镜头运动表达剧情。"
+            )
+
+        voice_profiles = "\n".join(voice_profile_parts) if voice_profile_parts else "无可用角色音色设定；按角色身份保持自然、稳定、写实的中文声线。"
 
         duration = shot.duration or 5
         seg1 = round(duration / 3)
@@ -200,6 +246,8 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
                 "seg2": seg2,
                 "shot_description": shot.description,
                 "continuity_context": continuity_context,
+                "voice_profiles": voice_profiles,
+                "dialogue_performance": dialogue_performance,
                 "reference_images": reference_image_block,
                 "character_prompts": "\n".join(character_parts) if character_parts else "无",
                 "scene_prompt": "\n".join(scene_parts) if scene_parts else "无",
@@ -254,6 +302,8 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
                     f"视频时长：{duration}秒\n"
                     f"分镜描述：{shot.description}\n"
                     f"台词：{dialogue_text}\n"
+                    f"角色音色设定：\n{voice_profiles}\n"
+                    f"台词与表演：\n{dialogue_performance}\n"
                     f"连续性上下文：\n{continuity_context}"
                 ),
                 direct_reference_section,

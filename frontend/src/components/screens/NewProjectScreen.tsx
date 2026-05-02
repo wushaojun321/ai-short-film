@@ -419,7 +419,7 @@ function Phase2({
   const [apiEpisodes, setApiEpisodes] = useState<ApiEpisode[]>([]);
   const [sheetEp, setSheetEp] = useState<EpisodeDraft | null>(null);
   const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
-  const [assetEdits, setAssetEdits] = useState<Record<string, { name: string; prompt: string }>>({});
+  const [assetEdits, setAssetEdits] = useState<Record<string, { name: string; prompt: string; voice_profile: string }>>({});
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const update = (idx: number, patch: Partial<EpisodeDraft>) => {
@@ -575,7 +575,7 @@ function Phase2({
                 <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
                   {currentAssets.map((a) => {
                     const isEditing = editingAssetId === a.id;
-                    const draft = assetEdits[a.id] ?? { name: a.name, prompt: a.prompt ?? "" };
+                    const draft = assetEdits[a.id] ?? { name: a.name, prompt: a.prompt ?? "", voice_profile: a.voice_profile ?? "" };
                     return (
                       <div key={a.id} className="group border border-line rounded-xl p-3 bg-white hover:border-brand/30 transition-all">
                         {isEditing ? (
@@ -594,11 +594,24 @@ function Phase2({
                               className="text-xs"
                               placeholder="Seedream 生成提示词"
                             />
+                            {a.asset_type === "character" && (
+                              <Textarea
+                                value={draft.voice_profile}
+                                onChange={(e) => setAssetEdits((prev) => ({ ...prev, [a.id]: { ...draft, voice_profile: e.target.value } }))}
+                                rows={3}
+                                className="text-xs"
+                                placeholder="角色固定音色：年龄感、音色质感、语速、情绪基线、禁止变化项"
+                              />
+                            )}
                             <div className="flex gap-2">
                               <Button
                                 size="sm"
                                 onClick={async () => {
-                                  await assetAPI.update(projectId, a.id, { name: draft.name, prompt: draft.prompt });
+                                  await assetAPI.update(projectId, a.id, {
+                                    name: draft.name,
+                                    prompt: draft.prompt,
+                                    voice_profile: draft.voice_profile,
+                                  });
                                   setEditingAssetId(null);
                                   setAssetEdits((prev) => { const n = { ...prev }; delete n[a.id]; return n; });
                                   loadData();
@@ -624,7 +637,7 @@ function Phase2({
                               <p className="text-sm font-medium text-text truncate">{a.name}</p>
                               <button
                                 onClick={() => {
-                                  setAssetEdits((prev) => ({ ...prev, [a.id]: { name: a.name, prompt: a.prompt ?? "" } }));
+                                  setAssetEdits((prev) => ({ ...prev, [a.id]: { name: a.name, prompt: a.prompt ?? "", voice_profile: a.voice_profile ?? "" } }));
                                   setEditingAssetId(a.id);
                                 }}
                                 className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-muted hover:text-brand rounded shrink-0"
@@ -642,6 +655,9 @@ function Phase2({
                               </button>
                             </div>
                             <p className="text-xs text-muted mt-1 line-clamp-3 leading-relaxed">{a.prompt || "（暂无提示词）"}</p>
+                            {a.asset_type === "character" && a.voice_profile && (
+                              <p className="text-xs text-sub mt-1 line-clamp-2 leading-relaxed">音色：{a.voice_profile}</p>
+                            )}
                           </div>
                         )}
                       </div>
@@ -800,6 +816,9 @@ function AssetCard({
         <div className="p-3">
           <p className="text-sm font-medium text-text truncate">{asset.name}</p>
           <p className="text-xs text-muted mt-0.5 line-clamp-2">{asset.prompt}</p>
+          {asset.asset_type === "character" && asset.voice_profile && (
+            <p className="text-xs text-sub mt-1 line-clamp-2">音色：{asset.voice_profile}</p>
+          )}
           <div className="mt-3 flex gap-1.5 justify-end">
             {/* 重新生成：打开 AgentDialog */}
             <Button

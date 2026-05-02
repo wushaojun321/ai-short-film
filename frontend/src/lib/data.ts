@@ -54,6 +54,10 @@ export function getStepIndex(step: EpisodeStep): number {
 export interface ShotDialogueLine {
   speaker: string;
   text: string;
+  emotion?: string;
+  delivery?: string;
+  action?: string;
+  expression?: string;
 }
 
 export interface Shot {
@@ -135,5 +139,6 @@ export interface Asset {
   status: AssetStatus;
   previewUrl?: string | null;
   prompt: string;
+  voiceProfile?: string;
   history: string[];
 }

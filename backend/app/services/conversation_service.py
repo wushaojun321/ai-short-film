@@ -81,9 +81,21 @@ async def _build_artifact_snapshot(
         obj = await Episode.get(target_id)
         if obj:
             shots = await Shot.find(Shot.episode_id == obj.id).sort("+order").to_list()
+            def dialogue_summary(line) -> str:
+                speaker_text = f"{line.speaker}：{line.text}" if line.speaker else line.text
+                performance = "，".join(
+                    part for part in [
+                        f"情绪={line.emotion}" if line.emotion else "",
+                        f"语气={line.delivery}" if line.delivery else "",
+                        f"动作={line.action}" if line.action else "",
+                        f"表情={line.expression}" if line.expression else "",
+                    ] if part
+                )
+                return f"{speaker_text}（{performance}）" if performance else speaker_text
+
             shot_list = [
                 f"{s.shot_code}（{s.duration}s）: {s.description[:80]}"
-                + (f" 台词：{'；'.join(f'{d.speaker}：{d.text}' if d.speaker else d.text for d in s.dialogues)}" if s.dialogues else "")
+                + (f" 台词：{'；'.join(dialogue_summary(d) for d in s.dialogues)}" if s.dialogues else "")
                 for s in shots
             ]
             return {

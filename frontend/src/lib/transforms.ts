@@ -133,6 +133,7 @@ export function transformAsset(a: ApiAsset): Asset {
     status: ASSET_STATUS_MAP[a.status] ?? "待确认",
     previewUrl: a.preview_url,
     prompt: a.prompt,
+    voiceProfile: a.voice_profile,
     history: a.versions.map((v, i) => `v${i + 1}`),
   };
 }

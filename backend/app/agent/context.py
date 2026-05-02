@@ -49,6 +49,7 @@ async def _build_snapshot(target_type: str, target_id: str) -> str:
                 f"asset_id：{target_id}\n"
                 f"名称：{asset.name}\n"
                 f"当前提示词：{asset.prompt}\n"
+                f"固定音色：{asset.voice_profile or '无'}\n"
                 f"当前状态：{asset.status}\n"
                 f"已有版本数：{len(asset.versions)}"
             )
@@ -113,7 +114,9 @@ async def _build_snapshot(target_type: str, target_id: str) -> str:
                 if typed:
                     asset_lines.append(f"  【{label}】")
                     for a in typed:
-                        asset_lines.append(f"    - {a.name}（id:{a.id}）| prompt: {a.prompt[:80]}…" if len(a.prompt) > 80 else f"    - {a.name}（id:{a.id}）| prompt: {a.prompt}")
+                        prompt_text = f"{a.prompt[:80]}…" if len(a.prompt) > 80 else a.prompt
+                        voice_text = f" | voice: {a.voice_profile}" if getattr(a, "voice_profile", "") else ""
+                        asset_lines.append(f"    - {a.name}（id:{a.id}）| prompt: {prompt_text}{voice_text}")
 
             eps_text = "\n".join(eps_lines) if eps_lines else "  （暂无分集）"
             assets_text = "\n".join(asset_lines) if asset_lines else "  （暂无资产）"

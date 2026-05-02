@@ -22,6 +22,7 @@ from app.models.prompt_config import PromptConfigScope
 # assets 中每条资产包含两个字段：
 #   description - 剧情层面的文字描述（供人类阅读）
 #   prompt      - 专门用于 Seedream 图像生成的提示词（直接发给 API）
+#   voice_profile - 仅人物资产需要，固定角色音色与说话基调
 # =============================================================================
 SCRIPT_PARSE = {
     "scope": PromptConfigScope.script_parse,
@@ -47,7 +48,8 @@ SCRIPT_PARSE = {
       {
         "name": "角色名",
         "description": "剧情层面描述：身份、性格、在剧中的定位",
-        "prompt": "Seedream 图像提示词（见规范）"
+        "prompt": "Seedream 图像提示词（见规范）",
+        "voice_profile": "角色固定音色：年龄感、性别、音色质感、语速、情绪基线、禁止变化项"
       }
     ],
     "scenes": [
@@ -109,6 +111,7 @@ SCRIPT_PARSE = {
 
 11. 真实摄影要求：必须写入"真人演员定妆照、真实皮肤纹理、自然毛孔、真实织物、棚拍摄影、电影级写实光影"
 12. 风格禁令：禁止使用"立绘"、"设定图"、"游戏角色"、"CG"、"二次元"、"动漫"、"卡通"等词
+13. voice_profile：固定角色音色，不写声音演员名，必须包含年龄感、性别、音色质感、语速、情绪基线、禁止变化项
 
 示例格式：
 "竖屏9:16，真人演员古装定妆照，全身棚拍参考照，中性灰摄影棚背景，[性别]，[脸型][肤色][骨相]，[五官细节]，[发型]，身穿[服装细节]，[配饰]，气质[气质]，真实皮肤纹理，自然毛孔，真实织物，电影级写实光影，全身可见。排斥：[排斥项]，不要动漫风、不要插画风、不要游戏CG、不要3D建模、不要塑料皮肤、不要过度磨皮"
@@ -292,6 +295,7 @@ SHOT_SCRIPT_GEN = {
 4. 台词原文照抄，禁止改写或缩写；对白必须使用中文，不得出现英文或其他语言
 5. 每个镜头绑定出现的角色资产和当前场景资产
 6. 每个镜头必须写清与前后镜的衔接、起始状态、结束状态、画面方向和连续性约束
+7. 每句台词必须写清人物台词、表情、动作、情绪和语气
 
 时长规则：
 - {max_shot_duration} 秒只是单镜头上限，不是固定时长；严禁所有镜头都写成 {max_shot_duration} 秒
@@ -321,6 +325,15 @@ description 字段必须包含以下信息（不得省略）：
 - screen_direction：画面方向和空间轴线，例如"李云湘画面左侧，谢风凌画面右侧，视线从左向右"
 - continuity_notes：本镜必须延续或禁止变化的硬规则，例如服装、伤势、道具、蒙眼布、站位、谁不能张嘴
 - use_prev_last_frame：片段内连续动作/同场景承接镜填 true；片段首镜、明显换场、时间跳跃填 false
+
+台词字段规则：
+- speaker：唯一说话人，必须是角色名
+- text：台词原文，必须照抄，不得改写或缩写
+- emotion：这句台词的情绪，例如"压抑怒意"、"强忍哽咽"、"冷静试探"
+- delivery：声音表演方式，例如"低声、语速偏慢、尾音压住"、"短促、压低嗓音"
+- action：说话时同步发生的身体动作
+- expression：说话时的面部表情和眼神
+- 同一镜头只有一个角色说话时，必须明确其他角色不得张嘴；如果多人连续说话，必须按 dialogues 顺序列出
 
 请输出 JSON 格式，不要包含额外解释：
 {
@@ -367,7 +380,14 @@ description 字段必须包含以下信息（不得省略）：
         "description": "景别+机位+运镜+动作+表情+画面内容（服装有变化时加注）",
         "required_assets": ["资产名称1", "资产名称2"],
         "dialogues": [
-          {"speaker": "角色名", "text": "台词原文"}
+          {
+            "speaker": "角色名",
+            "text": "台词原文",
+            "emotion": "这句台词的情绪",
+            "delivery": "语速、音量、停顿、尾音等声音表演",
+            "action": "说话时同步发生的身体动作",
+            "expression": "说话时的面部表情和眼神"
+          }
         ]
       },
       {
@@ -461,19 +481,24 @@ SHOT_VIDEO_GEN = {
 8. 运镜
 9. 时间分段动作（视频时长 {duration} 秒，均匀分为三段：0-{seg1}s / {seg1}-{seg2}s / {seg2}-{duration}s，每段写明对应动作，覆盖完整时长）
 10. 台词与说话人（明确唯一发声人，其他人不得张嘴）
-11. 连续性约束：必须严格承接上一镜结尾状态、本镜起始状态和本镜结束状态
-12. 反向约束
+11. 台词表演：必须写清每句台词对应的表情、动作、情绪和语气
+12. 音色一致性：必须按角色音色设定保持同一角色跨镜头声音一致
+13. 连续性约束：必须严格承接上一镜结尾状态、本镜起始状态和本镜结束状态
+14. 反向约束
 
 连续性要求：
 - 如果存在"上一镜尾帧辅助图"，只能把它当作动作、站位、光线和情绪承接参考
 - 不得因为上一镜尾帧而替代当前镜头绑定的角色资产和场景资产
 - 不得无理由改变人物左右位置、视线方向、手中道具、服装、伤势、蒙眼布和场景光线
 - 如果本镜是片段首镜或转场镜，必须按 transition_in 写清换场方式，不要强行延续上一镜画面
+- 每个发声角色必须严格使用"角色音色设定"中的音色；不得忽高忽低、不得改变年龄感、不得把男性生成女性音色或把女性生成少女撒娇音
+- 只有 dialogues 中的 speaker 可以张嘴发声，其他角色必须保持闭嘴，只能做表情和动作反应
+- 台词必须与口型同步，不要出现画外错误人声，不要出现字幕
 
 以 JSON 格式输出：{"prompt": "完整提示词文本"}
 注意：提示词用中文撰写，台词原文保留。""",
-    "user_prompt_template": "镜头编号：{shot_code}\n所属片段：{segment_code} {segment_name}（{segment_function}）\n镜头功能：{shot_function}\n视频时长：{duration}秒\n分镜描述：{shot_description}\n\n连续性上下文：\n{continuity_context}\n\n台词：{dialogue}\n直接参考图片：\n{reference_images}\n角色参考：\n{character_prompts}\n场景参考：\n{scene_prompt}\n道具参考：\n{prop_prompts}\n\n当前提示词（若有）：{shot_prompt}",
-    "variables": ["shot_code", "segment_code", "segment_name", "segment_function", "shot_function", "duration", "seg1", "seg2", "shot_description", "continuity_context", "dialogue", "reference_images", "character_prompts", "scene_prompt", "prop_prompts", "shot_prompt"],
+    "user_prompt_template": "镜头编号：{shot_code}\n所属片段：{segment_code} {segment_name}（{segment_function}）\n镜头功能：{shot_function}\n视频时长：{duration}秒\n分镜描述：{shot_description}\n\n连续性上下文：\n{continuity_context}\n\n角色音色设定：\n{voice_profiles}\n\n台词与表演：\n{dialogue_performance}\n\n直接参考图片：\n{reference_images}\n角色参考：\n{character_prompts}\n场景参考：\n{scene_prompt}\n道具参考：\n{prop_prompts}\n\n当前提示词（若有）：{shot_prompt}",
+    "variables": ["shot_code", "segment_code", "segment_name", "segment_function", "shot_function", "duration", "seg1", "seg2", "shot_description", "continuity_context", "voice_profiles", "dialogue_performance", "reference_images", "character_prompts", "scene_prompt", "prop_prompts", "shot_prompt"],
 }
 
 # =============================================================================
