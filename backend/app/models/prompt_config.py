@@ -7,6 +7,8 @@ from pydantic import Field
 class PromptConfigScope(str, Enum):
     script_parse         = "script_parse"
     episode_split        = "episode_split"
+    series_plan          = "series_plan"
+    asset_extract        = "asset_extract"
     continuity_extract   = "continuity_extract"
     shot_script_gen      = "shot_script_gen"
     shot_script_edit     = "shot_script_edit"

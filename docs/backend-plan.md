@@ -914,3 +914,14 @@ backend/
 - Admin 查看接口已实现，返回代码侧 `_PROMPTS`；在线更新、历史版本列表和回滚接口尚未实现。
 - `seed_prompt_configs()` 旧函数仍保留，但没有在 `main.py` 启动链路中调用。
 - Conversation 中的 `prompt_config_snapshot` 字段已存在，但生成链路尚未系统性写入快照。
+
+### 难点 6：长剧本解析不能丢失原文台词
+
+**问题**：旧的长剧本 Map-Reduce 会先把原文压缩成摘要，再让 `script_parse` 生成分集。分集 `script_excerpt` 因此可能只剩剧情概述，后续分镜生成无法恢复原始台词。
+
+**已落地方案**：
+- 新增 `ScriptBlock` / `script_blocks` 集合，解析开始先做确定性原文索引。
+- `parse_script_task` 内部拆为全剧规划、分集范围规划、原文回填、资产解析。
+- `Episode.script_excerpt` 由后端根据 `source_block_ranges` 从原文块拼回，不再信任 LLM 重写正文。
+- `Episode` 保存 `source_block_ids`、原文起止行、`dialogue_count` 和 `source_integrity`，用于排查分集材料质量。
+- 旧项目不自动迁移；重新解析或新项目才使用新链路。

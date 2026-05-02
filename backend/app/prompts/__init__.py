@@ -14,7 +14,9 @@
 from app.prompts.llm_prompts import (
     DEFAULT_PROMPTS,
     SCRIPT_PARSE,
+    SERIES_PLAN,
     EPISODE_SPLIT,
+    ASSET_EXTRACT,
     CONTINUITY_EXTRACT,
     ASSET_PROMPT_GEN,
     SHOT_SCRIPT_GEN,
@@ -34,7 +36,9 @@ __all__ = [
     "BASE_INSTRUCTIONS",
     # 单条 prompt 常量
     "SCRIPT_PARSE",
+    "SERIES_PLAN",
     "EPISODE_SPLIT",
+    "ASSET_EXTRACT",
     "CONTINUITY_EXTRACT",
     "ASSET_PROMPT_GEN",
     "SHOT_SCRIPT_GEN",

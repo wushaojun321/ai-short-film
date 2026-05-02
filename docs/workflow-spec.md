@@ -712,3 +712,15 @@
 5. 把审核和重生流程做成可追踪的状态机。
 
 这样后面做第 4 集、第 5 集时，就不需要再靠人工临时约束，而是直接按系统规则生产。
+
+## 15. 已落地：剧本解析多模块化
+
+当前初始化解析不再由单个 LLM 调用同时承担分集、资产、正文生成：
+
+1. `ScriptIndexer` 先把原始剧本切成 `script_blocks`，保留行号、块类型、说话人和原文位置。
+2. `SeriesPlannerAgent` 只生成全剧世界观、主线和连续性基调。
+3. `EpisodeSplitterAgent` 只规划每集对应的原文块范围，不生成 `script_excerpt` 正文。
+4. `EpisodeMaterialBuilder` 用原文块回填 `Episode.script_excerpt`，保证对白不会在摘要阶段丢失。
+5. `AssetExtractorAgent` 独立解析人物、场景、道具资产，人物继续按角色、场景和剧情阶段拆分。
+
+这个改动保留现有 `/generate/projects/{project_id}/parse-script` 入口和前端流程，只改变后端任务内部的数据来源与落库方式。

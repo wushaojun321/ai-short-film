@@ -3,6 +3,7 @@ from app.models.project import Project, ProjectInitStatus
 from app.models.episode import Episode
 from app.models.asset import Asset
 from app.models.shot import Shot
+from app.models.script_block import ScriptBlock
 from app.models.task_record import TaskRecord
 from app.models.conversation import Conversation
 from app.schemas.project import ProjectCreate, ProjectUpdate
@@ -38,6 +39,7 @@ async def delete_project(project: Project) -> None:
     await Shot.find(Shot.project_id == project.id).delete()
     await Episode.find(Episode.project_id == project.id).delete()
     await Asset.find(Asset.project_id == project.id).delete()
+    await ScriptBlock.find(ScriptBlock.project_id == project.id).delete()
     await TaskRecord.find(TaskRecord.project_id == project.id).delete()
     await Conversation.find(Conversation.project_id == project.id).delete()
     await project.delete()

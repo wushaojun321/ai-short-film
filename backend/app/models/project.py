@@ -25,6 +25,8 @@ class Project(Document):
     script_text: Optional[str] = None
     series_prompt: Optional[str] = None
     parse_notes: Optional[str] = None
+    script_index_version: str = ""
+    script_indexed_at: Optional[datetime] = None
     progress: int = 0
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

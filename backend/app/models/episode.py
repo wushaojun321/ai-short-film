@@ -43,6 +43,11 @@ class Episode(Document):
     status: EpisodeStatus = EpisodeStatus.not_started
     current_step: EpisodeStep = EpisodeStep.storyboard_script
     continuity_notes: str = ""
+    source_block_ids: list[PydanticObjectId] = []
+    source_start_line: int = 0
+    source_end_line: int = 0
+    dialogue_count: int = 0
+    source_integrity: str = "original"
     final_video_url: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

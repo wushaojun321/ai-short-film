@@ -3,49 +3,61 @@ from __future__ import annotations
 from app.celery_app import celery_app
 from app.tasks.base import run_async, finish_task_record
 
-# 超过此字数时启用 Map-Reduce 分段解析
-LONG_SCRIPT_THRESHOLD = 10000
+# 5 万字以内允许 LLM 直接读取索引摘要；正文始终由原文块回填，不再摘要式压缩。
+DIRECT_INDEX_THRESHOLD = 50000
 
 
-def _split_script(text: str, target_episodes: int) -> list[str]:
-    """按目标集数均分剧本，在段落边界切分，每段约 6000 字。"""
-    chunk_size = max(6000, len(text) // max(target_episodes, 1))
-    chunks, pos = [], 0
-    while pos < len(text):
-        end = min(pos + chunk_size, len(text))
-        if end < len(text):
-            boundary = text.rfind('\n\n', pos + int(chunk_size * 0.5), end)
-            if boundary > pos:
-                end = boundary + 2
-        chunks.append(text[pos:end].strip())
-        pos = end
-    return [c for c in chunks if c]
+def _group_ranges(source_ranges, target_count: int):
+    """Group existing consecutive source ranges into target_count larger ranges."""
+    from app.utils.script_indexer import SourceRange
+
+    if not source_ranges:
+        return []
+    target = max(target_count, 1)
+    if len(source_ranges) == target:
+        return source_ranges
+    if len(source_ranges) < target:
+        return []
+
+    grouped: list[SourceRange] = []
+    for i in range(target):
+        start_i = round(i * len(source_ranges) / target)
+        end_i = round((i + 1) * len(source_ranges) / target) - 1
+        part = source_ranges[start_i:end_i + 1]
+        if part:
+            grouped.append(SourceRange(part[0].start_block, part[-1].end_block))
+    return grouped
 
 
-def _build_reduce_input(chunks_results: list[dict]) -> str:
-    """将 N 段 map 结果合并为 Reduce 阶段的 script_text。"""
-    lines = []
-    for i, r in enumerate(chunks_results):
-        lines.append(f"=== 第 {i + 1} 段摘要 ===")
-        lines.append(f"情节：{r.get('plot_summary', '')}")
-        chars = r.get('characters', [])
-        if chars:
-            lines.append("人物：" + "；".join(
-                f"{c['name']}（{c.get('description', '')}）" for c in chars
-            ))
-        scenes = r.get('scenes', [])
-        if scenes:
-            lines.append("场景：" + "；".join(
-                f"{s['name']}（{s.get('description', '')}）" for s in scenes
-            ))
-        props = [p for p in r.get('props', []) if int(p.get('significance', 0)) >= 4]
-        if props:
-            lines.append("道具：" + "；".join(p['name'] for p in props))
-        hints = r.get('episode_hints', [])
-        if hints:
-            lines.append("分集建议：" + "；".join(hints))
-        lines.append("")
-    return "\n".join(lines)
+def _extract_ranges_from_episode_plan(episodes_data: list[dict], blocks, target_count: int):
+    from app.utils.script_indexer import normalize_ranges
+
+    raw_ranges: list[dict] = []
+    for ep in episodes_data:
+        ranges = ep.get("source_block_ranges") or ep.get("source_ranges") or []
+        if isinstance(ranges, list) and ranges:
+            starts, ends = [], []
+            for item in ranges:
+                if isinstance(item, dict):
+                    starts.append(item.get("start_block", item.get("start_block_index")))
+                    ends.append(item.get("end_block", item.get("end_block_index")))
+            try:
+                raw_ranges.append({"start_block": min(int(x) for x in starts), "end_block": max(int(x) for x in ends)})
+            except (TypeError, ValueError):
+                continue
+        elif "start_block" in ep or "end_block" in ep:
+            raw_ranges.append(ep)
+    ranges = normalize_ranges(raw_ranges, blocks, target_count)
+    return ranges if len(ranges) == target_count else []
+
+
+def _episode_title_from_range(blocks, source_range, fallback: str) -> str:
+    from app.models.script_block import ScriptBlockType
+
+    for block in blocks[source_range.start_block:source_range.end_block + 1]:
+        if block.block_type == ScriptBlockType.episode_header:
+            return block.text[:40]
+    return fallback
 
 
 @celery_app.task(bind=True, name="app.tasks.llm.parse_script", queue="llm")
@@ -58,14 +70,25 @@ async def _parse_script_async(celery_id: str, project_id: str):
     from app.database import init_db
     await init_db()
 
+    import json
+    from datetime import datetime
     from beanie import PydanticObjectId
     from app.models.project import Project
     from app.models.episode import Episode, EpisodeStatus
     from app.models.asset import Asset, AssetType, AssetStatus
+    from app.models.shot import Shot
     from app.models.task_record import TaskRecord
     from app.services import llm_service
     from app.services.prompt_service import render
     from app.models.prompt_config import PromptConfigScope
+    from app.utils.script_indexer import (
+        SCRIPT_INDEX_VERSION,
+        build_excerpt,
+        build_index_digest,
+        create_script_index,
+        explicit_episode_ranges,
+        fallback_even_ranges,
+    )
 
     async def log(msgs: list[str], progress: int):
         """Append log lines and update progress atomically."""
@@ -73,6 +96,7 @@ async def _parse_script_async(celery_id: str, project_id: str):
             current = record.logs or []
             await record.set({"logs": current + msgs, "progress": progress})
 
+    record = None
     try:
         project = await Project.get(PydanticObjectId(project_id))
         if not project or not project.script_text:
@@ -85,105 +109,72 @@ async def _parse_script_async(celery_id: str, project_id: str):
             f"[init] 剧本长度：{script_len} 字，目标集数：{project.target_episode_count}",
         ], 10)
 
-        # ── Map-Reduce 分支（长剧本） ─────────────────────────────────────────
-        if script_len >= LONG_SCRIPT_THRESHOLD:
-            import asyncio
-            from app.models.prompt_config import PromptConfigScope as Scope
+        # 重新解析视为重建初始化产物；旧项目不会自动迁移，只有用户主动触发时才会重建。
+        await Shot.find(Shot.project_id == project.id).delete()
+        await Episode.find(Episode.project_id == project.id).delete()
+        await Asset.find(Asset.project_id == project.id).delete()
 
-            await log([
-                f"[map-reduce] 剧本 {script_len} 字，超过 {LONG_SCRIPT_THRESHOLD} 字阈值，启用 Map-Reduce 分段解析…"
-            ], 15)
+        blocks = await create_script_index(project.id, project.script_text)
+        if not blocks:
+            raise ValueError("Script index is empty")
+        await project.set({
+            "script_index_version": SCRIPT_INDEX_VERSION,
+            "script_indexed_at": datetime.utcnow(),
+        })
+        explicit_ranges = explicit_episode_ranges(blocks)
+        target_count = project.target_episode_count or len(explicit_ranges) or 1
+        digest_limit = 22000 if script_len <= DIRECT_INDEX_THRESHOLD else 18000
+        script_index = build_index_digest(blocks, max_chars=digest_limit)
+        await log([
+            f"[index] 原文索引完成：{len(blocks)} 个块，显式分集边界 {len(explicit_ranges)} 个",
+        ], 25)
 
-            chunks = _split_script(project.script_text, project.target_episode_count)
-            total = len(chunks)
-            await log([f"[map-reduce] 切分为 {total} 段，开始并发提取摘要…"], 18)
-
-            # 获取 Map prompt（只取 system_prompt 和 user_prompt_template）
-            map_config = await render(Scope.script_map, {
-                "chunk_index": 1, "total_chunks": total, "chunk_text": "",
-            })
-            map_sys = map_config[0]
-            map_user_tpl = map_config[2].get("user_prompt_template", "")
-
-            sem = asyncio.Semaphore(3)
-            completed = [0]  # 用列表包装以在闭包中修改
-
-            async def map_chunk(chunk: str, idx: int):
-                async with sem:
-                    user_p = map_user_tpl.format(
-                        chunk_index=idx + 1,
-                        total_chunks=total,
-                        chunk_text=chunk,
-                    )
-                    result = await llm_service.chat_json(map_sys, user_p, max_tokens=8192)
-                    if not isinstance(result, dict):
-                        raise ValueError(
-                            f"Map 阶段第 {idx + 1}/{total} 段返回了 {type(result).__name__}，"
-                            "期望 JSON 对象"
-                        )
-                    completed[0] += 1
-                    pct = 18 + int(completed[0] / total * 32)
-                    await log([f"[map] 第 {idx + 1}/{total} 段提取完成"], pct)
-                    return result
-
-            map_results = await asyncio.gather(*[map_chunk(c, i) for i, c in enumerate(chunks)])
-            await log(["[map-reduce] Map 阶段完成，合并摘要，准备 Reduce…"], 52)
-
-            script_text_for_reduce = _build_reduce_input(list(map_results))
-        else:
-            # 短剧本：直接截断走原有逻辑
-            script_text_for_reduce = project.script_text[:8000]
-
+        # SeriesPlannerAgent：只生成全剧规划，不承载分集正文。
         system_prompt, user_prompt, _ = await render(
-            PromptConfigScope.script_parse,
+            PromptConfigScope.series_plan,
             {
-                "script_text": script_text_for_reduce,
-                "target_episodes": project.target_episode_count,
+                "script_index": script_index,
+                "target_episodes": target_count,
                 "min_duration": project.min_episode_duration,
                 "parse_notes": project.parse_notes or "",
             },
         )
+        series_result = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=8192)
+        if not isinstance(series_result, dict):
+            series_result = {}
         await log([
-            "[prompt] Prompt 渲染完成，发送 LLM 请求…",
-        ], 55)
+            "[series] 全剧规划完成",
+        ], 40)
 
-        result = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=16384)
-        if not isinstance(result, dict):
-            raise ValueError(
-                f"剧本解析返回了 {type(result).__name__}，期望 JSON 对象，"
-                "应包含 episodes 和 assets 字段"
+        series_prompt = series_result.get("series_prompt") or project.series_prompt or ""
+        continuity_notes = series_result.get("continuity_notes", "")
+        await project.set({"series_prompt": series_prompt})
+
+        # EpisodeSplitterAgent：只输出 source_block_ranges，后端用原文块回填 script_excerpt。
+        if len(explicit_ranges) == target_count:
+            source_ranges = explicit_ranges
+            episodes_data = []
+            await log(["[episodes] 使用剧本显式第X集边界"], 50)
+        else:
+            system_prompt, user_prompt, _ = await render(
+                PromptConfigScope.episode_split,
+                {
+                    "script_index": script_index,
+                    "series_context": json.dumps(series_result, ensure_ascii=False),
+                    "target_episodes": target_count,
+                    "min_duration": project.min_episode_duration,
+                    "parse_notes": project.parse_notes or "",
+                },
             )
-        await log([
-            "✓ LLM 响应完成，开始解析结果…",
-        ], 70)
-
-        # Save series_prompt
-        if "series_prompt" in result:
-            await project.set({"series_prompt": result["series_prompt"]})
-            await log(["[series] 剧集全局提示词已保存"], 72)
-
-        # Create episodes
-        episodes_data = result.get("episodes", [])
-        target_count = project.target_episode_count or 1
-
-        # 后端校验：LLM 返回集数与目标不符时补全或截断
-        if len(episodes_data) != target_count:
-            await log([
-                f"[warn] LLM 返回 {len(episodes_data)} 集，目标 {target_count} 集，自动修正…"
-            ], 70)
-            if len(episodes_data) < target_count:
-                # 补全缺少的集数
-                for i in range(len(episodes_data) + 1, target_count + 1):
-                    episodes_data.append({
-                        "number": i,
-                        "title": f"第{i}集",
-                        "summary": f"待补充（第{i}集剧情）",
-                        "word_count": episodes_data[-1].get("word_count", 500) if episodes_data else 500,
-                        "estimated_duration": project.min_episode_duration or 120,
-                    })
+            split_result = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=16384)
+            episodes_data = split_result.get("episodes", []) if isinstance(split_result, dict) else []
+            source_ranges = _extract_ranges_from_episode_plan(episodes_data, blocks, target_count)
+            if not source_ranges:
+                grouped = _group_ranges(explicit_ranges, target_count)
+                source_ranges = grouped or fallback_even_ranges(blocks, target_count)
+                await log(["[warn] 分集范围不完整，已使用后端原文块兜底切分"], 55)
             else:
-                # 截断多余的集数
-                episodes_data = episodes_data[:target_count]
+                await log(["[episodes] 分集 block 范围规划完成"], 55)
 
         def calc_duration(word_count: int, llm_duration: int, min_dur: int) -> int:
             """字数推算兜底：word_count ÷ 3.5 × 1.4，与 min_dur 取较大值，向上取整到 5 的倍数。
@@ -196,31 +187,72 @@ async def _parse_script_async(celery_id: str, project_id: str):
             return int(math.ceil(result_sec / 5) * 5)
 
         created_eps = 0
-        for ep_data in episodes_data:
-            existing = await Episode.find_one(
-                Episode.project_id == project.id,
-                Episode.number == ep_data.get("number", 0),
+        final_episodes: list[dict] = []
+        for idx, source_range in enumerate(source_ranges[:target_count], start=1):
+            ep_data = episodes_data[idx - 1] if idx - 1 < len(episodes_data) and isinstance(episodes_data[idx - 1], dict) else {}
+            excerpt, block_ids, start_line, end_line, dialogue_count = build_excerpt(blocks, source_range)
+            wc = len(excerpt)
+            llm_dur = int(ep_data.get("estimated_duration", 0) or 0)
+            duration = calc_duration(wc, llm_dur, project.min_episode_duration or 30)
+            title = ep_data.get("title") or _episode_title_from_range(blocks, source_range, f"第{idx}集")
+            summary = ep_data.get("summary") or excerpt[:80]
+            ep = Episode(
+                project_id=project.id,
+                number=idx,
+                title=title,
+                summary=summary,
+                script_excerpt=excerpt,
+                word_count=wc,
+                estimated_duration=duration,
+                continuity_notes=continuity_notes,
+                source_block_ids=block_ids,
+                source_start_line=start_line,
+                source_end_line=end_line,
+                dialogue_count=dialogue_count,
+                source_integrity="original" if excerpt else "summary_fallback",
+                status=EpisodeStatus.not_started,
             )
-            if not existing:
-                wc = ep_data.get("word_count", 0)
-                llm_dur = ep_data.get("estimated_duration", 0)
-                duration = calc_duration(wc, llm_dur, project.min_episode_duration or 30)
-                ep = Episode(
-                    project_id=project.id,
-                    number=ep_data.get("number", 0),
-                    title=ep_data.get("title", ""),
-                    summary=ep_data.get("summary", ""),
-                    script_excerpt=ep_data.get("script_excerpt", ""),
-                    word_count=wc,
-                    estimated_duration=duration,
-                    status=EpisodeStatus.not_started,
-                )
-                await ep.insert()
-                created_eps += 1
-        await log([f"[episodes] 已创建 {created_eps} 集（共 {len(episodes_data)} 集）"], 80)
+            await ep.insert()
+            created_eps += 1
+            final_episodes.append({
+                "number": ep.number,
+                "title": ep.title,
+                "summary": ep.summary,
+                "script_excerpt": ep.script_excerpt,
+                "word_count": ep.word_count,
+                "estimated_duration": ep.estimated_duration,
+                "source_block_ranges": [{"start_block": source_range.start_block, "end_block": source_range.end_block}],
+                "dialogue_count": dialogue_count,
+            })
+        await log([f"[episodes] 已按原文创建 {created_eps} 集"], 75)
+
+        # AssetExtractorAgent：资产解析独立执行，不再和分集拆解争夺输出空间。
+        asset_episode_plan = [
+            {
+                "number": ep["number"],
+                "title": ep["title"],
+                "summary": ep["summary"],
+                "source_block_ranges": ep["source_block_ranges"],
+                "dialogue_count": ep["dialogue_count"],
+            }
+            for ep in final_episodes
+        ]
+        system_prompt, user_prompt, _ = await render(
+            PromptConfigScope.asset_extract,
+            {
+                "script_index": script_index,
+                "series_context": json.dumps(series_result, ensure_ascii=False),
+                "episode_plan": json.dumps(asset_episode_plan, ensure_ascii=False),
+            },
+        )
+        asset_result = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=16384)
+        if not isinstance(asset_result, dict):
+            asset_result = {}
 
         # 立即创建 Asset 记录（status=pending，无图），供步骤3 Agent 操作
-        assets_data = result.get("assets", {})
+        assets_data = asset_result.get("assets") or series_result.get("assets") or {}
+        if not isinstance(assets_data, dict):
+            assets_data = {}
         type_map = {
             "characters": AssetType.character,
             "scenes": AssetType.scene,
@@ -230,6 +262,8 @@ async def _parse_script_async(celery_id: str, project_id: str):
         for key, asset_type in type_map.items():
             count = 0
             for a in assets_data.get(key, []):
+                if not isinstance(a, dict):
+                    continue
                 existing_asset = await Asset.find_one(
                     Asset.project_id == project.id,
                     Asset.name == a.get("name", ""),
@@ -259,10 +293,11 @@ async def _parse_script_async(celery_id: str, project_id: str):
         await log(["✓ 剧本解析完成，请在步骤3确认分集与资产后继续"], 100)
 
         await finish_task_record(celery_id, result={
-            "episodes": episodes_data,
+            "episodes": final_episodes,
             "assets": assets_data,
+            "series": series_result,
         })
-        return result
+        return {"episodes": final_episodes, "assets": assets_data, "series": series_result}
 
     except Exception as e:
         if record:

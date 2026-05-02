@@ -218,11 +218,86 @@ SCRIPT_MAP = {
 # =============================================================================
 EPISODE_SPLIT = {
     "scope": PromptConfigScope.episode_split,
-    "name": "分集规划-系统提示",
-    "description": "将剧本拆分为 N 集，输出结构化分集规划",
-    "system_prompt": "你是专业短剧编剧，擅长将长剧本拆分为节奏紧凑的分集规划。每集时长控制在 2-3 分钟，情节完整，结尾有悬念。请输出 JSON 格式的分集列表。",
-    "user_prompt_template": "剧本：{script_text}\n\n剧集背景：{series_context}\n\n目标集数：{target_episodes}",
-    "variables": ["script_text", "series_context", "target_episodes"],
+    "name": "分集拆解-原文索引引用",
+    "description": "根据原文块索引拆分分集，只输出 block 范围，不重写正文",
+    "system_prompt": """你是专业短剧结构编剧。你的任务是根据“原文块索引”拆分分集。
+
+强制规则：
+1. 只决定每集使用哪些连续原文块，不要重写、改写、压缩剧本文本。
+2. 如果索引中已有 episode_header，请优先保持原始集边界。
+3. 每集必须输出连续的 start_block/end_block，范围尽量覆盖全文，不能交叉。
+4. summary 可以概括，但 script_excerpt 不由你生成。
+5. 输出 JSON 对象，不要包含额外解释。
+
+格式：
+{
+  "episodes": [
+    {
+      "number": 1,
+      "title": "集标题",
+      "summary": "50字以内本集概要",
+      "source_block_ranges": [{"start_block": 0, "end_block": 12}],
+      "word_count": 1200,
+      "estimated_duration": 120
+    }
+  ]
+}""",
+    "user_prompt_template": "全剧规划：\n{series_context}\n\n目标集数：{target_episodes}\n每集最短时长（秒）：{min_duration}\n补充说明：{parse_notes}\n\n原文块索引：\n{script_index}",
+    "variables": ["script_index", "series_context", "target_episodes", "min_duration", "parse_notes"],
+}
+
+
+SERIES_PLAN = {
+    "scope": PromptConfigScope.series_plan,
+    "name": "全剧规划-系统提示",
+    "description": "生成全剧世界观、主线、视觉风格和连续性基调",
+    "system_prompt": """你是专业短剧总编剧和视觉总监。请只做全剧级规划，不拆分集、不输出资产列表。
+
+请输出 JSON 对象：
+{
+  "series_prompt": "全剧世界观、时代/空间、视觉风格、色调、影像质感",
+  "main_storyline": "主线推进摘要",
+  "continuity_notes": "全局连续性约束，包括人物关系、服装阶段、关键伤势/道具/地点变化"
+}""",
+    "user_prompt_template": "目标集数：{target_episodes}\n每集最短时长（秒）：{min_duration}\n补充说明：{parse_notes}\n\n原文块索引：\n{script_index}",
+    "variables": ["script_index", "target_episodes", "min_duration", "parse_notes"],
+}
+
+
+ASSET_EXTRACT = {
+    "scope": PromptConfigScope.asset_extract,
+    "name": "资产解析-系统提示",
+    "description": "从原文索引和分集规划中提取角色/场景/道具资产",
+    "system_prompt": """你是 AI 短剧资产规划师。请根据原文块索引和分集规划提取制作所需资产。
+
+强制规则：
+1. 人物资产必须按“角色 + 场景 + 剧情阶段/造型状态”拆分，不能一个角色一张图贯穿全剧。
+2. 每个人物资产必须填写 character_name、scene_scope、appearance_stage、view_requirements、voice_profile。
+3. view_requirements 固定包含“面部特写、全身形象、侧面视角”。
+4. prompt 必须是中文写实影视参考提示词，禁止动漫、插画、游戏CG、二次元、卡通、3D建模。
+5. 场景只提取反复出现或对剧情功能重要的场景；道具只提取关键标志性道具。
+
+输出 JSON 对象：
+{
+  "assets": {
+    "characters": [
+      {
+        "name": "角色名-场景/阶段/造型资产名",
+        "character_name": "角色本名",
+        "scene_scope": "适用场景",
+        "appearance_stage": "剧情阶段/造型状态",
+        "view_requirements": "面部特写、全身形象、侧面视角",
+        "description": "剧情层面描述",
+        "prompt": "中文写实影视定妆参考提示词",
+        "voice_profile": "固定音色与说话基调"
+      }
+    ],
+    "scenes": [{"name": "场景名", "description": "剧情层面描述", "prompt": "中文写实影视场景参考提示词"}],
+    "props": [{"name": "道具名", "description": "剧情层面描述", "prompt": "中文真实道具摄影参考提示词"}]
+  }
+}""",
+    "user_prompt_template": "全剧规划：\n{series_context}\n\n分集规划：\n{episode_plan}\n\n原文块索引：\n{script_index}",
+    "variables": ["script_index", "series_context", "episode_plan"],
 }
 
 # =============================================================================
@@ -618,7 +693,9 @@ SERIES_OVERVIEW_EDIT = {
 DEFAULT_PROMPTS = [
     SCRIPT_PARSE,
     SCRIPT_MAP,
+    SERIES_PLAN,
     EPISODE_SPLIT,
+    ASSET_EXTRACT,
     CONTINUITY_EXTRACT,
     ASSET_PROMPT_GEN,
     SHOT_SCRIPT_GEN,
