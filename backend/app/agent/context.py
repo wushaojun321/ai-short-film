@@ -50,6 +50,10 @@ async def _build_snapshot(target_type: str, target_id: str) -> str:
                 f"名称：{asset.name}\n"
                 f"当前提示词：{asset.prompt}\n"
                 f"固定音色：{asset.voice_profile or '无'}\n"
+                f"角色本名：{asset.character_name or '无'}\n"
+                f"适用场景：{asset.scene_scope or '无'}\n"
+                f"造型阶段：{asset.appearance_stage or '无'}\n"
+                f"视角要求：{asset.view_requirements or '无'}\n"
                 f"当前状态：{asset.status}\n"
                 f"已有版本数：{len(asset.versions)}"
             )
@@ -116,7 +120,13 @@ async def _build_snapshot(target_type: str, target_id: str) -> str:
                     for a in typed:
                         prompt_text = f"{a.prompt[:80]}…" if len(a.prompt) > 80 else a.prompt
                         voice_text = f" | voice: {a.voice_profile}" if getattr(a, "voice_profile", "") else ""
-                        asset_lines.append(f"    - {a.name}（id:{a.id}）| prompt: {prompt_text}{voice_text}")
+                        meta_parts = [
+                            f"角色:{a.character_name}" if getattr(a, "character_name", "") else "",
+                            f"场景:{a.scene_scope}" if getattr(a, "scene_scope", "") else "",
+                            f"阶段:{a.appearance_stage}" if getattr(a, "appearance_stage", "") else "",
+                        ]
+                        meta_text = " | " + "，".join(part for part in meta_parts if part) if any(meta_parts) else ""
+                        asset_lines.append(f"    - {a.name}（id:{a.id}）| prompt: {prompt_text}{meta_text}{voice_text}")
 
             eps_text = "\n".join(eps_lines) if eps_lines else "  （暂无分集）"
             assets_text = "\n".join(asset_lines) if asset_lines else "  （暂无资产）"

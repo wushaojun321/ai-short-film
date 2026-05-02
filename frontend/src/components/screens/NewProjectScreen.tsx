@@ -419,7 +419,15 @@ function Phase2({
   const [apiEpisodes, setApiEpisodes] = useState<ApiEpisode[]>([]);
   const [sheetEp, setSheetEp] = useState<EpisodeDraft | null>(null);
   const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
-  const [assetEdits, setAssetEdits] = useState<Record<string, { name: string; prompt: string; voice_profile: string }>>({});
+  const [assetEdits, setAssetEdits] = useState<Record<string, {
+    name: string;
+    prompt: string;
+    voice_profile: string;
+    character_name: string;
+    scene_scope: string;
+    appearance_stage: string;
+    view_requirements: string;
+  }>>({});
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const update = (idx: number, patch: Partial<EpisodeDraft>) => {
@@ -575,7 +583,15 @@ function Phase2({
                 <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
                   {currentAssets.map((a) => {
                     const isEditing = editingAssetId === a.id;
-                    const draft = assetEdits[a.id] ?? { name: a.name, prompt: a.prompt ?? "", voice_profile: a.voice_profile ?? "" };
+                    const draft = assetEdits[a.id] ?? {
+                      name: a.name,
+                      prompt: a.prompt ?? "",
+                      voice_profile: a.voice_profile ?? "",
+                      character_name: a.character_name ?? "",
+                      scene_scope: a.scene_scope ?? "",
+                      appearance_stage: a.appearance_stage ?? "",
+                      view_requirements: a.view_requirements ?? "",
+                    };
                     return (
                       <div key={a.id} className="group border border-line rounded-xl p-3 bg-white hover:border-brand/30 transition-all">
                         {isEditing ? (
@@ -595,13 +611,41 @@ function Phase2({
                               placeholder="Seedream 生成提示词"
                             />
                             {a.asset_type === "character" && (
-                              <Textarea
-                                value={draft.voice_profile}
-                                onChange={(e) => setAssetEdits((prev) => ({ ...prev, [a.id]: { ...draft, voice_profile: e.target.value } }))}
-                                rows={3}
-                                className="text-xs"
-                                placeholder="角色固定音色：年龄感、音色质感、语速、情绪基线、禁止变化项"
-                              />
+                              <>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Input
+                                    value={draft.character_name}
+                                    onChange={(e) => setAssetEdits((prev) => ({ ...prev, [a.id]: { ...draft, character_name: e.target.value } }))}
+                                    className="text-xs"
+                                    placeholder="角色本名"
+                                  />
+                                  <Input
+                                    value={draft.appearance_stage}
+                                    onChange={(e) => setAssetEdits((prev) => ({ ...prev, [a.id]: { ...draft, appearance_stage: e.target.value } }))}
+                                    className="text-xs"
+                                    placeholder="剧情/造型阶段"
+                                  />
+                                </div>
+                                <Input
+                                  value={draft.scene_scope}
+                                  onChange={(e) => setAssetEdits((prev) => ({ ...prev, [a.id]: { ...draft, scene_scope: e.target.value } }))}
+                                  className="text-xs"
+                                  placeholder="适用场景"
+                                />
+                                <Input
+                                  value={draft.view_requirements}
+                                  onChange={(e) => setAssetEdits((prev) => ({ ...prev, [a.id]: { ...draft, view_requirements: e.target.value } }))}
+                                  className="text-xs"
+                                  placeholder="视角要求：面部特写、全身形象、侧面视角"
+                                />
+                                <Textarea
+                                  value={draft.voice_profile}
+                                  onChange={(e) => setAssetEdits((prev) => ({ ...prev, [a.id]: { ...draft, voice_profile: e.target.value } }))}
+                                  rows={3}
+                                  className="text-xs"
+                                  placeholder="角色固定音色：年龄感、音色质感、语速、情绪基线、禁止变化项"
+                                />
+                              </>
                             )}
                             <div className="flex gap-2">
                               <Button
@@ -611,6 +655,10 @@ function Phase2({
                                     name: draft.name,
                                     prompt: draft.prompt,
                                     voice_profile: draft.voice_profile,
+                                    character_name: draft.character_name,
+                                    scene_scope: draft.scene_scope,
+                                    appearance_stage: draft.appearance_stage,
+                                    view_requirements: draft.view_requirements,
                                   });
                                   setEditingAssetId(null);
                                   setAssetEdits((prev) => { const n = { ...prev }; delete n[a.id]; return n; });
@@ -637,7 +685,18 @@ function Phase2({
                               <p className="text-sm font-medium text-text truncate">{a.name}</p>
                               <button
                                 onClick={() => {
-                                  setAssetEdits((prev) => ({ ...prev, [a.id]: { name: a.name, prompt: a.prompt ?? "", voice_profile: a.voice_profile ?? "" } }));
+                                  setAssetEdits((prev) => ({
+                                    ...prev,
+                                    [a.id]: {
+                                      name: a.name,
+                                      prompt: a.prompt ?? "",
+                                      voice_profile: a.voice_profile ?? "",
+                                      character_name: a.character_name ?? "",
+                                      scene_scope: a.scene_scope ?? "",
+                                      appearance_stage: a.appearance_stage ?? "",
+                                      view_requirements: a.view_requirements ?? "",
+                                    },
+                                  }));
                                   setEditingAssetId(a.id);
                                 }}
                                 className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-muted hover:text-brand rounded shrink-0"
@@ -655,6 +714,18 @@ function Phase2({
                               </button>
                             </div>
                             <p className="text-xs text-muted mt-1 line-clamp-3 leading-relaxed">{a.prompt || "（暂无提示词）"}</p>
+                            {a.asset_type === "character" && (
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {a.character_name && <span className="text-xs text-sub bg-soft px-1.5 py-0.5 rounded">角色：{a.character_name}</span>}
+                                {a.scene_scope && <span className="text-xs text-sub bg-soft px-1.5 py-0.5 rounded">场景：{a.scene_scope}</span>}
+                                {a.appearance_stage && <span className="text-xs text-sub bg-soft px-1.5 py-0.5 rounded">阶段：{a.appearance_stage}</span>}
+                                {(a.view_requirements || "面部特写、全身形象、侧面视角") && (
+                                  <span className="text-xs text-sub bg-soft px-1.5 py-0.5 rounded">
+                                    视角：{a.view_requirements || "面部特写、全身形象、侧面视角"}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                             {a.asset_type === "character" && a.voice_profile && (
                               <p className="text-xs text-sub mt-1 line-clamp-2 leading-relaxed">音色：{a.voice_profile}</p>
                             )}
@@ -816,6 +887,12 @@ function AssetCard({
         <div className="p-3">
           <p className="text-sm font-medium text-text truncate">{asset.name}</p>
           <p className="text-xs text-muted mt-0.5 line-clamp-2">{asset.prompt}</p>
+          {asset.asset_type === "character" && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {asset.scene_scope && <span className="text-xs text-sub bg-soft px-1.5 py-0.5 rounded">场景：{asset.scene_scope}</span>}
+              {asset.appearance_stage && <span className="text-xs text-sub bg-soft px-1.5 py-0.5 rounded">阶段：{asset.appearance_stage}</span>}
+            </div>
+          )}
           {asset.asset_type === "character" && asset.voice_profile && (
             <p className="text-xs text-sub mt-1 line-clamp-2">音色：{asset.voice_profile}</p>
           )}

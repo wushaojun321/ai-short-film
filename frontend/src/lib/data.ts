@@ -140,5 +140,9 @@ export interface Asset {
   previewUrl?: string | null;
   prompt: string;
   voiceProfile?: string;
+  characterName?: string;
+  sceneScope?: string;
+  appearanceStage?: string;
+  viewRequirements?: string;
   history: string[];
 }

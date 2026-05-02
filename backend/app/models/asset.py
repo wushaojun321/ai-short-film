@@ -36,6 +36,10 @@ class Asset(Document):
     status: AssetStatus = AssetStatus.pending
     prompt: str = ""
     voice_profile: str = ""
+    character_name: str = ""
+    scene_scope: str = ""
+    appearance_stage: str = ""
+    view_requirements: str = ""
     preview_url: Optional[str] = None
     versions: list[AssetVersion] = []
     generation_task_id: Optional[str] = None

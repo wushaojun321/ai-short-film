@@ -254,6 +254,11 @@ class Asset(Document):
     asset_type: AssetType
     status: AssetStatus = AssetStatus.pending
     prompt: str = ""                      # 当前采用的生成提示词
+    voice_profile: str = ""               # 人物资产的固定音色
+    character_name: str = ""              # 人物资产对应的角色本名
+    scene_scope: str = ""                 # 人物资产适用场景
+    appearance_stage: str = ""            # 人物资产适用剧情/造型阶段
+    view_requirements: str = ""           # 人物资产视角要求
     preview_url: str | None = None        # 当前预览图 URL
     versions: list[AssetVersion] = []     # 历史版本
     generation_task_id: str | None = None

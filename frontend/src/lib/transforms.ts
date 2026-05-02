@@ -134,6 +134,10 @@ export function transformAsset(a: ApiAsset): Asset {
     previewUrl: a.preview_url,
     prompt: a.prompt,
     voiceProfile: a.voice_profile,
+    characterName: a.character_name,
+    sceneScope: a.scene_scope,
+    appearanceStage: a.appearance_stage,
+    viewRequirements: a.view_requirements,
     history: a.versions.map((v, i) => `v${i + 1}`),
   };
 }

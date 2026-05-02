@@ -64,7 +64,15 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
         system_prompt, user_prompt_tpl, _ = await render(
             PromptConfigScope.asset_prompt_gen,
             {
-                "asset_description": f"名称：{asset.name}\n类型：{asset_type_str}\n描述：{asset.prompt}",
+                "asset_description": (
+                    f"名称：{asset.name}\n"
+                    f"类型：{asset_type_str}\n"
+                    f"角色本名：{asset.character_name or '无'}\n"
+                    f"适用场景：{asset.scene_scope or '无'}\n"
+                    f"剧情/造型阶段：{asset.appearance_stage or '无'}\n"
+                    f"视角要求：{asset.view_requirements or '面部特写、全身形象、侧面视角'}\n"
+                    f"描述：{asset.prompt}"
+                ),
                 "style_guide": series_prompt or "写实风格，电影质感",
                 "negative_prompt_rules": "避免模糊、变形、多余肢体、不自然比例",
             },
@@ -104,11 +112,20 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
             if not full_prompt:
                 # 兜底：用资产名称构造中性中文 prompt，避免原始 prompt 中可能的敏感词
                 asset_type_label = {"character": "人物", "scene": "场景", "prop": "道具"}.get(asset_type_str, "主体")
-                full_prompt = (
-                    f"竖屏9:16，{asset_type_label}影视参考图，名称：{asset.name}，"
-                    "真实摄影质感，主体清晰完整，真实材质细节丰富，电影级写实光影，高清，"
-                    "人物资产使用真人演员定妆照风格，场景资产使用影视场景参考照风格，道具资产使用真实产品摄影风格"
-                )
+                if asset_type_str == "character":
+                    full_prompt = (
+                        f"竖屏9:16，真人演员古装定妆参考三视图，名称：{asset.name}，"
+                        f"角色本名：{asset.character_name or asset.name}，适用场景：{asset.scene_scope or '按剧本场景'}，"
+                        f"剧情/造型阶段：{asset.appearance_stage or '按剧本阶段'}，同一位演员同一套造型，"
+                        "画面必须同时包含面部特写、全身正面形象、侧面视角，真实摄影质感，"
+                        "真实皮肤纹理，自然毛孔，真实织物，电影级写实光影，高清"
+                    )
+                else:
+                    full_prompt = (
+                        f"竖屏9:16，{asset_type_label}影视参考图，名称：{asset.name}，"
+                        "真实摄影质感，主体清晰完整，真实材质细节丰富，电影级写实光影，高清，"
+                        "场景资产使用影视场景参考照风格，道具资产使用真实产品摄影风格"
+                    )
                 if record:
                     await record.set({"logs": (record.logs or []) + ["[prompt] 使用兜底安全提示词（LLM 优化失败）"]})
             submitted_prompt = _merge_negative_prompt(full_prompt, negative_prompt)

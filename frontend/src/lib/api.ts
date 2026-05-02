@@ -151,6 +151,10 @@ export interface ApiAsset {
   status: string;
   prompt: string;
   voice_profile?: string;
+  character_name?: string;
+  scene_scope?: string;
+  appearance_stage?: string;
+  view_requirements?: string;
   preview_url?: string;
   versions: Array<{ version: number; preview_url?: string; prompt: string; created_at: string }>;
   generation_task_id?: string;

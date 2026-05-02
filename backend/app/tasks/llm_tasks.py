@@ -242,6 +242,10 @@ async def _parse_script_async(celery_id: str, project_id: str):
                         asset_type=asset_type,
                         prompt=asset_prompt,
                         voice_profile=a.get("voice_profile", "") if asset_type == AssetType.character else "",
+                        character_name=a.get("character_name", "") if asset_type == AssetType.character else "",
+                        scene_scope=a.get("scene_scope", "") if asset_type == AssetType.character else "",
+                        appearance_stage=a.get("appearance_stage", "") if asset_type == AssetType.character else "",
+                        view_requirements=a.get("view_requirements", "面部特写、全身形象、侧面视角") if asset_type == AssetType.character else "",
                         status=AssetStatus.pending,
                     )
                     await asset.insert()
@@ -361,7 +365,18 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
 
         project = await Project.get(episode.project_id)
         assets = await Asset.find(Asset.project_id == episode.project_id).to_list()
-        asset_list = [{"name": a.name, "type": a.asset_type, "preview_url": a.preview_url} for a in assets]
+        asset_list = [
+            {
+                "name": a.name,
+                "type": a.asset_type,
+                "character_name": a.character_name,
+                "scene_scope": a.scene_scope,
+                "appearance_stage": a.appearance_stage,
+                "view_requirements": a.view_requirements,
+                "preview_url": a.preview_url,
+            }
+            for a in assets
+        ]
 
         record = await TaskRecord.find_one(TaskRecord.celery_task_id == celery_id)
         if record:
