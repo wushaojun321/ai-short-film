@@ -537,14 +537,14 @@ function StepVideos({
         {shot && (
           <div className="flex flex-col items-center">
             <div className="w-full max-w-[420px]">
-              <div className="mx-auto h-[clamp(300px,38vh,460px)] aspect-[9/16] max-w-full bg-soft rounded-2xl border border-line flex items-center justify-center mb-3 relative overflow-hidden shadow-sm">
+              <div className="mx-auto h-[clamp(300px,38vh,460px)] aspect-[9/16] max-w-full bg-black rounded-2xl border border-line flex items-center justify-center mb-3 relative overflow-hidden shadow-sm">
                 {(loadingIds.has(shot.id) || shot.state === "rendering") ? (
                   <div className="flex flex-col items-center gap-2">
                     <Loader2 className="w-8 h-8 text-brand animate-spin" />
                     <p className="text-xs text-muted">视频生成中…</p>
                   </div>
                 ) : shot.videoUrl ? (
-                  <LazyVideo src={cosUrl(shot.videoUrl)} className="w-full h-full object-cover rounded-2xl" />
+                  <LazyVideo src={cosUrl(shot.videoUrl)} className="w-full h-full object-contain rounded-2xl" />
                 ) : (
                   <div className="text-center">
                     <Film className="w-10 h-10 text-line mx-auto mb-2" />
@@ -843,8 +843,8 @@ function StepDone({ episode }: { episode: EpisodeDetail }) {
       </div>
 
       {episode.finalVideoUrl ? (
-        <div className="mb-6 max-w-[200px] mx-auto rounded-2xl border border-line overflow-hidden">
-          <LazyVideo src={cosUrl(episode.finalVideoUrl)} className="w-full rounded-2xl" />
+        <div className="mb-6 max-w-[200px] aspect-[9/16] mx-auto rounded-2xl border border-line overflow-hidden bg-black">
+          <LazyVideo src={cosUrl(episode.finalVideoUrl)} className="w-full h-full object-contain rounded-2xl" />
         </div>
       ) : (
         <div className="aspect-[9/16] max-w-[160px] mx-auto bg-soft rounded-2xl border border-line flex items-center justify-center mb-6">
