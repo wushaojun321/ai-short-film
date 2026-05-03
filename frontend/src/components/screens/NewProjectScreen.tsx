@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Upload, FileText, ChevronRight, Check, Loader2,
   Edit2, Clock, Hash, Sparkles, Terminal, RefreshCw,
-  AlertTriangle, Activity, Bot, X, ZoomIn, Trash2, Play,
+  AlertTriangle, Activity, Bot, X, ZoomIn, Trash2, Play, CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -855,6 +855,16 @@ const CHARACTER_VIEW_META = [
   { key: "side", label: "侧面" },
 ] as const;
 
+type AssetFilter = "all" | "need_generate" | "generating" | "pending_confirm" | "approved";
+
+const ASSET_FILTERS: Array<{ key: AssetFilter; label: string }> = [
+  { key: "all", label: "全部" },
+  { key: "need_generate", label: "待生成" },
+  { key: "generating", label: "生成中" },
+  { key: "pending_confirm", label: "待确认" },
+  { key: "approved", label: "已确认" },
+];
+
 const isAssetImageReady = (asset: ApiAsset) => {
   if (asset.asset_type !== "character") return Boolean(asset.preview_url);
   return CHARACTER_VIEW_META.every((view) => Boolean(asset.view_urls?.[view.key]));
@@ -865,14 +875,50 @@ const getAssetPreviewUrl = (asset: ApiAsset) => {
   return asset.view_urls?.full_body || asset.view_urls?.face || asset.view_urls?.side || asset.preview_url;
 };
 
+const isAssetRunning = (asset: ApiAsset) => asset.status === "generating" || asset.status === "queued";
+
+const matchesAssetFilter = (asset: ApiAsset, filter: AssetFilter) => {
+  if (filter === "all") return true;
+  if (filter === "need_generate") return !isAssetImageReady(asset) && !isAssetRunning(asset);
+  if (filter === "generating") return isAssetRunning(asset);
+  if (filter === "pending_confirm") return isAssetImageReady(asset) && asset.status !== "approved";
+  if (filter === "approved") return asset.status === "approved";
+  return true;
+};
+
+const baseAssetName = (name: string) => {
+  const [base] = name.split(/[·\-—_｜|]/);
+  return (base || name).trim();
+};
+
+const getAssetGroupKey = (asset: ApiAsset) => {
+  if (asset.asset_type === "character") return asset.asset_package || asset.character_name || baseAssetName(asset.name);
+  return baseAssetName(asset.name);
+};
+
+const getAssetGroupLabel = (asset: ApiAsset) => getAssetGroupKey(asset) || asset.name;
+
+const buildAssetGroups = (list: ApiAsset[]) => Object.values(
+  list.reduce<Record<string, { key: string; label: string; assets: ApiAsset[] }>>((acc, asset) => {
+    const key = getAssetGroupKey(asset);
+    if (!acc[key]) acc[key] = { key, label: getAssetGroupLabel(asset), assets: [] };
+    acc[key].assets.push(asset);
+    return acc;
+  }, {})
+);
+
 function AssetCard({
   asset,
   projectId,
   onUpdate,
+  layout = "grid",
+  onViewPrompt,
 }: {
   asset: ApiAsset;
   projectId: string;
   onUpdate: () => void;
+  layout?: "grid" | "stage";
+  onViewPrompt?: (asset: ApiAsset) => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -892,6 +938,7 @@ function AssetCard({
   const previewUrl = getAssetPreviewUrl(asset);
   const hasCharacterViews = CHARACTER_VIEW_META.some((view) => Boolean(asset.view_urls?.[view.key]));
   const status: AssetStatus = ASSET_STATUS_ZH[asset.status] ?? "缺失";
+  const promptPreview = asset.prompt || "（暂无提示词）";
 
   const statusConfig: Record<AssetStatus, { label: string; variant: "success" | "warning" | "destructive" | "secondary" }> = {
     "已生成": { label: "已生成", variant: "success" },
@@ -923,6 +970,181 @@ function AssetCard({
     }
   };
 
+  const viewStrip = (
+    <div className={cn("grid grid-cols-3 gap-2", layout === "grid" ? "h-full gap-px bg-line" : "h-28 sm:h-32")}>
+      {CHARACTER_VIEW_META.map((view) => {
+        const url = asset.view_urls?.[view.key];
+        return (
+          <button
+            key={view.key}
+            type="button"
+            className={cn(
+              "relative overflow-hidden bg-soft border border-line group/view",
+              layout === "grid" ? "border-0 rounded-none" : "rounded-lg"
+            )}
+            onClick={() => url ? setLightboxUrl(url) : handleGenerate()}
+            title={url ? `查看${view.label}图` : `生成${view.label}图`}
+          >
+            {url ? (
+              <img src={cosUrl(url)} alt={`${asset.name}-${view.label}`} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-muted">
+                <Play className="w-4 h-4" />
+                <span className="text-[11px]">生成</span>
+              </div>
+            )}
+            <span className="absolute left-1 bottom-1 rounded bg-black/55 px-1.5 py-0.5 text-[11px] text-white">
+              {view.label}
+            </span>
+            {url && (
+              <ZoomIn className="absolute right-1 bottom-1 w-3.5 h-3.5 text-white opacity-0 group-hover/view:opacity-100 transition-opacity" />
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const singlePreview = (
+    <div className="w-full h-full bg-soft relative overflow-hidden group">
+      {previewUrl ? (
+        <>
+          <img
+            src={cosUrl(previewUrl)}
+            alt={asset.name}
+            className="w-full h-full object-cover cursor-zoom-in"
+            onClick={() => setLightboxUrl(previewUrl)}
+          />
+          <div
+            className="absolute bottom-2 right-2 bg-black/50 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-zoom-in"
+            onClick={() => setLightboxUrl(previewUrl)}
+          >
+            <ZoomIn className="w-3.5 h-3.5 text-white" />
+          </div>
+        </>
+      ) : (
+        <div
+          className="w-full h-full flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-line/40 transition-colors"
+          onClick={handleGenerate}
+          title="点击生成资产图"
+        >
+          {generating ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin text-brand" />
+              <span className="text-muted text-xs">提交中…</span>
+            </>
+          ) : (
+            <>
+              <Play className="w-5 h-5 text-muted" />
+              <span className="text-muted text-xs">点击生成</span>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  const actions = (
+    <div className="flex gap-1.5 justify-end">
+      <Button
+        size="sm" variant="outline" className="w-8 h-8 p-0"
+        onClick={handleGenerate}
+        disabled={isGenerating || generating}
+        title={isReady ? "重新生成资产图" : "生成资产图"}
+      >
+        {generating || isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+      </Button>
+      <Button
+        size="sm" variant="outline" className="w-8 h-8 p-0"
+        onClick={() => onViewPrompt?.(asset)}
+        title="查看完整提示词"
+      >
+        <FileText className="w-3.5 h-3.5" />
+      </Button>
+      <Button
+        size="sm" variant="outline" className="w-8 h-8 p-0"
+        onClick={() => setAgentOpen(true)}
+        disabled={isGenerating}
+        title={isGenerating ? (isQueued ? "排队中" : "生成中") : "AI 修改"}
+      >
+        {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+      </Button>
+      {asset.status !== "approved" && !isGenerating && isReady && (
+        <Button
+          size="sm" variant="secondary" className="w-8 h-8 p-0"
+          onClick={handleConfirm} disabled={loading}
+          title="确认资产"
+        >
+          {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+        </Button>
+      )}
+    </div>
+  );
+
+  if (layout === "stage") {
+    return (
+      <>
+        {lightboxUrl && (
+          <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center" onClick={() => setLightboxUrl(null)}>
+            <button className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors" onClick={() => setLightboxUrl(null)}>
+              <X className="w-7 h-7" />
+            </button>
+            <img src={cosUrl(lightboxUrl)} alt={asset.name} className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl" onClick={(e) => e.stopPropagation()} />
+          </div>
+        )}
+        <div className="border border-line rounded-xl bg-white p-3 hover:shadow-card-hover transition-all">
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="lg:w-[280px] shrink-0">
+              {isGenerating ? (
+                <div className="h-28 sm:h-32 rounded-lg bg-soft flex flex-col items-center justify-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin text-brand" />
+                  <span className="text-xs text-muted">{isQueued ? "排队等待…" : "生成中…"}</span>
+                </div>
+              ) : asset.asset_type === "character" ? viewStrip : (
+                <div className="h-28 sm:h-32 rounded-lg overflow-hidden border border-line">{singlePreview}</div>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold text-text truncate">{asset.appearance_stage || asset.name}</p>
+                <Badge variant={cfg.variant}>{cfg.label}</Badge>
+                {isReady && asset.status !== "approved" && <Badge variant="warning">待确认</Badge>}
+              </div>
+              <p className="text-xs text-muted mt-1 line-clamp-2">{promptPreview}</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {asset.scene_scope && <span className="text-xs text-sub bg-soft px-1.5 py-0.5 rounded">场景：{asset.scene_scope}</span>}
+                {asset.face_identity && <span className="text-xs text-sub bg-soft px-1.5 py-0.5 rounded">继承面部基准</span>}
+                {isReady ? (
+                  <span className="text-xs text-brand bg-brand-soft px-1.5 py-0.5 rounded">
+                    {asset.asset_type === "character" ? "三视角完整" : "已生成"}
+                  </span>
+                ) : (
+                  <span className="text-xs text-warn bg-warn/10 px-1.5 py-0.5 rounded">
+                    {asset.asset_type === "character" ? "三视角未完整" : "未生成"}
+                  </span>
+                )}
+              </div>
+              {asset.face_identity && <p className="text-xs text-sub mt-2 line-clamp-2">面部基准：{asset.face_identity}</p>}
+            </div>
+            <div className="lg:w-36 shrink-0 flex lg:flex-col gap-2 justify-end lg:justify-start">
+              {actions}
+            </div>
+          </div>
+        </div>
+        <AgentDialog
+          open={agentOpen}
+          onOpenChange={setAgentOpen}
+          targetType="asset"
+          targetId={asset.id}
+          projectId={projectId}
+          title={`AI 修改 · ${asset.name}`}
+          onTaskStarted={onUpdate}
+          initialPrompt={asset.prompt}
+        />
+      </>
+    );
+  }
+
   return (
     <>
       {lightboxUrl && (
@@ -951,77 +1173,14 @@ function AssetCard({
               <Loader2 className="w-6 h-6 animate-spin text-brand" />
               <span className="text-xs text-muted">{isQueued ? "排队等待…" : "生成中…"}</span>
             </div>
-          ) : asset.asset_type === "character" && hasCharacterViews ? (
-            <div className="grid grid-cols-3 h-full gap-px bg-line">
-              {CHARACTER_VIEW_META.map((view) => {
-                const url = asset.view_urls?.[view.key];
-                return (
-                  <button
-                    key={view.key}
-                    type="button"
-                    className="relative bg-soft overflow-hidden group/view"
-                    onClick={() => url ? setLightboxUrl(url) : handleGenerate()}
-                    title={url ? `查看${view.label}图` : `生成${view.label}图`}
-                  >
-                    {url ? (
-                      <img src={cosUrl(url)} alt={`${asset.name}-${view.label}`} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-muted">
-                        <Play className="w-4 h-4" />
-                        <span className="text-[11px]">生成</span>
-                      </div>
-                    )}
-                    <span className="absolute left-1 bottom-1 rounded bg-black/55 px-1.5 py-0.5 text-[11px] text-white">
-                      {view.label}
-                    </span>
-                    {url && (
-                      <ZoomIn className="absolute right-1 bottom-1 w-3.5 h-3.5 text-white opacity-0 group-hover/view:opacity-100 transition-opacity" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          ) : previewUrl ? (
-            <>
-              <img
-                src={cosUrl(previewUrl)}
-                alt={asset.name}
-                className="w-full h-full object-cover cursor-zoom-in"
-                onClick={() => setLightboxUrl(previewUrl)}
-              />
-              <div
-                className="absolute bottom-2 right-2 bg-black/50 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-zoom-in"
-                onClick={() => setLightboxUrl(previewUrl)}
-              >
-                <ZoomIn className="w-3.5 h-3.5 text-white" />
-              </div>
-            </>
-          ) : (
-            <div
-              className="w-full h-full flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-line/40 transition-colors"
-              onClick={handleGenerate}
-              title="点击生成资产图"
-            >
-              {generating ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin text-brand" />
-                  <span className="text-muted text-xs">提交中…</span>
-                </>
-              ) : (
-                <>
-                  <Play className="w-5 h-5 text-muted" />
-                  <span className="text-muted text-xs">点击生成</span>
-                </>
-              )}
-            </div>
-          )}
+          ) : asset.asset_type === "character" && hasCharacterViews ? viewStrip : singlePreview}
           <div className="absolute top-2 left-2">
             <Badge variant={cfg.variant}>{cfg.label}</Badge>
           </div>
         </div>
         <div className="p-3">
           <p className="text-sm font-medium text-text truncate">{asset.name}</p>
-          <p className="text-xs text-muted mt-0.5 line-clamp-2">{asset.prompt}</p>
+          <p className="text-xs text-muted mt-0.5 line-clamp-2">{promptPreview}</p>
           {asset.asset_type === "character" && (
             <div className="mt-1 flex flex-wrap gap-1">
               {(asset.asset_package || asset.character_name) && <span className="text-xs text-sub bg-soft px-1.5 py-0.5 rounded">资产包：{asset.asset_package || asset.character_name}</span>}
@@ -1035,36 +1194,7 @@ function AssetCard({
           {asset.asset_type === "character" && asset.voice_profile && (
             <p className="text-xs text-sub mt-1 line-clamp-2">音色：{asset.voice_profile}</p>
           )}
-          <div className="mt-3 flex gap-1.5 justify-end">
-            {/* 直接生成 / 重新生成 */}
-            <Button
-              size="sm" variant="outline" className="w-8 h-8 p-0"
-              onClick={handleGenerate}
-              disabled={isGenerating || generating}
-              title={isReady ? "重新生成资产图" : "生成资产图"}
-            >
-              {generating || isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-            </Button>
-            {/* 重新生成：打开 AgentDialog */}
-            <Button
-              size="sm" variant="outline" className="w-8 h-8 p-0"
-              onClick={() => setAgentOpen(true)}
-              disabled={isGenerating}
-              title={isGenerating ? (isQueued ? "排队中" : "生成中") : "重新生成（AI 对话）"}
-            >
-              {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-            </Button>
-            {/* 确认 */}
-            {asset.status !== "approved" && !isGenerating && isReady && (
-              <Button
-                size="sm" variant="secondary" className="w-8 h-8 p-0"
-                onClick={handleConfirm} disabled={loading}
-                title="确认资产"
-              >
-                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-              </Button>
-            )}
-          </div>
+          <div className="mt-3">{actions}</div>
         </div>
       </div>
 
@@ -1089,6 +1219,8 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
   const [batchGenerating, setBatchGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedPackages, setExpandedPackages] = useState<Record<string, boolean>>({});
+  const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
+  const [promptAsset, setPromptAsset] = useState<ApiAsset | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pollKey, setPollKey] = useState(0);
 
@@ -1124,22 +1256,26 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
   }, [projectId, pollKey]);
 
   const tabs = [...new Set(assets.map((a) => a.asset_type))].filter((t) => ["character", "scene", "prop"].includes(t));
-  const currentAssets = assets.filter((a) => a.asset_type === tab);
+  const filteredAssets = assets.filter((a) => matchesAssetFilter(a, assetFilter));
+  const currentGroups = buildAssetGroups(filteredAssets.filter((a) => a.asset_type === tab));
   const pendingCount = assets.filter((a) => a.status !== "approved").length;
   const generatingCount = assets.filter((a) => a.status === "generating" || a.status === "queued").length;
   const needGenerateCount = assets.filter((a) =>
     !isAssetImageReady(a) && a.status !== "generating" && a.status !== "queued"
   ).length;
-  const characterGroups = Object.values(
-    assets
-      .filter((a) => a.asset_type === "character")
-      .reduce<Record<string, { key: string; label: string; assets: ApiAsset[] }>>((acc, asset) => {
-        const key = asset.asset_package || asset.character_name || asset.name;
-        if (!acc[key]) acc[key] = { key, label: key, assets: [] };
-        acc[key].assets.push(asset);
-        return acc;
-      }, {})
-  );
+  const readyToConfirmCount = assets.filter((a) => isAssetImageReady(a) && a.status !== "approved").length;
+  const approvedCount = assets.filter((a) => a.status === "approved").length;
+  const characterGroupCount = buildAssetGroups(assets.filter((a) => a.asset_type === "character")).length;
+  const characterAssetCount = assets.filter((a) => a.asset_type === "character").length;
+  const sceneAssetCount = assets.filter((a) => a.asset_type === "scene").length;
+  const propAssetCount = assets.filter((a) => a.asset_type === "prop").length;
+  const filterCounts: Record<AssetFilter, number> = {
+    all: assets.length,
+    need_generate: assets.filter((a) => matchesAssetFilter(a, "need_generate")).length,
+    generating: assets.filter((a) => matchesAssetFilter(a, "generating")).length,
+    pending_confirm: assets.filter((a) => matchesAssetFilter(a, "pending_confirm")).length,
+    approved: assets.filter((a) => matchesAssetFilter(a, "approved")).length,
+  };
 
   const handleGenerateAll = async () => {
     const needGen = assets.filter((a) =>
@@ -1155,6 +1291,21 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
       setPollKey((k) => k + 1);
     } finally {
       setBatchGenerating(false);
+    }
+  };
+
+  const handleConfirmReady = async () => {
+    const readyAssets = assets.filter((a) => isAssetImageReady(a) && a.status !== "approved" && !isAssetRunning(a));
+    if (readyAssets.length === 0) return;
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      await Promise.allSettled(readyAssets.map((a) => assetAPI.confirm(projectId, a.id)));
+      await loadAssets();
+      setPollKey((k) => k + 1);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -1182,13 +1333,13 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
   };
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <div className="flex items-start justify-between mb-6">
+    <div className="max-w-6xl mx-auto">
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-5">
         <div>
           <h2 className="text-xl font-semibold text-text mb-1">图片确认</h2>
-          <p className="text-sm text-sub">请手动点击「生成全部资产」，或在单个资产卡片上点击生成按钮后再逐个确认。</p>
+          <p className="text-sm text-sub">先检查资产包一致性，再生成图片并确认。人物、场景、道具如有不同阶段资产，均按资产组展开。</p>
         </div>
-        <div className="flex gap-3 items-center shrink-0">
+        <div className="flex flex-wrap gap-2 items-center shrink-0">
           <Button
             size="sm"
             onClick={handleGenerateAll}
@@ -1199,14 +1350,55 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
             {batchGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
             生成全部资产
           </Button>
-          {generatingCount > 0 && (
-            <span className="text-xs text-muted flex items-center gap-1">
-              <Loader2 className="w-3 h-3 animate-spin" />{generatingCount} 张生成中
-            </span>
-          )}
-          {needGenerateCount > 0 && <Badge variant="secondary">{needGenerateCount} 项待生成</Badge>}
-          {pendingCount > 0 && <Badge variant="warning">{pendingCount} 项待确认</Badge>}
+          <Button
+            size="sm"
+            onClick={handleConfirmReady}
+            disabled={submitting || readyToConfirmCount === 0}
+            variant="outline"
+            title={readyToConfirmCount === 0 ? "没有可确认资产" : `确认 ${readyToConfirmCount} 个已生成资产`}
+          >
+            {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+            确认全部已生成
+          </Button>
         </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 mb-4">
+        {[
+          ["人物包", characterGroupCount],
+          ["阶段造型", characterAssetCount],
+          ["场景", sceneAssetCount],
+          ["道具", propAssetCount],
+          ["待生成", needGenerateCount],
+          ["生成中", generatingCount],
+          ["已确认", approvedCount],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-lg border border-line bg-white px-3 py-2">
+            <div className="text-lg font-semibold text-text">{value}</div>
+            <div className="text-xs text-muted">{label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-5">
+        {ASSET_FILTERS.map((filter) => (
+          <button
+            key={filter.key}
+            type="button"
+            onClick={() => setAssetFilter(filter.key)}
+            className={cn(
+              "h-8 rounded-full border px-3 text-xs font-medium transition-colors",
+              assetFilter === filter.key
+                ? "border-brand bg-brand text-white"
+                : "border-line bg-white text-sub hover:border-brand/40 hover:text-text"
+            )}
+          >
+            {filter.label}
+            <span className={cn("ml-1", assetFilter === filter.key ? "text-white/75" : "text-muted")}>
+              {filterCounts[filter.key]}
+            </span>
+          </button>
+        ))}
       </div>
 
       {tabs.length > 0 ? (
@@ -1220,13 +1412,15 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
             ))}
           </TabsList>
           <TabsContent value={tab}>
-            {tab === "character" ? (
+            {currentGroups.length > 0 ? (
               <div className="space-y-3">
-                {characterGroups.map((group) => {
+                {currentGroups.map((group) => {
                   const expanded = expandedPackages[group.key] ?? false;
                   const generated = group.assets.filter(isAssetImageReady).length;
                   const running = group.assets.filter((a) => a.status === "generating" || a.status === "queued").length;
                   const approved = group.assets.filter((a) => a.status === "approved").length;
+                  const typeLabel = ASSET_TYPE_ZH[tab] ?? tab;
+                  const completeLabel = tab === "character" ? "已生成三视角" : "已生成";
                   return (
                     <div key={group.key} className="border border-line rounded-xl bg-white overflow-hidden">
                       <button
@@ -1239,7 +1433,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
                           <div className="text-left min-w-0">
                             <p className="text-sm font-semibold text-text truncate">{group.label}</p>
                             <p className="text-xs text-sub mt-0.5">
-                              {group.assets.length} 个阶段造型 · {generated}/{group.assets.length} 已生成三视角
+                              {group.assets.length} 个{typeLabel}资产 · {generated}/{group.assets.length} {completeLabel}
                               {running > 0 ? ` · ${running} 个生成中` : ""}
                             </p>
                           </div>
@@ -1251,9 +1445,16 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
                       </button>
                       {expanded && (
                         <div className="border-t border-line bg-soft/35 p-4">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                          <div className="space-y-3">
                             {group.assets.map((asset) => (
-                              <AssetCard key={asset.id} asset={asset} projectId={projectId} onUpdate={() => setPollKey((k) => k + 1)} />
+                              <AssetCard
+                                key={asset.id}
+                                asset={asset}
+                                projectId={projectId}
+                                layout="stage"
+                                onViewPrompt={setPromptAsset}
+                                onUpdate={() => setPollKey((k) => k + 1)}
+                              />
                             ))}
                           </div>
                         </div>
@@ -1263,10 +1464,8 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
                 })}
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {currentAssets.map((a) => (
-                  <AssetCard key={a.id} asset={a} projectId={projectId} onUpdate={() => setPollKey((k) => k + 1)} />
-                ))}
+              <div className="rounded-xl border border-dashed border-line py-10 text-center text-sm text-muted">
+                当前筛选条件下没有资产。
               </div>
             )}
           </TabsContent>
@@ -1284,6 +1483,23 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
           <AlertTriangle className="w-4 h-4 shrink-0" />{error}
         </div>
       )}
+
+      <Dialog open={promptAsset !== null} onOpenChange={(open) => !open && setPromptAsset(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{promptAsset?.name || "资产提示词"}</DialogTitle>
+            <DialogDescription>当前资产记录中保存的生成提示词，可用于核对或复制到 AI 修改。</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[55vh] overflow-y-auto rounded-lg border border-line bg-soft p-3">
+            <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed text-text font-sans">
+              {promptAsset?.prompt || "（暂无提示词）"}
+            </pre>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPromptAsset(null)}>关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="flex items-center justify-between">
         <p className="text-sm text-sub">
