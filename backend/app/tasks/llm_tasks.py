@@ -1590,10 +1590,169 @@ def _build_shot_asset_index(assets) -> list[dict]:
             "package": asset.asset_package or asset.character_name or "",
             "stage": asset.appearance_stage or "",
             "scope": asset.scene_scope or "",
-            "views": asset.view_requirements or "",
         }
         for asset in assets
     ]
+
+
+def _normalize_match_text(value: str) -> str:
+    return str(value or "").lower().replace(" ", "")
+
+
+def _asset_match_terms(value: str) -> set[str]:
+    import re
+
+    text = _normalize_match_text(value)
+    if not text:
+        return set()
+    stopwords = {
+        "状态", "常规", "阶段", "全剧", "参考", "当前", "现代", "旧式", "高级",
+        "场景", "人物", "资产", "视角", "面部", "全身", "形象", "写实",
+        "电影", "质感", "真实", "克制", "氛围", "服装", "外套", "明显",
+    }
+    parts = [part for part in re.split(r"[\s,，、/|｜;；:：()（）【】\[\]《》<>-]+", text) if part]
+    terms: set[str] = set()
+    for part in parts:
+        if len(part) < 2 or part in stopwords:
+            continue
+        terms.add(part)
+        if len(part) >= 4:
+            for i in range(0, len(part) - 1, 2):
+                sub = part[i:i + 2]
+                if len(sub) >= 2 and sub not in stopwords:
+                    terms.add(sub)
+    return terms
+
+
+def _score_asset_for_episode(asset, episode_text: str) -> tuple[int, int]:
+    """Return (score, contextual_score) for selecting per-episode asset candidates."""
+    text = _normalize_match_text(episode_text)
+    if not text:
+        return 0, 0
+
+    score = 0
+    contextual = 0
+    asset_type = _asset_type_value(asset)
+    character_name = _normalize_match_text(getattr(asset, "character_name", ""))
+
+    if character_name:
+        if character_name in text:
+            score += 100
+        elif len(character_name) >= 3 and character_name[:2] in text:
+            score += 70
+
+    exact_name = _normalize_match_text(getattr(asset, "name", ""))
+    if exact_name and exact_name in text:
+        score += 80
+        contextual += 40
+
+    weighted_fields = [
+        (getattr(asset, "name", ""), 10),
+        (getattr(asset, "scene_scope", ""), 8),
+        (getattr(asset, "appearance_stage", ""), 5),
+    ]
+    for raw_value, weight in weighted_fields:
+        for term in _asset_match_terms(raw_value):
+            if character_name and term == character_name:
+                continue
+            if term in text:
+                score += weight + min(len(term), 6)
+                contextual += weight
+
+    if asset_type in {"scene", "prop"} and score < 10:
+        return 0, 0
+    return score, contextual
+
+
+def _select_assets_for_episode(assets, episode, blueprint=None) -> tuple[list, dict]:
+    """Select a small, relevant asset pool for one episode instead of all project assets."""
+    episode_text = "\n".join([
+        str(getattr(episode, "title", "") or ""),
+        str(getattr(episode, "summary", "") or ""),
+        str(getattr(episode, "script_excerpt", "") or ""),
+        str(getattr(episode, "continuity_notes", "") or ""),
+    ])
+
+    requirement_text = ""
+    if blueprint and isinstance(getattr(blueprint, "episodes", None), list):
+        for ep_data in blueprint.episodes:
+            if not isinstance(ep_data, dict) or int(ep_data.get("number", 0) or 0) != int(episode.number):
+                continue
+            requirement_text = str(ep_data.get("asset_requirements", "")) + "\n" + str(ep_data.get("beats", ""))
+            break
+    match_text = f"{episode_text}\n{requirement_text}"
+
+    scored: list[tuple[int, int, object]] = []
+    for asset in assets:
+        score, contextual = _score_asset_for_episode(asset, match_text)
+        if score > 0:
+            scored.append((score, contextual, asset))
+
+    selected: list = []
+    selected_ids: set[str] = set()
+
+    def add_asset(asset) -> None:
+        asset_id = str(asset.id)
+        if asset_id in selected_ids:
+            return
+        selected_ids.add(asset_id)
+        selected.append(asset)
+
+    # Characters: keep the best matching stage for each character/package, plus
+    # extra variants only when the episode text explicitly matches their stage/scope.
+    character_groups: dict[str, list[tuple[int, int, object]]] = {}
+    scene_candidates: list[tuple[int, int, object]] = []
+    prop_candidates: list[tuple[int, int, object]] = []
+    other_candidates: list[tuple[int, int, object]] = []
+    for item in scored:
+        _, _, asset = item
+        asset_type = _asset_type_value(asset)
+        if asset_type == "character":
+            key = asset.asset_package or asset.character_name or asset.name
+            character_groups.setdefault(key, []).append(item)
+        elif asset_type == "scene":
+            scene_candidates.append(item)
+        elif asset_type == "prop":
+            prop_candidates.append(item)
+        else:
+            other_candidates.append(item)
+
+    for group_items in character_groups.values():
+        group_items.sort(key=lambda x: (x[1], x[0]), reverse=True)
+        if group_items:
+            add_asset(group_items[0][2])
+        for score, contextual, asset in group_items[1:]:
+            if contextual >= 16:
+                add_asset(asset)
+
+    for bucket, limit in ((scene_candidates, 4), (prop_candidates, 5), (other_candidates, 2)):
+        bucket.sort(key=lambda x: (x[1], x[0]), reverse=True)
+        added = 0
+        for score, contextual, asset in bucket:
+            if added >= limit:
+                break
+            add_asset(asset)
+            added += 1
+
+    if not selected:
+        # Last-resort fallback: keep a small top slice by score rather than sending
+        # the entire project asset library.
+        fallback_assets = [
+            asset for _, _, asset in sorted(scored, key=lambda x: (x[1], x[0]), reverse=True)[:8]
+        ] or list(assets[:8])
+        for asset in fallback_assets:
+            add_asset(asset)
+
+    selected_type_counts: dict[str, int] = {}
+    for asset in selected:
+        asset_type = _asset_type_value(asset)
+        selected_type_counts[asset_type] = selected_type_counts.get(asset_type, 0) + 1
+
+    return selected, {
+        "total": len(assets),
+        "selected": len(selected),
+        "by_type": selected_type_counts,
+    }
 
 
 def _asset_binding_id(raw) -> str:
@@ -1686,6 +1845,70 @@ def _normalize_segment_detail(detail: dict, plan_segment: dict, index: int) -> d
     return merged
 
 
+def _fallback_segment_plan_from_script(script_text: str, max_segments: int = 6) -> list[dict]:
+    """Deterministic segment fallback when the planning LLM over-generates."""
+    import re
+
+    lines = [line.strip() for line in str(script_text or "").splitlines() if line.strip()]
+    if not lines:
+        return [{
+            "segment_code": "S01",
+            "segment_name": "剧情片段",
+            "segment_function": "建立",
+            "scene": "",
+            "characters": [],
+            "source_excerpt": "",
+            "transition_in": "片段首镜",
+            "transition_out": "进入下一片段",
+            "target_duration": 24,
+            "key_asset_ids": [],
+        }]
+
+    starts: list[int] = []
+    for idx, line in enumerate(lines):
+        if re.match(r"^(场景|场次|第[一二三四五六七八九十\d]+场|结尾钩子)", line):
+            starts.append(idx)
+    if not starts:
+        chunk = max(1, round(len(lines) / min(max_segments, max(1, len(lines)))))
+        starts = list(range(0, len(lines), chunk))
+    if starts[0] != 0:
+        starts.insert(0, 0)
+    starts = starts[:max_segments]
+
+    segments: list[dict] = []
+    function_cycle = ["建立", "冲突", "反应", "转折", "过渡", "悬念"]
+    for idx, start in enumerate(starts):
+        end = starts[idx + 1] if idx + 1 < len(starts) else len(lines)
+        segment_lines = lines[start:end]
+        title = segment_lines[0] if segment_lines else f"片段{idx + 1}"
+        source_excerpt = "\n".join(segment_lines)
+        segments.append({
+            "segment_code": f"S{idx + 1:02d}",
+            "segment_name": title[:24],
+            "segment_function": function_cycle[min(idx, len(function_cycle) - 1)],
+            "scene": title,
+            "characters": [],
+            "source_excerpt": source_excerpt[:1200],
+            "transition_in": "片段首镜" if idx == 0 else "承接上一片段结尾状态",
+            "transition_out": "以动作、视线或声音自然引出下一片段" if idx + 1 < len(starts) else "以悬念或情绪落点结束本集",
+            "target_duration": max(12, min(36, round(len(source_excerpt) / 18))),
+            "key_asset_ids": [],
+        })
+    return segments
+
+
+def _segment_script_excerpt(segment_plan: dict, fallback: str) -> str:
+    text = str(
+        segment_plan.get("source_excerpt")
+        or segment_plan.get("source_text")
+        or segment_plan.get("script_excerpt")
+        or ""
+    ).strip()
+    if len(text) >= 20:
+        return text
+    return fallback
+
+
 async def _repair_storyboard_continuity(
     *,
     result: dict,
@@ -1711,6 +1934,15 @@ async def _repair_storyboard_continuity(
         return result
 
     try:
+        storyboard_json = json.dumps(result, ensure_ascii=False)
+        if len(storyboard_json) > 18000:
+            if record:
+                await record.set({
+                    "logs": (record.logs or []) + [
+                        f"[continuity] 分镜 JSON 约 {len(storyboard_json)} 字，跳过整集二次校验以避免额外长输出"
+                    ],
+                })
+            return result
         system_prompt, user_prompt, _ = await render(
             scope,
             {
@@ -1718,7 +1950,7 @@ async def _repair_storyboard_continuity(
                 "script_excerpt": script_excerpt,
                 "continuity_notes": continuity_notes,
                 "asset_list": json.dumps(asset_list, ensure_ascii=False),
-                "storyboard_json": json.dumps(result, ensure_ascii=False),
+                "storyboard_json": storyboard_json,
             },
         )
         repaired = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=20000)
@@ -1755,6 +1987,7 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
     from app.models.project import Project
     from app.models.shot import Shot, ShotState, ShotAssetBinding
     from app.models.asset import Asset
+    from app.models.production_blueprint import ProductionBlueprint
     from app.models.task_record import TaskRecord
     from app.services import llm_service
     from app.services.prompt_service import render
@@ -1766,7 +1999,12 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
             raise ValueError("Episode not found")
 
         project = await Project.get(episode.project_id)
-        assets = await Asset.find(Asset.project_id == episode.project_id).to_list()
+        all_assets = await Asset.find(Asset.project_id == episode.project_id).to_list()
+        blueprints = await ProductionBlueprint.find(
+            ProductionBlueprint.project_id == episode.project_id
+        ).sort("-created_at").limit(1).to_list()
+        blueprint = blueprints[0] if blueprints else None
+        assets, asset_stats = _select_assets_for_episode(all_assets, episode, blueprint)
         asset_index = _build_shot_asset_index(assets)
         asset_index_json = json.dumps(asset_index, ensure_ascii=False)
 
@@ -1775,7 +2013,10 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
             await record.set({
                 "progress": 10,
                 "logs": (record.logs or []) + [
-                    f"[plan] 使用精简资产索引：{len(asset_index)} 个资产，约 {len(asset_index_json)} 字"
+                    (
+                        f"[plan] 使用本集候选资产索引：{asset_stats['selected']}/{asset_stats['total']} 个资产，"
+                        f"约 {len(asset_index_json)} 字，类型分布 {asset_stats['by_type']}"
+                    )
                 ],
             })
 
@@ -1796,8 +2037,17 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
         if record:
             await record.set({"progress": 20})
 
-        plan_result = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=32000)
-        plan_segments = _extract_segment_plan_list(plan_result)
+        try:
+            plan_result = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=6000)
+            plan_segments = _extract_segment_plan_list(plan_result)
+        except Exception as plan_exc:
+            plan_segments = _fallback_segment_plan_from_script(episode.script_excerpt or episode.summary or "")
+            if record:
+                await record.set({
+                    "logs": (record.logs or []) + [
+                        f"[plan] LLM 片段规划失败，已使用后端场景切分兜底：{plan_exc}"
+                    ],
+                })
         if not plan_segments:
             raise ValueError("分镜片段规划为空，无法继续生成详细分镜")
 
@@ -1812,6 +2062,10 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
         total_segments = len(plan_segments)
         for segment_idx, segment_plan in enumerate(plan_segments):
             segment_code = _segment_code(segment_plan, segment_idx)
+            segment_script = _segment_script_excerpt(
+                segment_plan,
+                episode.script_excerpt or episode.summary or "",
+            )
             detail_system_prompt, detail_user_prompt, _ = await render(
                 PromptConfigScope.shot_segment_detail,
                 {
@@ -1819,7 +2073,7 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
                     "episode_number": episode.number,
                     "episode_title": episode.title,
                     "segment_plan": json.dumps(segment_plan, ensure_ascii=False),
-                    "script_excerpt": episode.script_excerpt or episode.summary or "",
+                    "script_excerpt": segment_script,
                     "continuity_notes": episode.continuity_notes or "无",
                     "previous_context": previous_context,
                     "asset_index": asset_index_json,
