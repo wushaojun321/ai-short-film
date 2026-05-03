@@ -60,6 +60,74 @@ def _episode_title_from_range(blocks, source_range, fallback: str) -> str:
     return fallback
 
 
+def _build_range_index_digest(blocks, source_ranges, max_chars: int = 9000) -> str:
+    """Build a compact index digest for selected source ranges only."""
+    selected = []
+    for source_range in source_ranges:
+        selected.extend(
+            block
+            for block in blocks
+            if source_range.start_block <= block.block_index <= source_range.end_block
+        )
+
+    lines: list[str] = []
+    total = 0
+    for block in selected:
+        speaker = f" {block.speaker}：" if block.speaker else " "
+        ep = f" ep={block.episode_hint}" if block.episode_hint else ""
+        line = f"#{block.block_index} [{block.block_type.value}{ep} L{block.start_line}]{speaker}{block.text}"
+        if total + len(line) > max_chars:
+            lines.append(f"... 已截断本批索引摘要，剩余 {len(selected) - len(lines)} 个原文块仍按 block_index 引用 ...")
+            break
+        lines.append(line)
+        total += len(line) + 1
+    return "\n".join(lines)
+
+
+def _merge_asset_results(target: dict, incoming: dict) -> dict:
+    """Merge asset extraction batches by asset name while preserving order."""
+    if not isinstance(incoming, dict):
+        return target
+    assets = incoming.get("assets") if "assets" in incoming else incoming
+    if not isinstance(assets, dict):
+        return target
+
+    for bucket in ("characters", "scenes", "props"):
+        target.setdefault(bucket, [])
+        existing_names = {
+            item.get("name", "")
+            for item in target[bucket]
+            if isinstance(item, dict)
+        }
+        for item in assets.get(bucket, []) or []:
+            if not isinstance(item, dict):
+                continue
+            name = item.get("name", "")
+            if not name or name in existing_names:
+                continue
+            target[bucket].append(item)
+            existing_names.add(name)
+    return target
+
+
+def _known_character_packages(assets_data: dict) -> list[dict]:
+    """Return compact face/voice consistency anchors for subsequent batches."""
+    packages: dict[str, dict] = {}
+    for item in assets_data.get("characters", []) or []:
+        if not isinstance(item, dict):
+            continue
+        package = item.get("asset_package") or item.get("character_name") or item.get("name")
+        if not package or package in packages:
+            continue
+        packages[package] = {
+            "asset_package": package,
+            "character_name": item.get("character_name") or package,
+            "face_identity": item.get("face_identity", ""),
+            "voice_profile": item.get("voice_profile", ""),
+        }
+    return list(packages.values())
+
+
 @celery_app.task(bind=True, name="app.tasks.llm.parse_script", queue="llm")
 def parse_script_task(self, project_id: str):
     """Parse script and generate episode plan + asset list."""
@@ -240,17 +308,55 @@ async def _parse_script_async(celery_id: str, project_id: str):
             }
             for ep in final_episodes
         ]
-        system_prompt, user_prompt, _ = await render(
-            PromptConfigScope.asset_extract,
-            {
-                "script_index": script_index,
-                "series_context": json.dumps(series_result, ensure_ascii=False),
-                "episode_plan": json.dumps(asset_episode_plan, ensure_ascii=False),
-            },
-        )
-        asset_result = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=16384)
-        if not isinstance(asset_result, dict):
-            asset_result = {}
+        asset_result = {"assets": {"characters": [], "scenes": [], "props": []}}
+
+        async def extract_asset_batch(batch_plan: list[dict], batch_ranges, batch_label: str, max_tokens: int = 14000):
+            batch_index = _build_range_index_digest(blocks, batch_ranges, max_chars=9000)
+            series_context = {
+                "series": series_result,
+                "known_character_packages": _known_character_packages(asset_result["assets"]),
+                "batch_rule": "只提取本批分集实际需要的资产；已有人物资产包必须沿用 known_character_packages 的 face_identity 和 voice_profile。",
+            }
+            system_prompt, user_prompt, _ = await render(
+                PromptConfigScope.asset_extract,
+                {
+                    "script_index": batch_index,
+                    "series_context": json.dumps(series_context, ensure_ascii=False),
+                    "episode_plan": json.dumps(batch_plan, ensure_ascii=False),
+                },
+            )
+            return await llm_service.chat_json(system_prompt, user_prompt, max_tokens=max_tokens)
+
+        async def extract_asset_batch_resilient(batch_plan: list[dict], batch_ranges, batch_label: str):
+            try:
+                result = await extract_asset_batch(batch_plan, batch_ranges, batch_label)
+                _merge_asset_results(asset_result["assets"], result)
+                await log([f"[assets] 资产解析完成：{batch_label}"], min(94, 76 + len(asset_result["assets"].get("characters", []))))
+                return
+            except ValueError as exc:
+                if "truncated" not in str(exc).lower():
+                    raise
+                if len(batch_plan) <= 1:
+                    await log([f"[warn] {batch_label} 单集资产输出过长，提高输出上限后重试"], 82)
+                    result = await extract_asset_batch(batch_plan, batch_ranges, batch_label, max_tokens=24000)
+                    _merge_asset_results(asset_result["assets"], result)
+                    return
+                mid = len(batch_plan) // 2
+                await log([f"[warn] {batch_label} 资产输出过长，自动拆分后重试"], 80)
+                await extract_asset_batch_resilient(batch_plan[:mid], batch_ranges[:mid], f"{batch_label}-前半")
+                await extract_asset_batch_resilient(batch_plan[mid:], batch_ranges[mid:], f"{batch_label}-后半")
+
+        batch_size = 3
+        for start in range(0, len(asset_episode_plan), batch_size):
+            end = min(start + batch_size, len(asset_episode_plan))
+            await extract_asset_batch_resilient(
+                asset_episode_plan[start:end],
+                source_ranges[start:end],
+                f"第{start + 1}-{end}集",
+            )
+
+        # 兼容后续读取结构。
+        asset_result = {"assets": asset_result["assets"]}
 
         # 立即创建 Asset 记录（status=pending，无图），供步骤3 Agent 操作
         assets_data = asset_result.get("assets") or series_result.get("assets") or {}
