@@ -28,22 +28,22 @@ export default function NewProjectPage() {
   };
 
   return (
-    <div className="page-shell flex min-h-[calc(100vh-56px)] items-center justify-center py-10">
-      <div className="w-full max-w-md page-panel tech-border p-6">
-        <div className="mb-6 flex items-start gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white shadow-md ring-1 ring-black/10">
-            <Clapperboard className="h-5 w-5" />
+    <div className="page-shell flex min-h-[calc(100vh-64px)] items-center justify-center py-12">
+      <div className="w-full max-w-xl page-panel tech-border p-8">
+        <div className="mb-8 flex items-start gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-brand ring-1 ring-white/10">
+            <Clapperboard className="h-6 w-6" />
           </div>
           <div>
-            <p className="section-title mb-1">New Production</p>
-            <h1 className="text-2xl font-semibold text-text">新建项目</h1>
-            <p className="text-sm text-sub mt-1">填写基本信息，后续通过上传剧本完成初始化。</p>
+            <p className="section-title mb-2">New Production</p>
+            <h1 className="text-3xl font-black text-text">新建项目</h1>
+            <p className="text-base text-sub mt-2">填写基本信息，后续通过上传剧本完成初始化。</p>
           </div>
         </div>
 
         <div className="space-y-4">
         <div>
-          <label className="text-xs font-medium text-sub mb-1.5 block">项目标题 *</label>
+          <label className="text-sm font-bold text-sub mb-2 block">项目标题 *</label>
           <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -54,7 +54,7 @@ export default function NewProjectPage() {
 
         {error && <p className="status-banner status-banner-danger">{error}</p>}
 
-        <div className="flex gap-3 pt-2">
+        <div className="flex gap-3 pt-3">
           <Button variant="outline" onClick={() => navigate("/projects")} disabled={creating}>
             取消
           </Button>

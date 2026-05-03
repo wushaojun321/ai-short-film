@@ -29,7 +29,7 @@ export function Sheet({ open, onClose, title, children, width = "w-[480px]" }: S
       {/* 遮罩 */}
       <div
         className={cn(
-          "fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-sm transition-opacity duration-200",
+          "fixed inset-0 z-40 bg-black/70 backdrop-blur-md transition-opacity duration-200",
           open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         )}
         onClick={handleOverlayClick}
@@ -37,21 +37,21 @@ export function Sheet({ open, onClose, title, children, width = "w-[480px]" }: S
       {/* 抽屉面板 */}
       <div
         className={cn(
-          "fixed top-0 right-0 z-50 h-full bg-panel/95 shadow-card-hover flex flex-col transition-transform duration-300 ease-in-out border-l border-line",
+          "fixed top-0 right-0 z-50 h-full bg-panel/95 shadow-card-hover flex flex-col transition-transform duration-300 ease-in-out border-l border-line backdrop-blur-xl",
           width,
           open ? "translate-x-0" : "translate-x-full"
         )}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-line bg-elev/70 shrink-0">
-          {title && <h3 className="font-semibold text-text text-sm">{title}</h3>}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-line bg-elev/70 shrink-0">
+          {title && <h3 className="font-bold text-text text-base">{title}</h3>}
           <button
             onClick={onClose}
-            className="ml-auto text-muted hover:text-text transition-colors"
+            className="ml-auto rounded-lg border border-line bg-soft/70 p-1.5 text-muted transition-colors hover:border-brand/40 hover:text-text"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <div className="flex-1 overflow-y-auto px-6 py-5">
           {children}
         </div>
       </div>

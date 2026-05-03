@@ -41,11 +41,11 @@ export default function ProjectDetailPage() {
   if (searchParams.get("view") === "assets") {
     return (
       <div className="min-h-screen">
-        <div className="page-shell py-8">
-          <div className="page-header mb-6">
+        <div className="page-shell py-10">
+          <div className="page-header mb-7">
             <p className="section-title mb-2">Asset Library</p>
-            <h1 className="text-2xl font-semibold text-text">{project.title} · 资产库</h1>
-            <p className="text-sm text-sub mt-1">查看、重新生成和确认项目资产图片。</p>
+            <h1 className="text-4xl font-black text-text">{project.title} · 资产库</h1>
+            <p className="text-base text-sub mt-2">查看、重新生成和确认项目资产图片。</p>
           </div>
           <Phase3
             projectId={projectId}

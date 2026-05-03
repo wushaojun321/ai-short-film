@@ -116,7 +116,7 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
 
   if (loading) {
     return (
-      <div className="flex h-[calc(100vh-56px)] items-center justify-center">
+      <div className="flex h-[calc(100vh-64px)] items-center justify-center">
         <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -131,7 +131,7 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
   const isVideoStep = activeStep === "storyboard_videos";
 
   return (
-    <div className="flex h-[calc(100vh-56px)]">
+    <div className="flex h-[calc(100vh-64px)]">
       <EpisodeSidebar
         projectId={project.id}
         episodes={episodes}
@@ -147,23 +147,23 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
         />
 
         <div className="flex-1 overflow-y-auto">
-          <div className={cn("mx-auto px-6", isVideoStep ? "max-w-6xl py-4" : "max-w-5xl py-6")}>
-            <div className={cn("page-panel tech-border", isVideoStep ? "mb-3 p-4" : "mb-6 p-5")}>
+          <div className={cn("mx-auto px-7", isVideoStep ? "max-w-7xl py-4" : "max-w-6xl py-7")}>
+            <div className={cn("page-panel tech-border", isVideoStep ? "mb-4 p-5" : "mb-7 p-6")}>
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0">
-                  <p className="section-title mb-1">Episode Workspace</p>
-                  <h2 className="text-lg font-semibold text-text">
+                  <p className="section-title mb-2">Episode Workspace</p>
+                  <h2 className="text-2xl font-black text-text">
                     第 {activeEpisode.number} 集 · {activeEpisode.title}
                   </h2>
                   {activeEpisode.summary && (
-                    <p className="text-sm text-sub mt-1">{activeEpisode.summary}</p>
+                    <p className="text-base text-sub mt-2">{activeEpisode.summary}</p>
                   )}
-                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
-                    <span className="rounded bg-soft px-1.5 py-0.5">原文 {sourceLineRange}</span>
-                    <span className="rounded bg-soft px-1.5 py-0.5">对白 {activeEpisode.dialogueCount ?? 0}</span>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted">
+                    <span className="rounded-lg bg-soft px-2.5 py-1">原文 {sourceLineRange}</span>
+                    <span className="rounded-lg bg-soft px-2.5 py-1">对白 {activeEpisode.dialogueCount ?? 0}</span>
                     {activeEpisode.sourceIntegrity && (
                       <span className={cn(
-                        "rounded px-1.5 py-0.5",
+                        "rounded-lg px-2.5 py-1",
                         activeEpisode.sourceIntegrity === "original" ? "bg-brand-soft text-brand" : "bg-warn/10 text-warn"
                       )}>
                         {activeEpisode.sourceIntegrity === "original" ? "原文完整" : activeEpisode.sourceIntegrity}
@@ -173,7 +173,7 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
                   {activeEpisode.scriptExcerpt && (
                     <p
                       className={cn(
-                        "text-xs text-muted mt-1.5 cursor-pointer hover:text-sub transition-colors whitespace-pre-wrap",
+                        "text-sm text-muted mt-3 cursor-pointer hover:text-sub transition-colors whitespace-pre-wrap",
                         isVideoStep ? "line-clamp-1" : "line-clamp-2"
                       )}
                       onClick={() => setScriptSheetOpen(true)}
@@ -185,9 +185,9 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
                 <div className="flex flex-wrap items-center gap-2 shrink-0 xl:ml-4">
                   {activeEpisode.scriptExcerpt && (
                     <Button
-                      size="sm"
+                      size="default"
                       variant="outline"
-                      className="flex items-center gap-1.5 text-xs"
+                      className="flex items-center gap-2"
                       onClick={() => setScriptSheetOpen(true)}
                     >
                       <FileText className="w-3.5 h-3.5" />
@@ -195,9 +195,9 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
                     </Button>
                   )}
                   <Button
-                    size="sm"
+                      size="default"
                     variant="outline"
-                    className="flex items-center gap-1.5 text-xs"
+                    className="flex items-center gap-2"
                     onClick={() => navigate(`/projects/${project.id}?view=assets`)}
                   >
                     <Images className="w-3.5 h-3.5" />
@@ -206,16 +206,16 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
                   <div className="toolbar gap-4 text-right">
                     {displayDuration > 0 && (
                       <div>
-                        <div className="text-sm font-semibold text-text">
+                        <div className="text-lg font-black text-text">
                           {displayDurationText}
                         </div>
-                        <div className="text-xs text-muted">{displayDurationLabel}</div>
+                        <div className="text-xs font-semibold text-muted">{displayDurationLabel}</div>
                       </div>
                     )}
                     {activeEpisode.shots.length > 0 && (
                       <div>
-                        <div className="text-sm font-semibold text-text">{activeEpisode.shots.length}</div>
-                        <div className="text-xs text-muted">分镜数</div>
+                        <div className="text-lg font-black text-text">{activeEpisode.shots.length}</div>
+                        <div className="text-xs font-semibold text-muted">分镜数</div>
                       </div>
                     )}
                   </div>

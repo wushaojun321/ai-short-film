@@ -33,7 +33,7 @@ export default function EpisodeStepBar({
   };
 
   return (
-    <div className="bg-panel/95 border-b border-line px-6 py-0 overflow-x-auto shadow-xs backdrop-blur">
+    <div className="bg-panel/90 border-b border-line px-7 py-0 overflow-x-auto shadow-xs backdrop-blur-xl">
       <div className="flex items-stretch min-w-max">
         {EPISODE_STEPS.map((stepDef, idx) => {
           const stepIdx = getStepIndex(stepDef.key);
@@ -49,7 +49,7 @@ export default function EpisodeStepBar({
                 onClick={() => handleStepClick(stepDef.key)}
                 disabled={!isReachable}
                 className={cn(
-                  "relative flex flex-col items-center gap-1 px-4 py-3 text-xs transition-colors border-b-2",
+                  "relative flex flex-col items-center gap-1.5 px-5 py-3.5 text-sm transition-colors border-b-2",
                   isReachable ? "cursor-pointer" : "cursor-default",
                   isActive
                     ? "border-brand text-brand font-semibold"
@@ -61,7 +61,7 @@ export default function EpisodeStepBar({
               >
                 {/* 步骤图标 */}
                 <div className={cn(
-                  "w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold transition-all",
+                  "w-8 h-8 rounded-full flex items-center justify-center text-sm font-black transition-all",
                   isDone && !isActive && "bg-success-soft text-success ring-1 ring-success/10",
                   isCurrent && isActive && "bg-brand text-white shadow-brand",
                   isCurrent && !isActive && "bg-brand-soft text-brand ring-1 ring-brand/10",
@@ -69,7 +69,7 @@ export default function EpisodeStepBar({
                   !isDone && !isCurrent && !isActive && "bg-soft text-muted ring-1 ring-line/80",
                 )}>
                   {isDone && !isActive ? (
-                    <Check className="w-3.5 h-3.5" />
+                    <Check className="w-4 h-4" />
                   ) : (
                     <span>{idx + 1}</span>
                   )}
@@ -80,7 +80,7 @@ export default function EpisodeStepBar({
               {/* 连接线 */}
               {!isLast && (
                 <div className={cn(
-                  "w-6 h-px mx-1 shrink-0",
+                  "w-8 h-px mx-1 shrink-0",
                   stepIdx < currentIdx ? "bg-gradient-to-r from-success/35 to-brand/30" : "bg-line"
                 )} />
               )}

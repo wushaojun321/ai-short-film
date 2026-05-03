@@ -50,14 +50,14 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
   };
 
   return (
-    <aside className="w-60 shrink-0 border-r border-line bg-panel/95 flex flex-col h-[calc(100vh-56px)] sticky top-14 shadow-sm backdrop-blur">
+    <aside className="w-72 shrink-0 border-r border-line bg-panel/90 flex flex-col h-[calc(100vh-64px)] sticky top-16 shadow-card backdrop-blur-xl">
       {/* 顶部标题 */}
-      <div className="px-4 py-4 border-b border-line bg-elev/70">
-        <div className="flex items-center gap-2">
-          <Film className="w-4 h-4 text-brand" />
-          <h3 className="text-xs font-bold text-text uppercase tracking-widest">分集列表</h3>
+      <div className="px-5 py-5 border-b border-line bg-elev/70">
+        <div className="flex items-center gap-2.5">
+          <Film className="w-5 h-5 text-brand" />
+          <h3 className="text-sm font-black text-text uppercase tracking-widest">分集列表</h3>
         </div>
-        <div className="flex gap-3 mt-3">
+        <div className="flex gap-4 mt-4">
           <div className="flex items-center gap-1 text-xs text-muted">
             <div className="w-1.5 h-1.5 rounded-full bg-success" />
             <span className="tabular-nums font-medium text-success">{counts.completed}</span>
@@ -75,7 +75,7 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
 
       {/* 分集列表 */}
       <ScrollArea className="flex-1">
-        <div className="py-2 px-2">
+        <div className="py-3 px-3">
           {episodes.map((ep) => {
             const isActive = ep.id === activeEpisodeId;
             const cfg = statusConfig[ep.status];
@@ -85,26 +85,26 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
                 key={ep.id}
                 onClick={() => handleSelect(ep.id)}
                 className={cn(
-                  "w-full text-left px-3 py-2.5 rounded-xl mb-1 flex items-center gap-2.5 border",
+                  "w-full text-left px-4 py-3.5 rounded-2xl mb-2 flex items-center gap-3 border",
                   "transition-all duration-150 group",
                   isActive
-                    ? "bg-brand-soft border-brand/30 shadow-xs"
+                    ? "bg-brand-soft border-brand/35 shadow-brand"
                     : "border-transparent hover:bg-soft",
                 )}
               >
                 {/* 状态点 */}
-                <div className={cn("w-2 h-2 rounded-full shrink-0", cfg.dot)} />
+                <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", cfg.dot)} />
 
                 {/* 内容 */}
                 <div className="flex-1 min-w-0">
                   <div className={cn(
-                    "text-xs font-bold leading-tight",
+                    "text-sm font-black leading-tight",
                     isActive ? "text-text" : "text-sub"
                   )}>
                     第 {ep.number} 集
                   </div>
                   <div className={cn(
-                    "text-xs leading-tight mt-0.5 truncate",
+                    "text-sm leading-tight mt-1 truncate",
                     isActive ? "text-sub" : "text-muted",
                     ep.status === "not_started" && "italic text-muted"
                   )}>
@@ -126,8 +126,8 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
       </ScrollArea>
 
       {/* 底部汇总 */}
-      <div className="px-4 py-3 border-t border-line bg-elev/70">
-        <div className="text-xs text-muted text-center">
+      <div className="px-5 py-4 border-t border-line bg-elev/70">
+        <div className="text-sm text-muted text-center">
           共 <span className="font-bold text-text tabular-nums">{episodes.length}</span> 集
           · <span className="text-success font-bold tabular-nums">{counts.completed}</span> 完成
         </div>

@@ -12,7 +12,7 @@ export default function Shell({ children }: ShellProps) {
   return (
     <div className="app-workspace">
       <Nav />
-      <main className={`pt-14 ${isHome ? "" : ""}`}>
+      <main className={`pt-16 ${isHome ? "" : ""}`}>
         {children}
       </main>
     </div>

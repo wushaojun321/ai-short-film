@@ -51,14 +51,14 @@ const STEP_NODES = [
 function StepIndicator({ current, maxReached }: { current: Phase; maxReached: number }) {
   const visualCurrent = current <= 1.5 ? 1 : current === 2 ? 2 : 3;
   return (
-    <div className="flex items-center gap-2 mb-8">
+    <div className="flex items-center gap-3 mb-10">
       {STEP_NODES.map((node, idx) => {
         const isActive = visualCurrent === node.visual;
         const isDone = maxReached > node.visual;
         return (
           <div key={node.visual} className="flex items-center gap-2">
             <div className={cn(
-              "w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold",
+              "w-9 h-9 rounded-full flex items-center justify-center text-sm font-black",
               isDone   && "bg-brand text-white",
               isActive && "bg-brand text-white ring-4 ring-brand/20",
               !isDone && !isActive && "bg-soft text-muted border border-line",
@@ -66,13 +66,13 @@ function StepIndicator({ current, maxReached }: { current: Phase; maxReached: nu
               {isDone ? <Check className="w-3.5 h-3.5" /> : node.visual}
             </div>
             <span className={cn(
-              "text-sm hidden sm:block",
-              isActive ? "font-semibold text-text" : "text-muted",
+              "text-base hidden sm:block",
+              isActive ? "font-black text-text" : "font-semibold text-muted",
             )}>
               {node.label}
             </span>
             {idx < STEP_NODES.length - 1 && (
-              <ChevronRight className="w-4 h-4 text-line mx-1" />
+              <ChevronRight className="w-5 h-5 text-line mx-1" />
             )}
           </div>
         );
@@ -123,10 +123,10 @@ function Phase1({
   };
 
   return (
-    <div className="page-panel tech-border max-w-xl mx-auto p-6">
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-text mb-1">上传剧本</h2>
-        <p className="text-sm text-sub">上传剧本文件，AI 将自动解析分集规划和资产需求。</p>
+    <div className="page-panel tech-border max-w-2xl mx-auto p-8">
+      <div className="mb-7">
+        <h2 className="text-3xl font-black text-text mb-2">上传剧本</h2>
+        <p className="text-base text-sub">上传剧本文件，AI 将自动解析分集规划和资产需求。</p>
       </div>
 
       <div
@@ -135,7 +135,7 @@ function Phase1({
         onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
         onClick={() => !uploadedFile && fileRef.current?.click()}
         className={cn(
-          "border-2 border-dashed rounded-xl p-10 text-center transition-all cursor-pointer bg-panel",
+          "border-2 border-dashed rounded-2xl p-14 text-center transition-all cursor-pointer bg-panel/80",
           dragging ? "border-brand bg-brand-soft" : "border-line hover:border-brand/50 hover:bg-soft",
           uploadedFile && "border-brand bg-brand-soft cursor-default"
         )}
@@ -144,30 +144,30 @@ function Phase1({
           onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
         {uploadedFile ? (
           <div className="flex flex-col items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-brand/10 flex items-center justify-center">
-              <FileText className="w-6 h-6 text-brand" />
+            <div className="w-16 h-16 rounded-3xl bg-brand-soft flex items-center justify-center">
+              <FileText className="w-8 h-8 text-brand" />
             </div>
             <div>
-              <p className="font-medium text-text text-sm">{uploadedFile.name}</p>
-              <p className="text-xs text-muted mt-0.5">{(uploadedFile.size / 1024).toFixed(1)} KB</p>
+              <p className="font-bold text-text text-base">{uploadedFile.name}</p>
+              <p className="text-sm text-muted mt-1">{(uploadedFile.size / 1024).toFixed(1)} KB</p>
             </div>
             <button onClick={(e) => { e.stopPropagation(); setUploadedFile(null); }}
-              className="text-xs text-muted hover:text-danger transition-colors">重新上传</button>
+              className="text-sm font-semibold text-muted hover:text-danger transition-colors">重新上传</button>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-soft flex items-center justify-center">
-              <Upload className="w-6 h-6 text-muted" />
+            <div className="w-16 h-16 rounded-3xl bg-soft flex items-center justify-center">
+              <Upload className="w-8 h-8 text-muted" />
             </div>
             <div>
-              <p className="text-sm font-medium text-text">点击或拖拽上传剧本</p>
-              <p className="text-xs text-muted mt-1">支持 .txt · .docx · .pdf</p>
+              <p className="text-base font-bold text-text">点击或拖拽上传剧本</p>
+              <p className="text-sm text-muted mt-1.5">支持 .txt · .docx · .pdf</p>
             </div>
           </div>
         )}
       </div>
 
-      <div className="mt-6 flex justify-end">
+      <div className="mt-7 flex justify-end">
         <Button disabled={!uploadedFile} onClick={() => setDialogOpen(true)}>
           解析剧本 <ChevronRight className="w-4 h-4" />
         </Button>
@@ -315,10 +315,10 @@ function PhaseWaiting({
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [logs]);
 
   return (
-    <div className="page-panel tech-border max-w-xl mx-auto p-6">
-      <div className="mb-6 flex items-start gap-4">
+    <div className="page-panel tech-border max-w-2xl mx-auto p-8">
+      <div className="mb-7 flex items-start gap-5">
         <div className={cn(
-          "w-12 h-12 rounded-xl flex items-center justify-center shrink-0",
+          "w-16 h-16 rounded-3xl flex items-center justify-center shrink-0",
           finished ? (error ? "bg-danger-soft" : "bg-brand-soft") : "bg-primary/5"
         )}>
           {finished
@@ -326,10 +326,10 @@ function PhaseWaiting({
             : <Loader2 className="w-6 h-6 text-brand animate-spin" />}
         </div>
         <div>
-          <h2 className="text-xl font-semibold text-text mb-1">
+          <h2 className="text-3xl font-black text-text mb-2">
             {finished ? (error ? "解析失败" : "解析完成") : "AI 正在深度解析剧本"}
           </h2>
-          <p className="text-sm text-sub leading-relaxed">
+          <p className="text-base text-sub leading-relaxed">
             {error ?? (finished
               ? "分集规划和资产清单已全部生成，即将进入确认步骤。"
               : "正在理解剧情结构、提取人物关系并规划分集方案，长剧本或多集数项目可能需要数分钟。")}
@@ -338,17 +338,17 @@ function PhaseWaiting({
       </div>
 
       <div className="mb-4">
-        <div className="flex justify-between text-xs text-muted mb-1.5">
+        <div className="flex justify-between text-sm font-semibold text-muted mb-2">
           <span className="flex items-center gap-1"><Activity className="w-3 h-3" />处理进度</span>
           <span className="font-mono tabular-nums">{progress}%</span>
         </div>
-        <div className="h-1.5 rounded-full bg-soft overflow-hidden">
+        <div className="h-2.5 rounded-full bg-soft overflow-hidden">
           <div className={cn("h-full rounded-full transition-all duration-700", error ? "bg-danger" : "bg-brand")}
             style={{ width: `${progress}%` }} />
         </div>
       </div>
 
-      <div className="rounded-xl border border-line bg-slate-950 overflow-hidden mb-6 shadow-md">
+      <div className="rounded-2xl border border-line bg-slate-950 overflow-hidden mb-7 shadow-card">
         <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 border-b border-slate-800">
           <div className="flex gap-1.5">
             <div className="w-3 h-3 rounded-full bg-red-500/70" />
@@ -519,19 +519,19 @@ function Phase2({
   };
 
   return (
-    <div className="page-panel tech-border max-w-6xl mx-auto p-5 sm:p-6">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between mb-6">
+    <div className="page-panel tech-border max-w-7xl mx-auto p-6 sm:p-8">
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between mb-7">
         <div>
           <p className="section-title mb-2">Plan Review</p>
-          <h2 className="text-xl font-semibold text-text mb-1">分集与资产确认</h2>
-          <p className="text-sm text-sub">确认 AI 生成的分集规划和资产清单。可 inline 编辑，或点击右下角「AI 助手」通过对话调整。</p>
+          <h2 className="text-3xl font-black text-text mb-2">分集与资产确认</h2>
+          <p className="text-base text-sub">确认 AI 生成的分集规划和资产清单。可 inline 编辑，或点击右下角「AI 助手」通过对话调整。</p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 xl:w-[520px]">
-          <div className="mini-stat"><div className="text-lg font-semibold text-text">{episodes.length}</div><div className="text-xs text-muted">总集数</div></div>
-          <div className="mini-stat"><div className="text-lg font-semibold text-text">{fmt(totalDuration)}</div><div className="text-xs text-muted">预估时长</div></div>
-          <div className="mini-stat"><div className="text-lg font-semibold text-text">{totalDialogues}</div><div className="text-xs text-muted">对白行</div></div>
-          <div className="mini-stat"><div className="text-lg font-semibold text-text">{originalEpisodes}/{episodes.length || 0}</div><div className="text-xs text-muted">原文回填</div></div>
-          <div className="mini-stat"><div className="text-lg font-semibold text-text">{assets.length}</div><div className="text-xs text-muted">资产数</div></div>
+          <div className="mini-stat"><div className="text-xl font-black text-text">{episodes.length}</div><div className="text-xs text-muted">总集数</div></div>
+          <div className="mini-stat"><div className="text-xl font-black text-text">{fmt(totalDuration)}</div><div className="text-xs text-muted">预估时长</div></div>
+          <div className="mini-stat"><div className="text-xl font-black text-text">{totalDialogues}</div><div className="text-xs text-muted">对白行</div></div>
+          <div className="mini-stat"><div className="text-xl font-black text-text">{originalEpisodes}/{episodes.length || 0}</div><div className="text-xs text-muted">原文回填</div></div>
+          <div className="mini-stat"><div className="text-xl font-black text-text">{assets.length}</div><div className="text-xs text-muted">资产数</div></div>
         </div>
       </div>
 
@@ -1657,17 +1657,17 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
   };
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <div className="page-panel tech-border mb-5 p-5">
+    <div className="mx-auto max-w-7xl">
+      <div className="page-panel tech-border mb-6 p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="section-title mb-2">Asset Review</p>
-            <h2 className="text-xl font-semibold text-text mb-1">图片确认</h2>
-            <p className="text-sm text-sub">先检查资产包一致性，再生成图片并确认。人物、场景、道具如有不同阶段资产，均按资产组卡片预览。</p>
+            <h2 className="text-3xl font-black text-text mb-2">图片确认</h2>
+            <p className="text-base text-sub">先检查资产包一致性，再生成图片并确认。人物、场景、道具如有不同阶段资产，均按资产组卡片预览。</p>
           </div>
           <div className="flex flex-wrap gap-2 items-center shrink-0">
             <Button
-              size="sm"
+              size="default"
               onClick={handleGenerateAll}
               disabled={batchGenerating || needGenerateCount === 0}
               variant="outline"
@@ -1677,7 +1677,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
               生成全部资产
             </Button>
             <Button
-              size="sm"
+              size="default"
               onClick={handleConfirmReady}
               disabled={submitting || readyToConfirmCount === 0}
               variant="outline"
@@ -1690,7 +1690,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-5">
         {[
           ["人物包", characterGroupCount],
           ["阶段造型", characterAssetCount],
@@ -1958,11 +1958,11 @@ export default function NewProjectScreen({
 
   return (
     <div className="min-h-screen">
-      <div className="page-shell py-8">
-        <div className="page-header mb-8">
+      <div className="page-shell py-10">
+        <div className="page-header mb-10">
           <p className="section-title mb-2">Project Initialization</p>
-          <h1 className="text-2xl font-semibold text-text">{project.title}</h1>
-          <p className="text-sm text-sub mt-1">完成以下三步后即可开始分集制作。</p>
+          <h1 className="text-4xl font-black text-text">{project.title}</h1>
+          <p className="text-base text-sub mt-2">完成以下三步后即可开始分集制作。</p>
         </div>
         <StepIndicator current={phase} maxReached={maxReached} />
 
