@@ -540,3 +540,22 @@
 5. 最后一步才生成视频。
 
 这样后续做第 4 集、第 5 集时，流程就不需要再靠人工临时口头纠偏。
+
+## 12. 当前项目的后续验证项
+
+当前 `ai-short-film` 已开始引入 `ProductionBlueprint`，用于承接分集蓝图、每集资产需求、人物圣经、人物阶段资产、场景/道具圣经和蓝图校验结果。后续不要急着继续扩大 prompt，而是先用真实项目验证以下问题：
+
+1. 分集蓝图是否忠于原文，是否保留台词和关键因果。
+2. 每集 `asset_requirements` 是否能覆盖后续分镜实际需要的人物、场景、道具。
+3. 人物圣经是否能稳定约束同一角色的 `face_identity` 和 `voice_profile`。
+4. 人物阶段资产是否能正确区分不同场景、不同剧情阶段、不同服装/伤势/道具状态。
+5. 场景/道具圣经是否避免无意义重复资产，同时保留关键状态变化。
+6. 分镜生成是否仍需要独立 `BeatPlanningAgent` 作为正式阶段。
+7. 视频生成前是否需要 `ShotPreflightValidator` 做确定性检查，而不是只依赖 LLM 修复。
+
+测试通过后，再把以下 prompt 固化为正式 scope：
+
+- `script_analysis_v1`
+- `beat_planning_v1`
+- `shot_preflight_validate_v1`
+- `seedance_request_package_v1`

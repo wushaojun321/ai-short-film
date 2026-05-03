@@ -282,9 +282,33 @@ ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker
 
 `docs/workflow-spec.md` 是目标工作流规范，当前代码已经实现主链路，但仍有差距：
 
-- 已实现：项目/用户隔离、剧本上传、长剧本 Map-Reduce、分集和资产记录、资产图、分镜视频、合片、任务记录、进度轮询、提示词配置、制品对话入口。
+- 已实现：项目/用户隔离、剧本上传、原文索引、分集和资产记录、资产图、分镜视频、合片、任务记录、进度轮询、代码侧提示词配置、制品对话入口。
+- 解析链路正在向 `ProductionBlueprint` 过渡：分集蓝图、每集资产需求、人物圣经、人物阶段资产、场景/道具圣经和蓝图校验结果先作为中间真相层保存，再派生现有 `Episode` / `Asset`，以兼容当前前端。
 - 部分实现：短期版片段元数据、资产按需生成、连续性注入、参考图策略、敏感词重试、审核状态机。
-- 未完全实现：独立 beat/片段实体、自动缺失资产检查、片段预览、TTS 配音任务、视频生成百分比透传、任务恢复监控、队列满时的 queued 状态全链路。
+- 未完全实现：独立 beat/片段实体、镜头级资产绑定 schema、自动缺失资产检查、提交前校验器、片段预览、TTS 配音任务、视频生成百分比透传、任务恢复监控、队列满时的 queued 状态全链路。
+
+## 后续测试后再落地的优化方向
+
+这组方向来自 `/Users/vanky/code/short film/docs/prompt-spec.md`、`schema-reference.md` 和 `workflow-tuning-guide.md` 的本地实跑经验。当前先记录，不要在未跑真实项目前继续大幅扩展，避免把新蓝图链路和镜头执行链路同时改复杂。
+
+优先级建议：
+
+1. `ScriptAnalysisAgent`：新增独立剧本解析层，写入 `ProductionBlueprint.script_analysis`，包含人物表、人物关系、主线/副线、关键节点、分集切点候选、角色状态变化线和原稿风险点。它只做理解，不拆镜头。
+2. `BeatPlanningAgent`：将片段/beat 做成正式阶段和可审核数据。每集先拆片段，再拆镜头；片段字段至少包含 `beat_id`、功能、场景、人物、开头状态、结尾落点、转场方式、片段级资产需求。
+3. 资产结构细化：当前 `Asset` 可继续作为前端卡片兼容层，但蓝图层应逐步拆出 `CharacterCore`、`CharacterLook`、`ScenePackage`、`SceneView`、`PropPackage`、`KeyframeRequirement`。
+4. 镜头资产绑定升级：`ShotAssetBinding` 不应长期只有 `asset_id / asset_name`，需要增加 `character_id`、`look_id`、`scene_id`、`scene_view_id`、`role_in_shot`、`speaker/listener`、`keyframe_id`、`tail_frame_policy`。
+5. `ShotPreflightValidator`：视频提交前做确定性校验，不只依赖 LLM 修复。必检项包括每镜绑定角色/场景、有台词必须有说话人、多人镜声明 speaker/listener、last_frame 只能辅助不能替代资产、台词字数和镜头时长匹配。
+6. `SeedanceRequestPackage` 持久化：每次真实提交给 Seedance 的 text prompt、参考图 URL 列表、ratio、duration、return_last_frame、watermark、模型名都应保存，前端展示“真实提交内容”。
+7. 高风险镜头关键帧：片段首镜、三人以上关系镜、复杂动作镜、身份易混镜、悬念落点镜可选关键帧；关键帧只锁构图/站位，不能替代角色和场景资产绑定。
+
+已验证的执行原则：
+
+- 每一个视频镜头都必须绑定角色资产和场景资产。
+- `last_frame` 只能作为连续性辅助，不能替代角色/场景资产。
+- 先拆片段，再拆短镜头，避免长镜头承担过多剧情任务。
+- 有台词的镜头必须结构化说话人、静默角色和 mouth-sync 归属。
+- 观察镜必须写清观察者位置、被观察者位置、身体朝向、头部朝向、视线方向和禁止看向。
+- 场景切换需要过渡镜或空间重建镜，不能从近景硬切到近景。
 
 ## 已知代码风险
 

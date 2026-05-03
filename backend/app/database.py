@@ -2,7 +2,7 @@ from beanie import init_beanie
 from app.config import settings
 from app.models import (
     Project, Episode, Shot, Asset,
-    ScriptBlock,
+    ScriptBlock, ProductionBlueprint,
     Conversation, PromptConfig, TaskRecord,
     User, InviteCode,
 )
@@ -15,6 +15,7 @@ async def init_db():
             Project,
             Episode,
             ScriptBlock,
+            ProductionBlueprint,
             Shot,
             Asset,
             Conversation,

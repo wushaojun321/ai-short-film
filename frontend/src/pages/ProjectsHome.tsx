@@ -53,14 +53,14 @@ function ProjectCard({ project }: { project: Project }) {
       <div
         onClick={() => navigate(`/projects/${project.id}`)}
         className={cn(
-          "group media-card tech-border relative min-h-[292px] cursor-pointer overflow-hidden p-4",
+          "group media-card tech-border relative flex h-full min-h-[328px] cursor-pointer flex-col overflow-hidden p-4",
           "animate-fade-in"
         )}
       >
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-signal to-transparent opacity-80" />
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_24%_0%,rgba(52,211,153,0.08),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.040),transparent_38%)] opacity-70 transition-opacity duration-200 group-hover:opacity-100" />
-        <div className="relative flex items-start justify-between gap-3 mb-4">
-          <div className="flex items-start gap-3 min-w-0">
+        <div className="relative mb-4 min-h-[104px]">
+          <div className="mb-3 flex items-start justify-between gap-3">
             <div className={cn(
               "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs ring-1 ring-white/10",
               project.initStatus === "initialized"
@@ -69,63 +69,76 @@ function ProjectCard({ project }: { project: Project }) {
             )}>
               <Play className="w-4 h-4" />
             </div>
-            <div className="min-w-0">
-              <h3 className="font-black text-text text-lg leading-snug group-hover:text-brand transition-colors line-clamp-2">
-                {project.title}
-              </h3>
-              <p className="mt-1 text-xs text-muted truncate">{project.format}</p>
+
+            <div className="flex min-w-0 shrink-0 items-center gap-1.5">
+              <div className={cn("w-1.5 h-1.5 rounded-full", cfg.dot)} />
+              <Badge variant={cfg.variant} className="max-w-[84px] shrink-0 whitespace-nowrap">
+                {cfg.label}
+              </Badge>
+              <button
+                type="button"
+                title="删除项目"
+                aria-label="删除项目"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDeleteError(null);
+                  setDeleteOpen(true);
+                }}
+                className={cn(
+                  "ml-1 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-transparent",
+                  "text-muted opacity-70 transition-all hover:border-danger/30 hover:bg-danger-soft hover:text-danger",
+                  "focus:outline-none focus:ring-2 focus:ring-danger/20"
+                )}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            <div className={cn("w-1.5 h-1.5 rounded-full", cfg.dot)} />
-            <Badge variant={cfg.variant}>{cfg.label}</Badge>
-            <button
-              type="button"
-              title="删除项目"
-              aria-label="删除项目"
-              onClick={(e) => {
-                e.stopPropagation();
-                setDeleteError(null);
-                setDeleteOpen(true);
-              }}
-              className={cn(
-                "ml-1 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-transparent",
-                "text-muted opacity-70 transition-all hover:border-danger/30 hover:bg-danger-soft hover:text-danger",
-                "focus:outline-none focus:ring-2 focus:ring-danger/20"
-              )}
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          <h3
+            title={project.title}
+            className="min-h-[3.25rem] break-words pr-1 text-xl font-black leading-tight text-text transition-colors line-clamp-2 group-hover:text-brand"
+          >
+            {project.title}
+          </h3>
+          <p className="mt-1 text-xs text-muted truncate">{project.format}</p>
         </div>
 
-        {project.initStatus === "initialized" && (
-          <div className="mb-3">
+        <div className="relative mb-3 min-h-[43px]">
+          {project.initStatus === "initialized" ? (
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs font-semibold text-muted">制作进度</span>
               <span className="text-xs font-black text-brand tabular-nums">{project.progress}%</span>
             </div>
+          ) : (
+            <div className="mb-1.5 flex items-center justify-between opacity-0">
+              <span className="text-xs font-semibold">进度占位</span>
+              <span className="text-xs font-black tabular-nums">0%</span>
+            </div>
+          )}
+          {project.initStatus === "initialized" ? (
             <div className="h-2 bg-soft rounded-full overflow-hidden ring-1 ring-line/70">
               <div
                 className="h-full bg-gradient-to-r from-primary to-signal rounded-full shadow-brand transition-all duration-500"
                 style={{ width: `${project.progress}%` }}
               />
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="h-2 rounded-full bg-soft/40 opacity-0 ring-1 ring-line/70" />
+          )}
+        </div>
 
         <div className="relative grid grid-cols-3 gap-2 mb-3">
-          <div className="rounded-xl border border-line/70 bg-elev/85 p-3 text-center">
+          <div className="rounded-xl border border-line/70 bg-elev/85 p-3 text-center min-h-[72px]">
             <div className="text-xl font-black text-text tabular-nums">{project.renderedEpisodes}</div>
             <div className="text-2xs text-muted mt-0.5">已完成</div>
           </div>
-          <div className="rounded-xl border border-line/70 bg-elev/85 p-3 text-center">
+          <div className="rounded-xl border border-line/70 bg-elev/85 p-3 text-center min-h-[72px]">
             <div className="text-xl font-black text-text tabular-nums">{project.episodes || "—"}</div>
             <div className="text-2xs text-muted mt-0.5">总集数</div>
           </div>
           <div className={cn(
-            "rounded-xl border border-line/70 p-3 text-center",
+            "rounded-xl border border-line/70 p-3 text-center min-h-[72px]",
             project.blockers && project.blockers > 0 ? "border-danger/20 bg-danger-soft" : "bg-elev"
           )}>
             <div className={cn(
@@ -138,21 +151,23 @@ function ProjectCard({ project }: { project: Project }) {
           </div>
         </div>
 
-        {project.note && (
-          <div className={cn(
-            "relative flex items-start gap-2 text-xs px-3 py-2 rounded-xl border",
-            project.blockers && project.blockers > 0 ? "bg-warn-soft text-warn" : "bg-elev text-sub"
-          )}>
-            {project.blockers && project.blockers > 0
-              ? <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-              : <Clock className="w-3.5 h-3.5 shrink-0 mt-0.5 text-muted" />
-            }
-            <span className="line-clamp-2">{project.note}</span>
-          </div>
-        )}
+        <div className="relative min-h-[45px]">
+          {project.note && (
+            <div className={cn(
+              "flex min-h-[45px] items-start gap-2 rounded-xl border px-3 py-2 text-xs",
+              project.blockers && project.blockers > 0 ? "bg-warn-soft text-warn" : "bg-elev text-sub"
+            )}>
+              {project.blockers && project.blockers > 0
+                ? <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                : <Clock className="w-3.5 h-3.5 shrink-0 mt-0.5 text-muted" />
+              }
+              <span className="line-clamp-2">{project.note}</span>
+            </div>
+          )}
+        </div>
 
-        <div className="relative mt-3 pt-3 border-t border-line flex items-center justify-between">
-          <span className="text-xs text-muted">{project.stage}</span>
+        <div className="relative mt-auto flex items-center justify-between border-t border-line pt-3">
+          <span className="min-w-0 truncate text-xs text-muted">{project.stage}</span>
           <span className="text-xs font-black text-brand flex items-center gap-1 rounded-lg bg-brand-soft px-2.5 py-1 transition-colors group-hover:text-brand">
             进入项目 <ChevronRight className="w-3.5 h-3.5" />
           </span>
@@ -265,9 +280,9 @@ export default function ProjectsHome() {
           </div>
         )}
         {loading ? (
-          <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="mt-5 grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="page-panel p-4 h-[292px]">
+              <div key={i} className="page-panel h-[328px] p-4">
                 <div className="flex items-start gap-3">
                   <div className="skeleton h-10 w-10 rounded-xl" />
                   <div className="flex-1 space-y-2">
@@ -286,7 +301,7 @@ export default function ProjectsHome() {
             ))}
           </div>
         ) : (
-          <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="mt-5 grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {projects.length > 0
               ? projects.map((p) => <ProjectCard key={p.id} project={p} />)
               : <EmptyState />

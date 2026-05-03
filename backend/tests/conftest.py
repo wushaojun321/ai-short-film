@@ -20,7 +20,7 @@ TEST_MONGO_URL = "mongodb://mongodb:27017/ai_short_film_test"
 async def _init_test_db():
     """Initialize Beanie with test database."""
     from app.models import (
-        Project, Episode, ScriptBlock, Shot, Asset,
+        Project, Episode, ScriptBlock, ProductionBlueprint, Shot, Asset,
         Conversation, PromptConfig, TaskRecord,
         User, InviteCode,
     )
@@ -28,6 +28,7 @@ async def _init_test_db():
         connection_string=TEST_MONGO_URL,
         document_models=[
             Project, Episode, ScriptBlock, Shot, Asset,
+            ProductionBlueprint,
             Conversation, PromptConfig, TaskRecord,
             User, InviteCode,
         ],

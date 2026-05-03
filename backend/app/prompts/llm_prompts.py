@@ -225,16 +225,20 @@ SCRIPT_MAP = {
 # =============================================================================
 EPISODE_SPLIT = {
     "scope": PromptConfigScope.episode_split,
-    "name": "分集拆解-原文索引引用",
-    "description": "根据原文块索引拆分分集，只输出 block 范围，不重写正文",
-    "system_prompt": """你是专业短剧结构编剧。你的任务是根据“原文块索引”拆分分集。
+    "name": "分集蓝图-原文索引引用",
+    "description": "根据原文块索引生成分集蓝图和每集资产需求，不重写正文",
+    "system_prompt": """你是专业短剧结构编剧。你的任务是根据“原文块索引”生成分集制作蓝图。
 
 强制规则：
 1. 只决定每集使用哪些连续原文块，不要重写、改写、压缩剧本文本。
 2. 如果索引中已有 episode_header，请优先保持原始集边界。
 3. 每集必须输出连续的 start_block/end_block，范围尽量覆盖全文，不能交叉。
 4. summary 可以概括，但 script_excerpt 不由你生成。
-5. 输出 JSON 对象，不要包含额外解释。
+5. 每集必须顺带列出本集剧情直接需要的资产需求 asset_requirements，但只列“需求”，不要写最终图片生成提示词。
+6. asset_requirements.characters 只写本集出现或本集需要保持连续性的角色状态，包括角色名、剧情功能、场景范围、造型/伤势/道具线索、音色线索。
+7. asset_requirements.scenes 只写本集剧情功能重要的场景及其状态。
+8. asset_requirements.props 只写关键道具及用途。
+9. 输出 JSON 对象，不要包含额外解释。
 
 格式：
 {
@@ -245,12 +249,30 @@ EPISODE_SPLIT = {
       "summary": "50字以内本集概要",
       "source_block_ranges": [{"start_block": 0, "end_block": 12}],
       "word_count": 1200,
-      "estimated_duration": 120
+      "estimated_duration": 120,
+      "beats": ["本集关键情节点"],
+      "emotion_curve": "本集情绪变化",
+      "ending_hook": "本集结尾钩子",
+      "asset_requirements": {
+        "characters": [
+          {
+            "name": "角色名",
+            "role_in_episode": "本集剧情功能",
+            "state": "本集状态/阶段",
+            "scene_scope": "适用场景",
+            "appearance_hint": "服装、妆发、伤势、随身道具线索",
+            "face_change": false,
+            "voice_hint": "音色和说话基调线索"
+          }
+        ],
+        "scenes": [{"name": "场景名", "state": "本集状态", "episode_usage": "剧情用途"}],
+        "props": [{"name": "道具名", "usage": "剧情用途", "owner": "相关角色或无"}]
+      }
     }
   ]
 }""",
-    "user_prompt_template": "全剧规划：\n{series_context}\n\n目标集数：{target_episodes}\n每集最短时长（秒）：{min_duration}\n补充说明：{parse_notes}\n\n原文块索引：\n{script_index}",
-    "variables": ["script_index", "series_context", "target_episodes", "min_duration", "parse_notes"],
+    "user_prompt_template": "全剧规划：\n{series_context}\n\n目标集数：{target_episodes}\n每集最短时长（秒）：{min_duration}\n补充说明：{parse_notes}\n\n建议分集边界（如有，优先遵守）：\n{suggested_ranges}\n\n原文块索引：\n{script_index}",
+    "variables": ["script_index", "series_context", "target_episodes", "min_duration", "parse_notes", "suggested_ranges"],
 }
 
 
@@ -313,6 +335,164 @@ ASSET_EXTRACT = {
 }""",
     "user_prompt_template": "全剧规划：\n{series_context}\n\n分集规划：\n{episode_plan}\n\n原文块索引：\n{script_index}",
     "variables": ["script_index", "series_context", "episode_plan"],
+}
+
+
+CHARACTER_BIBLE = {
+    "scope": PromptConfigScope.character_bible,
+    "name": "人物圣经-资产一致性源头",
+    "description": "根据全剧规划和分集资产需求建立人物身份、人脸和音色基准",
+    "system_prompt": """你是短剧人物一致性导演。请根据全剧规划和分集资产需求建立“人物圣经”。
+
+强制规则：
+1. 每个真实角色只输出一次，建立稳定 character_id、character_name、asset_package。
+2. face_identity 是全局人脸基准，必须写实、可视化、稳定，描述脸型、骨相、五官比例、肤色、皮肤质感和标志性特征。
+3. voice_profile 是全局音色基准，后续分镜台词和配音都沿用。
+4. allowed_changes 写服装、妆发、伤势、道具等允许变化项；locked_traits 写不得变化的人脸和音色项。
+5. 如果剧情明确面部变化，写入 face_change_rules；否则明确“全剧不改变面部基准”。
+6. 不写图片生成 prompt。
+
+输出 JSON：
+{
+  "characters": [
+    {
+      "character_id": "稳定英文或拼音ID",
+      "character_name": "角色名",
+      "asset_package": "人物资产包名",
+      "role": "人物身份和剧情功能",
+      "arc": "人物弧光",
+      "face_identity": "共享面部基准",
+      "voice_profile": "固定音色与说话基调",
+      "allowed_changes": ["允许变化项"],
+      "locked_traits": ["不得变化项"],
+      "face_change_rules": "面部变化规则或全剧不改变面部基准"
+    }
+  ]
+}""",
+    "user_prompt_template": "全剧规划：\n{series_context}\n\n分集资产需求：\n{episode_asset_requirements}",
+    "variables": ["series_context", "episode_asset_requirements"],
+}
+
+
+CHARACTER_VARIANT_PLAN = {
+    "scope": PromptConfigScope.character_variant_plan,
+    "name": "人物阶段资产规划",
+    "description": "根据人物圣经和分集资产需求生成人物不同阶段资产",
+    "system_prompt": """你是短剧人物造型连续性规划师。请根据人物圣经和当前批次分集资产需求，规划人物阶段资产。
+
+强制规则：
+1. 必须沿用人物圣经中的 asset_package、face_identity、voice_profile。
+2. 同一人物不同状态只改变服装、妆发、伤势、随身道具、场景状态；除非人物圣经允许，不得改变面部基准。
+3. 每个阶段资产要能对应一张资产卡片，view_requirements 固定为“面部特写、全身形象、侧面视角”。
+4. prompt 是资产参考提示词初稿，必须中文、写实电影质感、真实摄影基础、真实影视布光、真实材质、克制真实氛围；不得写成非写实、动漫、插画、游戏CG、卡通、3D建模。
+5. 不要要求三视图拼在同一张图里。
+
+输出 JSON：
+{
+  "character_variants": [
+    {
+      "name": "角色名-场景/阶段/造型资产名",
+      "character_name": "角色名",
+      "asset_package": "人物资产包",
+      "face_identity": "沿用的人脸基准",
+      "voice_profile": "沿用的音色基准",
+      "scene_scope": "适用场景",
+      "appearance_stage": "剧情阶段/造型状态",
+      "episode_range": "第几集到第几集使用",
+      "view_requirements": "面部特写、全身形象、侧面视角",
+      "description": "剧情层面描述",
+      "prompt": "中文写实电影质感定妆参考提示词"
+    }
+  ]
+}""",
+    "user_prompt_template": "人物圣经：\n{character_bible}\n\n当前批次分集资产需求：\n{episode_asset_requirements}\n\n当前批次原文索引：\n{script_index}",
+    "variables": ["character_bible", "episode_asset_requirements", "script_index"],
+}
+
+
+SCENE_BIBLE = {
+    "scope": PromptConfigScope.scene_bible,
+    "name": "场景圣经-阶段资产规划",
+    "description": "根据分集场景需求建立场景资产包和阶段状态",
+    "system_prompt": """你是短剧场景美术设定师。请根据全剧规划和分集场景需求建立场景圣经与阶段资产。
+
+强制规则：
+1. 同一地点不同状态归入同一 scene_package，不要重复创建无意义场景。
+2. 对重要状态变化生成 scene_variants，例如常态、战损、夜晚、雨雪、废墟。
+3. prompt 必须中文、写实影视场景参考、真实摄影基础、真实影视布光、真实材质、真实空间透视、电影级调色。
+4. 不写非写实、动漫、插画、游戏CG、卡通、3D渲染风格。
+
+输出 JSON：
+{
+  "scenes": [
+    {
+      "scene_id": "稳定场景ID",
+      "name": "场景资产名",
+      "scene_package": "场景资产包",
+      "state": "阶段/状态",
+      "episode_range": "使用集数",
+      "description": "剧情层面描述",
+      "prompt": "中文写实影视场景参考提示词"
+    }
+  ]
+}""",
+    "user_prompt_template": "全剧规划：\n{series_context}\n\n分集场景需求：\n{episode_asset_requirements}",
+    "variables": ["series_context", "episode_asset_requirements"],
+}
+
+
+PROP_BIBLE = {
+    "scope": PromptConfigScope.prop_bible,
+    "name": "道具圣经-阶段资产规划",
+    "description": "根据分集道具需求建立关键道具资产包和阶段状态",
+    "system_prompt": """你是短剧道具连续性设定师。请根据分集道具需求建立关键道具圣经与阶段资产。
+
+强制规则：
+1. 只提取对剧情、人物识别或镜头连续性重要的道具。
+2. 同一道具跨集复用，状态变化才生成新阶段。
+3. prompt 必须中文、写实真实道具摄影参考、真实材质、使用痕迹、电影布光。
+4. 不写非写实、动漫、插画、游戏CG、卡通、3D建模风格。
+
+输出 JSON：
+{
+  "props": [
+    {
+      "prop_id": "稳定道具ID",
+      "name": "道具资产名",
+      "prop_package": "道具资产包",
+      "state": "阶段/状态",
+      "owner": "所属角色或无",
+      "episode_range": "使用集数",
+      "description": "剧情层面描述",
+      "prompt": "中文写实真实道具摄影参考提示词"
+    }
+  ]
+}""",
+    "user_prompt_template": "全剧规划：\n{series_context}\n\n分集道具需求：\n{episode_asset_requirements}",
+    "variables": ["series_context", "episode_asset_requirements"],
+}
+
+
+BLUEPRINT_VALIDATE = {
+    "scope": PromptConfigScope.blueprint_validate,
+    "name": "制作蓝图一致性校验",
+    "description": "检查分集资产需求、人物圣经、场景和道具资产覆盖关系",
+    "system_prompt": """你是短剧制作蓝图质检员。请检查蓝图是否存在明显连续性或覆盖缺口。
+
+检查重点：
+1. 分集 asset_requirements 中的重要人物、场景、道具是否被资产规划覆盖。
+2. 同一人物 asset_package 的 face_identity 和 voice_profile 是否一致。
+3. 场景/道具状态是否前后矛盾。
+4. 只输出问题和警告，不要重写蓝图。
+
+输出 JSON：
+{
+  "issues": [{"level": "error|warning", "target": "对象", "message": "问题说明"}],
+  "warnings": ["补充提醒"],
+  "status": "validated|needs_review"
+}""",
+    "user_prompt_template": "制作蓝图：\n{blueprint}",
+    "variables": ["blueprint"],
 }
 
 # =============================================================================
@@ -760,6 +940,11 @@ DEFAULT_PROMPTS = [
     SERIES_PLAN,
     EPISODE_SPLIT,
     ASSET_EXTRACT,
+    CHARACTER_BIBLE,
+    CHARACTER_VARIANT_PLAN,
+    SCENE_BIBLE,
+    PROP_BIBLE,
+    BLUEPRINT_VALIDATE,
     SHOT_CONTINUITY_REPAIR,
     CONTINUITY_EXTRACT,
     ASSET_PROMPT_GEN,

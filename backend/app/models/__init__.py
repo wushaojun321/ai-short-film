@@ -1,6 +1,7 @@
 from .project import Project, ProjectInitStatus
 from .episode import Episode, EpisodeStatus, EpisodeStep
 from .script_block import ScriptBlock, ScriptBlockType
+from .production_blueprint import ProductionBlueprint, ProductionBlueprintStatus
 from .shot import Shot, ShotState, ShotAssetBinding, ShotVersion
 from .asset import Asset, AssetType, AssetStatus, AssetVersion
 from .conversation import Conversation, Message, ConversationTarget, ConversationRole
@@ -13,6 +14,7 @@ __all__ = [
     "Project", "ProjectInitStatus",
     "Episode", "EpisodeStatus", "EpisodeStep",
     "ScriptBlock", "ScriptBlockType",
+    "ProductionBlueprint", "ProductionBlueprintStatus",
     "Shot", "ShotState", "ShotAssetBinding", "ShotVersion",
     "Asset", "AssetType", "AssetStatus", "AssetVersion",
     "Conversation", "Message", "ConversationTarget", "ConversationRole",
