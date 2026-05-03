@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 ASSET_NEGATIVE_PROMPT = (
-    "不要动漫风，不要插画风，不要游戏CG，不要3D建模，不要二次元，不要卡通，"
+    "不要超现实风，不要梦境感，不要动漫风，不要插画风，不要游戏CG，不要3D建模，不要二次元，不要卡通，"
     "不要漫画线条，不要Q版，不要角色立绘，不要设定图，不要塑料皮肤，不要过度磨皮，不要蜡像感，"
     "不要夸张大眼，不要娃娃脸，不要美颜滤镜感，不要低质感服装，不要材质像塑料，"
     "不要多视角拼图，不要三宫格，不要分屏，不要同图展示多张参考，不要模糊、变形、多余肢体、不自然比例"
@@ -52,10 +52,10 @@ def _character_view_prompt(base_prompt: str, view_key: str) -> str:
     return (
         f"{sanitized}\n\n"
         f"本次只生成一张独立人物资产图：{spec['label']}。{spec['instruction']}。"
-        "风格必须偏超现实电影质感：真实人像基础上带有高级电影美术、梦境般光影、细腻材质和强烈氛围，"
-        "但仍保持真实皮肤、真实织物和可用于视频参考的可信人物形象。"
+        "风格必须是写实电影质感：真实人像摄影基础、真实影视布光、真实镜头景深、细腻材质和克制电影氛围，"
+        "保持真实皮肤、自然毛孔、真实织物和可用于视频参考的可信人物形象。"
         "严禁把面部特写、全身正面、侧面视角拼在同一张图里；严禁三宫格、分屏、多视角合成图；"
-        "严禁动漫、卡通、插画、游戏CG、3D建模质感。"
+        "严禁超现实、梦境、动漫、卡通、插画、游戏CG、3D建模质感。"
     )
 
 
@@ -110,8 +110,8 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
                     f"视角要求：{asset.view_requirements or '面部特写、全身形象、侧面视角'}\n"
                     f"描述：{asset.prompt}"
                 ),
-                "style_guide": series_prompt or "超现实电影质感，真实人像基础，梦境般光影，高级电影美术",
-                "negative_prompt_rules": "避免动漫、卡通、插画、游戏CG、3D建模、三宫格、分屏、多视角拼图、模糊、变形、多余肢体、不自然比例",
+                "style_guide": series_prompt or "写实电影质感，真实摄影基础，真实影视布光，真实材质，克制电影氛围",
+                "negative_prompt_rules": "避免超现实、梦境、动漫、卡通、插画、游戏CG、3D建模、三宫格、分屏、多视角拼图、模糊、变形、多余肢体、不自然比例",
             },
         )
 
@@ -151,19 +151,19 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
                 asset_type_label = {"character": "人物", "scene": "场景", "prop": "道具"}.get(asset_type_str, "主体")
                 if asset_type_str == "character":
                     full_prompt = (
-                        f"竖屏9:16，真人演员古装定妆参考图，超现实电影质感，名称：{asset.name}，"
+                        f"竖屏9:16，真人演员古装写实电影定妆参考图，名称：{asset.name}，"
                         f"角色本名：{asset.character_name or asset.name}，适用场景：{asset.scene_scope or '按剧本场景'}，"
                         f"人物资产包：{asset.asset_package or asset.character_name or asset.name}，"
                         f"共享面部基准：{asset.face_identity or '保持同一脸型、骨相、五官比例和皮肤质感'}，"
                         f"剧情/造型阶段：{asset.appearance_stage or '按剧本阶段'}，同一位演员同一套造型，"
                         "与同一人物资产包内其他造型保持同一张脸、同一骨相、同一五官比例；"
                         "除非剧本明确面部受伤、毁容、年龄变化或伪装改变，否则不得改变面部身份，"
-                        "真实皮肤纹理，自然毛孔，真实织物，梦境般电影光影，高级美术置景，高清"
+                        "真实皮肤纹理，自然毛孔，真实织物，真实影视布光，真实镜头景深，电影级调色，高清"
                     )
                 else:
                     full_prompt = (
                         f"竖屏9:16，{asset_type_label}影视参考图，名称：{asset.name}，"
-                        "超现实电影质感，主体清晰完整，真实材质细节丰富，梦境般电影光影，高级美术置景，高清，"
+                        "写实电影质感，主体清晰完整，真实材质细节丰富，真实影视布光，真实空间透视，电影级调色，高清，"
                         "场景资产使用影视场景参考照风格，道具资产使用真实产品摄影风格"
                     )
                 if record:
