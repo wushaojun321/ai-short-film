@@ -95,9 +95,11 @@ async def enqueue_asset_image(asset_id: PydanticObjectId, current_user=Depends(g
     if asset.status in (AssetStatus.queued, AssetStatus.generating):
         return {"task_id": None, "record_id": None, "skipped": True, "reason": "already queued or generating"}
 
+    from app.services import asset_service
     from app.tasks.image_tasks import gen_asset_image_task
     from datetime import datetime
 
+    asset = await asset_service.refresh_asset_submitted_prompts(asset, force=True)
     task = gen_asset_image_task.delay(str(asset_id))
     await asset.set({"status": AssetStatus.queued})
     record = TaskRecord(

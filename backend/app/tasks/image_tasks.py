@@ -3,62 +3,9 @@ from __future__ import annotations
 import logging
 from app.celery_app import celery_app
 from app.tasks.base import run_async, finish_task_record
+from app.services.asset_prompt_builder import CHARACTER_VIEW_SPECS, build_asset_submitted_prompts
 
 logger = logging.getLogger(__name__)
-
-
-ASSET_NEGATIVE_PROMPT = (
-    "不要超现实风，不要梦境感，不要动漫风，不要插画风，不要游戏CG，不要3D建模，不要二次元，不要卡通，"
-    "不要漫画线条，不要Q版，不要角色立绘，不要设定图，不要塑料皮肤，不要过度磨皮，不要蜡像感，"
-    "不要夸张大眼，不要娃娃脸，不要美颜滤镜感，不要低质感服装，不要材质像塑料，"
-    "不要多视角拼图，不要三宫格，不要分屏，不要同图展示多张参考，不要模糊、变形、多余肢体、不自然比例"
-)
-
-
-CHARACTER_VIEW_SPECS = {
-    "face": {
-        "label": "面部特写",
-        "instruction": "胸口以上近景，正面脸部为主体，五官、骨相、皮肤纹理、眼神必须清晰，背景简洁，服装只露出领口和肩部",
-    },
-    "full_body": {
-        "label": "全身正面",
-        "instruction": "全身正面站姿，从头到脚完整入画，服装、妆发、配饰、道具和身形比例清楚，脸部保持与面部特写同一张脸",
-    },
-    "side": {
-        "label": "侧面视角",
-        "instruction": "人物侧面或三分之二侧面视角，脸型轮廓、鼻梁、下颌线、发型和服装侧面结构清楚，脸部身份与正面保持一致",
-    },
-}
-
-
-def _merge_negative_prompt(prompt: str, negative_prompt: str | None = None) -> str:
-    """Append negative style constraints to the actual Seedream prompt."""
-    parts = [ASSET_NEGATIVE_PROMPT]
-    if negative_prompt:
-        parts.append(negative_prompt.strip())
-    merged = "；".join(part for part in parts if part)
-    return f"{prompt.strip()}\n\n反向约束：{merged}"
-
-
-def _character_view_prompt(base_prompt: str, view_key: str) -> str:
-    spec = CHARACTER_VIEW_SPECS[view_key]
-    sanitized = (
-        base_prompt.strip()
-        .replace("三视图", "单视角资产参考图")
-        .replace("画面必须同时包含：面部特写、全身正面形象、侧面视角", "")
-        .replace("画面必须同时包含面部特写、全身正面形象、侧面视角", "")
-        .replace("画面包含三部分：面部特写、全身正面形象、侧面视角", "")
-    )
-    return (
-        f"{sanitized}\n\n"
-        f"本次只生成一张独立人物资产图：{spec['label']}。{spec['instruction']}。"
-        "风格必须是写实电影质感：真实人像摄影基础、真实影视布光、真实镜头景深、细腻材质和克制电影氛围，"
-        "保持真实皮肤、自然毛孔、真实织物和可用于视频参考的可信人物形象。"
-        "同一人物资产包内必须保持同一张脸、同一骨相、同一五官比例；不同角色之间必须保持清晰可辨的脸型、五官和气质差异，"
-        "严禁生成成其他角色的近似长相，严禁通用脸、网红脸、同一演员换装感。"
-        "严禁把面部特写、全身正面、侧面视角拼在同一张图里；严禁三宫格、分屏、多视角合成图；"
-        "严禁超现实、梦境、动漫、卡通、插画、游戏CG、3D建模质感。"
-    )
 
 
 @celery_app.task(bind=True, name="app.tasks.image.gen_asset", queue="image")
@@ -73,13 +20,9 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
 
     from beanie import PydanticObjectId
     from app.models.asset import Asset, AssetStatus, AssetVersion
-    from app.models.project import Project
     from app.models.task_record import TaskRecord
-    from app.services import image_service, llm_service, sensitive_word_service
-    from app.services.prompt_service import render
-    from app.models.prompt_config import PromptConfigScope
+    from app.services import image_service, sensitive_word_service
     from datetime import datetime
-    import json
 
     try:
         asset = await Asset.get(PydanticObjectId(asset_id))
@@ -91,142 +34,37 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
 
         record = await TaskRecord.find_one(TaskRecord.celery_task_id == celery_id)
         if record:
-            await record.set({"progress": 5, "logs": ["[prompt] 正在用 LLM 优化图像提示词…"]})
-
-        # Load series_prompt for style consistency
-        project = await Project.get(asset.project_id)
-        series_prompt = (project.series_prompt or "") if project else ""
-        asset_type_str = asset.asset_type.value if hasattr(asset.asset_type, "value") else str(asset.asset_type)
-        character_identity_context = "非人物资产，无需人物差异化约束。"
-        if asset_type_str == "character":
-            current_package = (asset.asset_package or asset.character_name or asset.name or "").strip()
-            character_assets = await Asset.find(Asset.project_id == asset.project_id).to_list()
-            seen_packages: set[str] = set()
-            identity_lines: list[str] = []
-            for other in character_assets:
-                if str(other.id) == str(asset.id):
-                    continue
-                other_type = other.asset_type.value if hasattr(other.asset_type, "value") else str(other.asset_type)
-                if other_type != "character":
-                    continue
-                other_package = (other.asset_package or other.character_name or other.name or "").strip()
-                if not other_package or other_package == current_package or other_package in seen_packages:
-                    continue
-                seen_packages.add(other_package)
-                identity = (
-                    other.face_identity
-                    or other.prompt
-                    or other.submitted_prompt
-                    or "暂无明确面部基准，仍需与该角色保持可辨差异"
-                )
-                identity = identity.strip().replace("\n", " ")
-                if len(identity) > 160:
-                    identity = f"{identity[:160]}..."
-                identity_lines.append(f"- {other_package}：{identity}")
-                if len(identity_lines) >= 12:
-                    break
-            character_identity_context = (
-                "\n".join(identity_lines)
-                if identity_lines
-                else "暂无其他角色面部基准；仍需避免通用脸，当前角色要有独立可识别的脸型、五官比例和气质。"
-            )
-
-        system_prompt, user_prompt_tpl, _ = await render(
-            PromptConfigScope.asset_prompt_gen,
-            {
-                "asset_description": (
-                    f"名称：{asset.name}\n"
-                    f"类型：{asset_type_str}\n"
-                    f"角色本名：{asset.character_name or '无'}\n"
-                    f"人物资产包：{asset.asset_package or asset.character_name or '无'}\n"
-                    f"共享面部基准：{asset.face_identity or '无'}\n"
-                    f"适用场景：{asset.scene_scope or '无'}\n"
-                    f"剧情/造型阶段：{asset.appearance_stage or '无'}\n"
-                    f"视角要求：{asset.view_requirements or '面部特写、全身形象、侧面视角'}\n"
-                    f"描述：{asset.prompt}"
-                ),
-                "character_identity_context": character_identity_context,
-                "style_guide": series_prompt or "写实电影质感，真实摄影基础，真实影视布光，真实材质，克制电影氛围",
-                "negative_prompt_rules": (
-                    "避免超现实、梦境、动漫、卡通、插画、游戏CG、3D建模、三宫格、分屏、多视角拼图、"
-                    "模糊、变形、多余肢体、不自然比例；人物还要避免不同角色长相近似、同一张脸换装、通用脸、网红脸"
-                ),
-            },
-        )
+            await record.set({"progress": 5, "logs": ["[prompt] 正在构建最终提交提示词…"]})
 
         # ── 重试循环：最多 3 次，遇到敏感词错误时提取词 + 重新生成 prompt ──────
         MAX_RETRIES = 3
         image_url = None
-        optimized_prompt = asset.prompt  # 默认回退到原始 prompt
+        asset_type_str = asset.asset_type.value if hasattr(asset.asset_type, "value") else str(asset.asset_type)
+        project_assets = await Asset.find(Asset.project_id == asset.project_id).to_list()
+        generated_view_urls: dict[str, str] = {}
+        submitted_prompts: dict[str, str] = {}
+        submitted_prompt = ""
         final_submitted_prompt = ""
         final_submitted_prompts: dict[str, str] = {}
 
         for attempt in range(MAX_RETRIES):
-            # 每次重试都注入最新黑名单
             blocked = await sensitive_word_service.get_all_words()
-            blocked_note = (
-                f"\n\n## 以下词语已确认会触发审核，生成提示词时必须完全规避：\n{', '.join(blocked)}"
-                if blocked else ""
+            submitted_prompt, submitted_prompts = build_asset_submitted_prompts(
+                asset,
+                project_assets,
+                blocked_words=blocked,
             )
-
-            full_prompt = None
-            negative_prompt = None
-            try:
-                raw = await llm_service.chat_json(
-                    system_prompt=system_prompt + blocked_note,
-                    user_prompt=user_prompt_tpl,
-                )
-                if isinstance(raw, str):
-                    raw = json.loads(raw)
-                positive = raw.get("positive_prompt", "")
-                negative_prompt = raw.get("negative_prompt", "")
-                if positive:
-                    full_prompt = positive
-                    optimized_prompt = positive
-            except Exception as e:
-                if record:
-                    await record.set({"logs": (record.logs or []) + [f"[prompt] LLM 优化失败：{e}"]})
-
-            if not full_prompt:
-                # 兜底：用资产名称构造中性中文 prompt，避免原始 prompt 中可能的敏感词
-                asset_type_label = {"character": "人物", "scene": "场景", "prop": "道具"}.get(asset_type_str, "主体")
-                if asset_type_str == "character":
-                    full_prompt = (
-                        f"竖屏9:16，真人演员古装写实电影定妆参考图，名称：{asset.name}，"
-                        f"角色本名：{asset.character_name or asset.name}，适用场景：{asset.scene_scope or '按剧本场景'}，"
-                        f"人物资产包：{asset.asset_package or asset.character_name or asset.name}，"
-                        f"共享面部基准：{asset.face_identity or '保持同一脸型、骨相、五官比例和皮肤质感'}，"
-                        f"剧情/造型阶段：{asset.appearance_stage or '按剧本阶段'}，同一位演员同一套造型，"
-                        "与同一人物资产包内其他造型保持同一张脸、同一骨相、同一五官比例；"
-                        "与项目内其他人物保持明显不同的脸型、五官比例、年龄感、发型和气质，严禁不同角色长相近似或同一张脸换装；"
-                        "除非剧本明确面部受伤、毁容、年龄变化或伪装改变，否则不得改变面部身份，"
-                        "真实皮肤纹理，自然毛孔，真实织物，真实影视布光，真实镜头景深，电影级调色，高清"
-                    )
-                else:
-                    full_prompt = (
-                        f"竖屏9:16，{asset_type_label}影视参考图，名称：{asset.name}，"
-                        "写实电影质感，主体清晰完整，真实材质细节丰富，真实影视布光，真实空间透视，电影级调色，高清，"
-                        "场景资产使用影视场景参考照风格，道具资产使用真实产品摄影风格"
-                    )
-                if record:
-                    await record.set({"logs": (record.logs or []) + ["[prompt] 使用兜底安全提示词（LLM 优化失败）"]})
-            submitted_prompt = _merge_negative_prompt(full_prompt, negative_prompt)
 
             if record:
                 attempt_label = f"第 {attempt + 1} 次" if attempt > 0 else ""
                 await record.set({"progress": 30, "logs": (record.logs or []) + [f"[image] {attempt_label}正在生成图像…"]})
 
             try:
-                generated_view_urls: dict[str, str] = {}
-                submitted_prompts: dict[str, str] = {}
+                generated_view_urls = {}
 
                 if asset_type_str == "character":
                     for view_key, spec in CHARACTER_VIEW_SPECS.items():
-                        view_submitted_prompt = _merge_negative_prompt(
-                            _character_view_prompt(full_prompt, view_key),
-                            negative_prompt,
-                        )
-                        submitted_prompts[view_key] = view_submitted_prompt
+                        view_submitted_prompt = submitted_prompts[view_key]
                         if record:
                             await record.set({
                                 "progress": 30 + min(55, len(generated_view_urls) * 18),
@@ -296,7 +134,6 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
 
         versions = asset.versions + new_versions
         await asset.set({
-            "prompt": optimized_prompt,
             "submitted_prompt": final_submitted_prompt,
             "submitted_prompts": final_submitted_prompts,
             "preview_url": image_url,

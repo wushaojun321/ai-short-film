@@ -348,6 +348,43 @@ def _should_materialize_asset(item: dict, parent: dict | None = None, bucket: st
         character_name = _text_value(item.get("character_name"), item.get("name"), parent.get("character_name"), parent.get("name"))
         if _is_generic_functional_name(character_name):
             return False
+        parent_text = " ".join(str(value or "") for value in (
+            parent.get("asset_level"),
+            parent.get("importance"),
+            parent.get("role"),
+            parent.get("name"),
+            parent.get("character_name"),
+            parent.get("reuse_scope"),
+        )).lower()
+        parent_is_core = _contains_any(parent_text, force_keywords + ("supporting", "配角", "重要配角"))
+        has_stage_change = bool(_text_value(
+            item.get("stage_change_reason"),
+            item.get("appearance_stage"),
+            item.get("state"),
+            item.get("scene_scope"),
+        ))
+        meaningful_variant = _contains_any(text, (
+            "recommended",
+            "建议",
+            "阶段",
+            "造型",
+            "换装",
+            "制服",
+            "军装",
+            "便装",
+            "战场",
+            "救护",
+            "潜入",
+            "伪装",
+            "受伤",
+            "囚禁",
+            "审讯",
+            "夜间",
+            "身份变化",
+            "关键变化",
+        ))
+        if parent_is_core and (has_stage_change or meaningful_variant):
+            return True
         return repeated or _contains_any(text, ("supporting", "反复出现", "多次出现", "配角"))
 
     if bucket == "scenes":

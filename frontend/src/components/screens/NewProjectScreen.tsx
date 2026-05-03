@@ -1855,7 +1855,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
           <DialogHeader>
             <DialogTitle>{promptAsset?.name || "资产提示词"}</DialogTitle>
             <DialogDescription>
-              默认展示真正提交给 Seedream 的最终提示词；基础提示词可人工修改，下一次生成时会先基于它再次优化。
+              默认展示真正提交给 Seedream 的最终提示词；基础提示词可人工修改，保存后会立即刷新下一次生成要提交的提示词。
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-wrap gap-2">
@@ -1894,7 +1894,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
             readOnly={assetPromptMode === "final"}
             rows={16}
             className="min-h-[45vh] text-xs leading-relaxed font-sans"
-            placeholder={assetPromptMode === "final" ? "生成资产图后会显示最终提交提示词" : "可在这里人工修改基础资产生成提示词"}
+            placeholder={assetPromptMode === "final" ? "资产加载后会提前生成最终提交提示词" : "可在这里人工修改基础资产生成提示词"}
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setPromptAsset(null)}>关闭</Button>

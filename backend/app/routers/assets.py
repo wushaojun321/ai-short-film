@@ -84,6 +84,7 @@ async def request_regen(asset_id: PydanticObjectId, project: Project = Depends(g
             "reason": "already queued or generating",
         }
 
+    asset = await asset_service.refresh_asset_submitted_prompts(asset, force=True)
     await asset.set({"status": AssetStatus.queued})
     task = gen_asset_image_task.delay(str(asset_id))
 
