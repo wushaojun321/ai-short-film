@@ -381,7 +381,7 @@ def _bucket_variants_from_registry(items: list[dict], bucket: str) -> list[dict]
     return result
 
 
-def _assets_from_production_plan(asset_registry: dict, blueprint_episodes: list[dict]) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
+def _assets_from_production_plan(asset_registry: dict, blueprint_episodes: list[dict], blocks=None) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
     characters = _as_list(asset_registry.get("characters"))
     scenes = _as_list(asset_registry.get("scenes"))
     props = _as_list(asset_registry.get("props"))
@@ -399,6 +399,9 @@ def _assets_from_production_plan(asset_registry: dict, blueprint_episodes: list[
         scene_variants = _fallback_assets_from_requirements(blueprint_episodes, "scenes")
     if not prop_variants:
         prop_variants = _fallback_assets_from_requirements(blueprint_episodes, "props")
+
+    if blocks and not (character_variants or scene_variants or prop_variants):
+        return _fallback_assets_from_blocks(blocks)
 
     return character_bible, character_variants, scene_variants, prop_variants
 
@@ -533,6 +536,95 @@ def _fallback_assets_from_requirements(episodes: list[dict], key: str) -> list[d
                 ),
             })
     return result
+
+
+def _fallback_assets_from_blocks(blocks) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
+    """Deterministic last-resort assets from indexed speakers and scene headers."""
+    from app.models.script_block import ScriptBlockType
+    import re
+
+    speaker_line_re = re.compile(r"^\s*([\u4e00-\u9fffA-Za-z0-9_·（）()]{1,18})\s*[：:]\s*$")
+    non_speakers = {
+        "场景", "时间", "地点", "结尾钩子", "钩子", "旁白", "字幕", "画面", "镜头",
+        "人物", "道具", "资产", "主要人物", "分集大纲",
+    }
+
+    speakers: dict[str, dict] = {}
+    scenes: dict[str, dict] = {}
+    for block in blocks:
+        speaker = (getattr(block, "speaker", "") or "").strip()
+        if not speaker:
+            match = speaker_line_re.match(getattr(block, "text", "") or "")
+            speaker = match.group(1).strip() if match else ""
+        if speaker and speaker not in non_speakers:
+            item = speakers.setdefault(speaker, {"count": 0, "episodes": set()})
+            item["count"] += 1
+            if getattr(block, "episode_hint", None):
+                item["episodes"].add(block.episode_hint)
+
+        if getattr(block, "block_type", None) == ScriptBlockType.scene_header:
+            scene_name = (getattr(block, "text", "") or "").strip()[:40]
+            if scene_name:
+                item = scenes.setdefault(scene_name, {"count": 0, "episodes": set()})
+                item["count"] += 1
+                if getattr(block, "episode_hint", None):
+                    item["episodes"].add(block.episode_hint)
+
+    character_bible: list[dict] = []
+    character_variants: list[dict] = []
+    for name, meta in speakers.items():
+        episode_range = _episode_range_label(meta["episodes"])
+        character_bible.append({
+            "character_id": name,
+            "character_name": name,
+            "asset_package": name,
+            "role": "根据原文对白识别的出场角色",
+            "arc": "",
+            "importance": "functional" if meta["count"] <= 1 else "supporting",
+            "reuse_scope": episode_range,
+            "face_identity": "写实电影人物面部基准，真实五官比例和自然皮肤质感，全剧保持一致",
+            "voice_profile": "自然真实人声，语气随剧情变化但音色保持一致",
+            "allowed_changes": ["服装", "妆发", "伤势", "随身道具", "场景状态"],
+            "locked_traits": ["面部基准", "五官比例", "音色基准"],
+            "face_change_rules": "全剧不改变面部基准，除非人工后续明确修改",
+        })
+        character_variants.append({
+            "name": f"{name}-常规状态",
+            "character_name": name,
+            "asset_package": name,
+            "face_identity": "写实电影人物面部基准，真实五官比例和自然皮肤质感，全剧保持一致",
+            "voice_profile": "自然真实人声，语气随剧情变化但音色保持一致",
+            "scene_scope": "按原文主要出场场景",
+            "appearance_stage": "常规状态",
+            "episode_range": episode_range,
+            "view_requirements": "面部特写、全身形象、侧面视角",
+            "description": "由原文对白自动识别的角色资产兜底",
+            "prompt": f"{name}，写实电影质感人物定妆参考，真实摄影基础，真实影视布光，克制真实氛围。",
+        })
+
+    scene_variants: list[dict] = []
+    for name, meta in scenes.items():
+        scene_variants.append({
+            "name": name,
+            "scene_package": name,
+            "state": "原文场景状态",
+            "episode_range": _episode_range_label(meta["episodes"]),
+            "description": "由原文场景标题自动识别的场景资产兜底",
+            "prompt": f"{name}，写实电影质感场景参考，真实摄影基础，真实影视布光，真实空间透视，克制真实氛围。",
+        })
+
+    return character_bible, character_variants, scene_variants, []
+
+
+def _episode_range_label(episodes: set[int]) -> str:
+    ordered = sorted(ep for ep in episodes if isinstance(ep, int))
+    if not ordered:
+        return "按原文出场"
+    if len(ordered) == 1:
+        return f"第{ordered[0]}集"
+    if ordered == list(range(ordered[0], ordered[-1] + 1)):
+        return f"第{ordered[0]}-{ordered[-1]}集"
+    return "第" + "、".join(str(ep) for ep in ordered) + "集"
 
 
 @celery_app.task(bind=True, name="app.tasks.llm.parse_script", queue="llm")
@@ -780,6 +872,7 @@ async def _parse_script_async(celery_id: str, project_id: str):
         character_bible, character_variants, scene_bible, prop_bible = _assets_from_production_plan(
             asset_registry,
             blueprint_episodes,
+            blocks,
         )
         assets_data = _asset_inventory_from_blueprint(character_variants, scene_bible, prop_bible)
         continuity_report = _as_dict(production_result.get("continuity_report"))

@@ -299,7 +299,7 @@ SCRIPT_PRODUCTION_PLAN = {
     "scope": PromptConfigScope.script_production_plan,
     "name": "剧本制作规划-单次综合解析",
     "description": "一次完成全剧规划、分集蓝图、资产注册表和重要性分层，正文由后端原文块回填",
-    "system_prompt": """你是专业短剧总编剧、制作统筹和 AI 资产规划师。你的任务是对剧本做一次综合制作规划，输出给后端执行的结构化 JSON。
+    "system_prompt": """你是专业短剧总编剧、制作统筹和 AI 资产规划师。你的任务是对剧本做一次综合制作规划，输出给后端执行的紧凑 JSON。
 
 核心原则：
 1. 只做一次综合规划，不要把同一信息在多个部分重复展开。
@@ -312,6 +312,7 @@ SCRIPT_PRODUCTION_PLAN = {
 8. 场景/道具 variant 只在剧情状态发生实质变化时创建，例如战损、雨夜、废墟、修复、归属变化。
 9. 不生成最终图片提示词，只写 prompt_seed：中文、写实电影质感、真实摄影基础、真实影视布光、真实材质、克制真实氛围；禁止超现实、梦境、动漫、卡通、插画、游戏CG、3D建模。
 10. 输出必须是 JSON 对象，不要包含额外解释。
+11. 控制输出体积：不要输出 script_excerpt；不要复述原文；summary、beats、description、prompt_seed 都必须短句；每个 episode 的 asset_requirements 只列资产名和状态，不写长描述。
 
 输出格式：
 {
@@ -328,22 +329,15 @@ SCRIPT_PRODUCTION_PLAN = {
       "source_block_ranges": [{"start_block": 0, "end_block": 12}],
       "word_count": 1200,
       "estimated_duration": 120,
-      "beats": ["关键情节点"],
+      "beats": ["关键情节点，短句"],
       "emotion_curve": "情绪变化",
       "ending_hook": "结尾钩子",
       "asset_requirements": {
         "characters": [
-          {
-            "name": "角色名",
-            "role_in_episode": "本集剧情功能",
-            "state": "本集状态/阶段",
-            "scene_scope": "适用场景",
-            "appearance_hint": "服装/妆发/伤势/随身道具线索",
-            "voice_hint": "音色和说话基调线索"
-          }
+          {"name": "角色名", "state": "本集状态/阶段"}
         ],
-        "scenes": [{"name": "场景名", "state": "本集状态", "episode_usage": "剧情用途"}],
-        "props": [{"name": "道具名", "usage": "剧情用途", "owner": "相关角色或无"}]
+        "scenes": [{"name": "场景名", "state": "本集状态"}],
+        "props": [{"name": "道具名", "state": "本集状态", "owner": "相关角色或无"}]
       }
     }
   ],
@@ -352,11 +346,11 @@ SCRIPT_PRODUCTION_PLAN = {
       {
         "character_name": "角色本名",
         "asset_package": "人物资产包名，通常等于角色名",
-        "role": "身份和剧情功能",
+        "role": "身份和剧情功能，短句",
         "importance": "lead|supporting|functional|background",
         "reuse_scope": "全剧/第1-3集/单集等",
-        "face_identity": "共享面部基准，描述脸型、骨相、五官比例、肤色、皮肤质感和标志性特征",
-        "voice_profile": "固定音色、语速、语气基线和禁止变化项",
+        "face_identity": "共享面部基准，短句描述脸型、五官比例和标志性特征",
+        "voice_profile": "固定音色、语速和语气基线，短句",
         "locked_traits": ["不得变化的人脸/音色特征"],
         "allowed_changes": ["允许变化项"],
         "variants": [
@@ -368,8 +362,8 @@ SCRIPT_PRODUCTION_PLAN = {
             "scene_scope": "适用场景",
             "appearance_stage": "剧情阶段/造型状态",
             "stage_change_reason": "为什么需要独立阶段资产",
-            "description": "剧情层面描述",
-            "prompt_seed": "中文写实电影质感定妆参考提示词种子"
+            "description": "剧情层面描述，短句",
+            "prompt_seed": "中文写实电影质感提示词种子，短句"
           }
         ]
       }
@@ -387,8 +381,8 @@ SCRIPT_PRODUCTION_PLAN = {
             "merge_key": "合并键",
             "state": "阶段/状态",
             "episode_range": "使用集数",
-            "description": "剧情层面描述",
-            "prompt_seed": "中文写实影视场景参考提示词种子"
+            "description": "剧情层面描述，短句",
+            "prompt_seed": "中文写实影视场景参考提示词种子，短句"
           }
         ]
       }
@@ -407,8 +401,8 @@ SCRIPT_PRODUCTION_PLAN = {
             "state": "阶段/状态",
             "owner": "所属角色或无",
             "episode_range": "使用集数",
-            "description": "剧情层面描述",
-            "prompt_seed": "中文写实道具摄影参考提示词种子"
+            "description": "剧情层面描述，短句",
+            "prompt_seed": "中文写实道具摄影参考提示词种子，短句"
           }
         ]
       }
