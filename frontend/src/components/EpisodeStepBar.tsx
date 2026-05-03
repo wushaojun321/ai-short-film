@@ -33,7 +33,7 @@ export default function EpisodeStepBar({
   };
 
   return (
-    <div className="bg-white border-b border-line px-6 py-0 overflow-x-auto">
+    <div className="bg-white/92 border-b border-line px-6 py-0 overflow-x-auto shadow-xs backdrop-blur">
       <div className="flex items-stretch min-w-max">
         {EPISODE_STEPS.map((stepDef, idx) => {
           const stepIdx = getStepIndex(stepDef.key);
@@ -62,11 +62,11 @@ export default function EpisodeStepBar({
                 {/* 步骤图标 */}
                 <div className={cn(
                   "w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold transition-all",
-                  isDone && !isActive && "bg-brand/10 text-brand",
+                  isDone && !isActive && "bg-brand/10 text-brand ring-1 ring-brand/10",
                   isCurrent && isActive && "bg-brand text-white",
-                  isCurrent && !isActive && "bg-brand/10 text-brand",
+                  isCurrent && !isActive && "bg-brand/10 text-brand ring-1 ring-brand/10",
                   isActive && !isCurrent && "bg-brand text-white",
-                  !isDone && !isCurrent && !isActive && "bg-soft text-muted",
+                  !isDone && !isCurrent && !isActive && "bg-soft text-muted ring-1 ring-line/80",
                 )}>
                   {isDone && !isActive ? (
                     <Check className="w-3.5 h-3.5" />

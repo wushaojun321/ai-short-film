@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { Clapperboard, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { projectAPI } from "@/lib/api";
@@ -28,11 +28,20 @@ export default function NewProjectPage() {
   };
 
   return (
-    <div className="max-w-md mx-auto py-16 px-6">
-      <h1 className="text-2xl font-semibold text-text mb-2">新建项目</h1>
-      <p className="text-sm text-sub mb-8">填写基本信息，后续通过上传剧本完成初始化。</p>
+    <div className="page-shell flex min-h-[calc(100vh-56px)] items-center justify-center py-10">
+      <div className="w-full max-w-md page-panel p-6">
+        <div className="mb-6 flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white shadow-sm">
+            <Clapperboard className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="section-title mb-1">New Production</p>
+            <h1 className="text-2xl font-semibold text-text">新建项目</h1>
+            <p className="text-sm text-sub mt-1">填写基本信息，后续通过上传剧本完成初始化。</p>
+          </div>
+        </div>
 
-      <div className="space-y-4">
+        <div className="space-y-4">
         <div>
           <label className="text-xs font-medium text-sub mb-1.5 block">项目标题 *</label>
           <Input
@@ -55,6 +64,7 @@ export default function NewProjectPage() {
               : "创建项目"}
           </Button>
         </div>
+      </div>
       </div>
     </div>
   );

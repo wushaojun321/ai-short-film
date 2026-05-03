@@ -40,11 +40,12 @@ export default function ProjectDetailPage() {
   // 已初始化，但用户点击了「资产库」入口
   if (searchParams.get("view") === "assets") {
     return (
-      <div className="min-h-screen bg-white">
-        <div className="max-w-4xl mx-auto px-4 py-10">
-          <div className="mb-8">
+      <div className="min-h-screen">
+        <div className="page-shell py-8">
+          <div className="page-header mb-6">
+            <p className="section-title mb-2">Asset Library</p>
             <h1 className="text-2xl font-semibold text-text">{project.title} · 资产库</h1>
-            <p className="text-sm text-sub mt-1">查看和重新生成项目资产图片。</p>
+            <p className="text-sm text-sub mt-1">查看、重新生成和确认项目资产图片。</p>
           </div>
           <Phase3
             projectId={projectId}

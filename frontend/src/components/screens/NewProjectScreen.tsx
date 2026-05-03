@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
 import { AssetStatus } from "@/lib/data";
 import type { Project } from "@/lib/data";
 import { projectAPI, assetAPI, generateAPI, episodeAPI, pollTask, type ApiAsset, type ApiTaskRecord, type ApiEpisode } from "@/lib/api";
@@ -123,7 +122,7 @@ function Phase1({
   };
 
   return (
-    <div className="max-w-xl mx-auto">
+    <div className="page-panel max-w-xl mx-auto p-6">
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-text mb-1">上传剧本</h2>
         <p className="text-sm text-sub">上传剧本文件，AI 将自动解析分集规划和资产需求。</p>
@@ -135,7 +134,7 @@ function Phase1({
         onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
         onClick={() => !uploadedFile && fileRef.current?.click()}
         className={cn(
-          "border-2 border-dashed rounded-xl p-10 text-center transition-all cursor-pointer",
+          "border-2 border-dashed rounded-xl p-10 text-center transition-all cursor-pointer bg-white",
           dragging ? "border-brand bg-brand-soft" : "border-line hover:border-brand/50 hover:bg-soft",
           uploadedFile && "border-brand bg-brand-soft cursor-default"
         )}
@@ -144,7 +143,7 @@ function Phase1({
           onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
         {uploadedFile ? (
           <div className="flex flex-col items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-brand/10 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-2xl bg-brand/10 flex items-center justify-center">
               <FileText className="w-6 h-6 text-brand" />
             </div>
             <div>
@@ -156,7 +155,7 @@ function Phase1({
           </div>
         ) : (
           <div className="flex flex-col items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-soft flex items-center justify-center">
+            <div className="w-12 h-12 rounded-2xl bg-soft flex items-center justify-center">
               <Upload className="w-6 h-6 text-muted" />
             </div>
             <div>
@@ -315,7 +314,7 @@ function PhaseWaiting({
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [logs]);
 
   return (
-    <div className="max-w-xl mx-auto">
+    <div className="page-panel max-w-xl mx-auto p-6">
       <div className="mb-6 flex items-start gap-4">
         <div className={cn(
           "w-12 h-12 rounded-xl flex items-center justify-center shrink-0",
@@ -519,34 +518,38 @@ function Phase2({
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="flex items-start justify-between mb-6">
+    <div className="page-panel max-w-6xl mx-auto p-5 sm:p-6">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between mb-6">
         <div>
+          <p className="section-title mb-2">Plan Review</p>
           <h2 className="text-xl font-semibold text-text mb-1">分集与资产确认</h2>
           <p className="text-sm text-sub">确认 AI 生成的分集规划和资产清单。可 inline 编辑，或点击右下角「AI 助手」通过对话调整。</p>
         </div>
-        <div className="flex gap-4 text-right shrink-0 ml-4">
-          <div><div className="text-lg font-semibold text-text">{episodes.length}</div><div className="text-xs text-muted">总集数</div></div>
-          <div><div className="text-lg font-semibold text-text">{fmt(totalDuration)}</div><div className="text-xs text-muted">预估时长</div></div>
-          <div><div className="text-lg font-semibold text-text">{totalDialogues}</div><div className="text-xs text-muted">对白行</div></div>
-          <div><div className="text-lg font-semibold text-text">{originalEpisodes}/{episodes.length || 0}</div><div className="text-xs text-muted">原文回填</div></div>
-          <div><div className="text-lg font-semibold text-text">{assets.length}</div><div className="text-xs text-muted">资产数</div></div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 xl:w-[520px]">
+          <div className="mini-stat"><div className="text-lg font-semibold text-text">{episodes.length}</div><div className="text-xs text-muted">总集数</div></div>
+          <div className="mini-stat"><div className="text-lg font-semibold text-text">{fmt(totalDuration)}</div><div className="text-xs text-muted">预估时长</div></div>
+          <div className="mini-stat"><div className="text-lg font-semibold text-text">{totalDialogues}</div><div className="text-xs text-muted">对白行</div></div>
+          <div className="mini-stat"><div className="text-lg font-semibold text-text">{originalEpisodes}/{episodes.length || 0}</div><div className="text-xs text-muted">原文回填</div></div>
+          <div className="mini-stat"><div className="text-lg font-semibold text-text">{assets.length}</div><div className="text-xs text-muted">资产数</div></div>
         </div>
       </div>
 
       {error && (
-        <div className="mb-4 flex items-center gap-2 text-sm text-danger bg-danger-soft px-3 py-2 rounded-lg">
+        <div className="status-banner status-banner-danger mb-4 flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 shrink-0" />{error}
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
         {/* 左侧：分集列表 */}
-        <div>
-          <h3 className="text-sm font-semibold text-text mb-3">分集规划</h3>
-          <div className="space-y-2">
+        <div className="rounded-2xl border border-line bg-[#F8FAFC] p-3">
+          <div className="mb-3 flex items-center justify-between px-1">
+            <h3 className="text-sm font-semibold text-text">分集规划</h3>
+            <span className="text-xs text-muted">{episodes.length} 集</span>
+          </div>
+          <div className="max-h-[620px] space-y-2 overflow-y-auto pr-1">
             {episodes.map((ep, idx) => (
-              <div key={idx} className="group border border-line rounded-xl p-3 bg-white hover:border-brand/30 transition-all">
+              <div key={idx} className="group media-card p-3 hover:border-brand/30">
                 <div className="flex items-start gap-3">
                   <div className="w-7 h-7 rounded-lg bg-soft flex items-center justify-center text-xs font-semibold text-sub shrink-0 mt-0.5">
                     {ep.number}
@@ -599,10 +602,13 @@ function Phase2({
         </div>
 
         {/* 右侧：资产列表 */}
-        <div>
-          <h3 className="text-sm font-semibold text-text mb-3">资产清单</h3>
+        <div className="rounded-2xl border border-line bg-[#F8FAFC] p-3">
+          <div className="mb-3 flex items-center justify-between px-1">
+            <h3 className="text-sm font-semibold text-text">资产清单</h3>
+            <span className="text-xs text-muted">{currentAssets.length} 项</span>
+          </div>
           {assets.length === 0 ? (
-            <div className="py-8 text-center text-muted text-sm border border-dashed border-line rounded-xl">
+            <div className="empty-state-panel py-8">
               <Loader2 className="w-4 h-4 animate-spin mx-auto mb-2" />资产加载中…
             </div>
           ) : (
@@ -616,7 +622,7 @@ function Phase2({
                 ))}
               </TabsList>
               <TabsContent value={assetTab}>
-                <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-[560px] overflow-y-auto pr-1">
                   {currentAssets.map((a) => {
                     const isEditing = editingAssetId === a.id;
                     const draft = assetEdits[a.id] ?? {
@@ -631,7 +637,7 @@ function Phase2({
                       view_requirements: a.view_requirements ?? "",
                     };
                     return (
-                      <div key={a.id} className="group border border-line rounded-xl p-3 bg-white hover:border-brand/30 transition-all">
+                      <div key={a.id} className="group media-card p-3 hover:border-brand/30">
                         {isEditing ? (
                           <div className="space-y-2">
                             <Input
@@ -802,10 +808,8 @@ function Phase2({
         </div>
       </div>
 
-      <Separator className="my-6" />
-
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="sticky-action-bar">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Button variant="outline" onClick={() => setAgentOpen(true)} className="flex items-center gap-1.5">
             <Bot className="w-4 h-4" />返工修改
           </Button>
@@ -1467,33 +1471,36 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
   };
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-5">
-        <div>
-          <h2 className="text-xl font-semibold text-text mb-1">图片确认</h2>
-          <p className="text-sm text-sub">先检查资产包一致性，再生成图片并确认。人物、场景、道具如有不同阶段资产，均按资产组卡片预览。</p>
-        </div>
-        <div className="flex flex-wrap gap-2 items-center shrink-0">
-          <Button
-            size="sm"
-            onClick={handleGenerateAll}
-            disabled={batchGenerating || needGenerateCount === 0}
-            variant="outline"
-            title={needGenerateCount === 0 ? "没有待生成资产" : `生成 ${needGenerateCount} 个未生成资产`}
-          >
-            {batchGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-            生成全部资产
-          </Button>
-          <Button
-            size="sm"
-            onClick={handleConfirmReady}
-            disabled={submitting || readyToConfirmCount === 0}
-            variant="outline"
-            title={readyToConfirmCount === 0 ? "没有可确认资产" : `确认 ${readyToConfirmCount} 个已生成资产`}
-          >
-            {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-            确认全部已生成
-          </Button>
+    <div className="mx-auto max-w-6xl">
+      <div className="page-panel mb-5 p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="section-title mb-2">Asset Review</p>
+            <h2 className="text-xl font-semibold text-text mb-1">图片确认</h2>
+            <p className="text-sm text-sub">先检查资产包一致性，再生成图片并确认。人物、场景、道具如有不同阶段资产，均按资产组卡片预览。</p>
+          </div>
+          <div className="flex flex-wrap gap-2 items-center shrink-0">
+            <Button
+              size="sm"
+              onClick={handleGenerateAll}
+              disabled={batchGenerating || needGenerateCount === 0}
+              variant="outline"
+              title={needGenerateCount === 0 ? "没有待生成资产" : `生成 ${needGenerateCount} 个未生成资产`}
+            >
+              {batchGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+              生成全部资产
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleConfirmReady}
+              disabled={submitting || readyToConfirmCount === 0}
+              variant="outline"
+              title={readyToConfirmCount === 0 ? "没有可确认资产" : `确认 ${readyToConfirmCount} 个已生成资产`}
+            >
+              {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+              确认全部已生成
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -1507,7 +1514,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
           ["生成中", generatingCount],
           ["已确认", approvedCount],
         ].map(([label, value]) => (
-          <div key={label} className="rounded-lg border border-line bg-white px-3 py-2">
+          <div key={label} className="mini-stat">
             <div className="text-lg font-semibold text-text">{value}</div>
             <div className="text-xs text-muted">{label}</div>
           </div>
@@ -1558,22 +1565,20 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
                 ))}
               </div>
             ) : (
-              <div className="rounded-xl border border-dashed border-line py-10 text-center text-sm text-muted">
+              <div className="empty-state-panel">
                 当前筛选条件下没有资产。
               </div>
             )}
           </TabsContent>
         </Tabs>
       ) : (
-        <div className="py-12 text-center text-muted text-sm">
+        <div className="empty-state-panel">
           暂无资产，请返回分集与资产确认页检查资产清单。
         </div>
       )}
 
-      <Separator className="my-8" />
-
       {error && (
-        <div className="mb-4 flex items-center gap-2 text-sm text-danger bg-danger-soft px-3 py-2 rounded-lg">
+        <div className="status-banner status-banner-danger mt-6 flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 shrink-0" />{error}
         </div>
       )}
@@ -1625,7 +1630,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
         </DialogContent>
       </Dialog>
 
-      <div className="flex items-center justify-between">
+      <div className="sticky-action-bar">
         <p className="text-sm text-sub">
           {manageMode
             ? (pendingCount > 0 ? `${pendingCount} 个资产未确认。` : "所有资产已确认。")
@@ -1744,9 +1749,10 @@ export default function NewProjectScreen({
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="max-w-4xl mx-auto px-4 py-10">
-        <div className="mb-8">
+    <div className="min-h-screen">
+      <div className="page-shell py-8">
+        <div className="page-header mb-8">
+          <p className="section-title mb-2">Project Initialization</p>
           <h1 className="text-2xl font-semibold text-text">{project.title}</h1>
           <p className="text-sm text-sub mt-1">完成以下三步后即可开始分集制作。</p>
         </div>

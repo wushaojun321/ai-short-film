@@ -146,11 +146,12 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
           activeStep={activeStep}
         />
 
-        <div className="flex-1 overflow-y-auto bg-white">
+        <div className="flex-1 overflow-y-auto">
           <div className={cn("mx-auto px-6", isVideoStep ? "max-w-6xl py-4" : "max-w-5xl py-6")}>
-            <div className={cn("border-b border-line", isVideoStep ? "mb-3 pb-3" : "mb-6 pb-4")}>
-              <div className="flex items-start justify-between">
-                <div>
+            <div className={cn("page-panel", isVideoStep ? "mb-3 p-4" : "mb-6 p-5")}>
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <p className="section-title mb-1">Episode Workspace</p>
                   <h2 className="text-lg font-semibold text-text">
                     第 {activeEpisode.number} 集 · {activeEpisode.title}
                   </h2>
@@ -181,7 +182,7 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
                     </p>
                   )}
                 </div>
-                <div className="flex items-center gap-3 shrink-0 ml-4">
+                <div className="flex flex-wrap items-center gap-2 shrink-0 xl:ml-4">
                   {activeEpisode.scriptExcerpt && (
                     <Button
                       size="sm"
@@ -202,7 +203,7 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
                     <Images className="w-3.5 h-3.5" />
                     资产库
                   </Button>
-                  <div className="flex gap-4 text-right">
+                  <div className="toolbar gap-4 text-right">
                     {displayDuration > 0 && (
                       <div>
                         <div className="text-sm font-semibold text-text">

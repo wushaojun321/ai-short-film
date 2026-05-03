@@ -31,16 +31,16 @@ export default function Nav() {
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 h-14 bg-white/95 backdrop-blur-sm border-b border-line">
+    <header className="fixed top-0 left-0 right-0 z-50 h-14 border-b border-line bg-white/88 shadow-xs backdrop-blur-xl">
       <div className="h-full flex items-center px-4 gap-3">
 
         {/* Logo */}
         <button
           onClick={() => navigate("/projects")}
-          className="flex items-center gap-2.5 text-primary hover:opacity-80 transition-opacity shrink-0 group"
+          className="flex items-center gap-2.5 text-primary hover:opacity-90 transition-opacity shrink-0 group"
           aria-label="首页"
         >
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shadow-sm ring-1 ring-primary/10 group-hover:shadow-md transition-shadow">
             <Clapperboard className="w-4 h-4 text-white" />
           </div>
           <span className="font-bold text-sm text-primary hidden sm:block tracking-tight">
@@ -56,7 +56,7 @@ export default function Nav() {
               <DropdownMenuTrigger asChild>
                 <button className={cn(
                   "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-semibold",
-                  "text-text hover:bg-soft transition-colors duration-150 min-w-0 max-w-[200px] group"
+                  "text-text hover:bg-soft transition-colors duration-150 min-w-0 max-w-[240px] group border border-transparent hover:border-line"
                 )}>
                   <span className="truncate">{currentProject?.title ?? "项目"}</span>
                   <ChevronDown className="w-3.5 h-3.5 text-muted shrink-0 transition-transform group-data-[state=open]:rotate-180" />
@@ -121,7 +121,7 @@ export default function Nav() {
           {isHome && (
             <button
               onClick={() => navigate("/projects")}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-sub hover:bg-soft hover:text-text transition-colors"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-transparent text-xs font-medium text-sub hover:border-line hover:bg-soft hover:text-text transition-colors"
             >
               <LayoutGrid className="w-3.5 h-3.5" />
               所有项目
@@ -130,7 +130,7 @@ export default function Nav() {
           {/* 用户菜单 */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-soft transition-colors group">
+              <button className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-transparent hover:border-line hover:bg-soft transition-colors group">
                 <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold shadow-sm">
                   {user?.username?.[0]?.toUpperCase() ?? "U"}
                 </div>

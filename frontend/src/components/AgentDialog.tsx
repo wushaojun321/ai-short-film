@@ -34,18 +34,18 @@ interface AgentDialogProps {
 function MessageBubble({ msg }: { msg: ApiMessage }) {
   const isUser = msg.role === "user";
   return (
-    <div className={cn("flex gap-2.5 mb-4", isUser && "flex-row-reverse")}>
+    <div className={cn("flex gap-3 mb-4", isUser && "flex-row-reverse")}>
       <div className={cn(
-        "w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5",
-        isUser ? "bg-brand text-white" : "bg-soft border border-line",
+        "w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 shadow-xs",
+        isUser ? "bg-brand text-white" : "bg-white border border-line",
       )}>
-        {isUser ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5 text-brand" />}
+        {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4 text-brand" />}
       </div>
       <div className={cn(
-        "max-w-[80%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed",
+        "max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed shadow-xs",
         isUser
           ? "bg-brand text-white rounded-tr-sm"
-          : "bg-soft text-text rounded-tl-sm border border-line",
+          : "bg-white text-text rounded-tl-sm border border-line",
       )}>
         {msg.content}
       </div>
@@ -157,27 +157,29 @@ export default function AgentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md h-[600px] flex flex-col p-0 gap-0 [&>button:last-child]:hidden">
-        <DialogHeader className="px-4 py-3 border-b border-line shrink-0">
+      <DialogContent className="max-w-2xl h-[min(720px,86vh)] flex flex-col p-0 gap-0 overflow-hidden [&>button:last-child]:hidden">
+        <DialogHeader className="px-5 py-4 border-b border-line shrink-0 bg-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-brand" />
-              <DialogTitle className="text-sm font-semibold">{title}</DialogTitle>
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-soft">
+                <Sparkles className="w-4 h-4 text-brand" />
+              </div>
+              <DialogTitle className="text-base font-semibold">{title}</DialogTitle>
             </div>
             {messages.length > 0 && (
               <button
                 onClick={handleClear}
-                className="text-muted hover:text-danger transition-colors p-1"
+                className="icon-button"
                 title="清空对话"
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <Trash2 className="w-4 h-4" />
               </button>
             )}
           </div>
         </DialogHeader>
 
         {/* 消息区域 */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 min-h-0">
+        <div className="flex-1 overflow-y-auto bg-[#F8FAFC] px-5 py-5 min-h-0">
           {loading ? (
             <div className="h-full flex items-center justify-center">
               <Loader2 className="w-5 h-5 animate-spin text-muted" />
@@ -186,7 +188,7 @@ export default function AgentDialog({
             <div className="h-full flex flex-col gap-3 pt-2">
               {initialPrompt ? (
                 <>
-                  <div className="rounded-xl border border-line bg-soft p-3">
+                  <div className="prompt-block max-h-[300px] overflow-y-auto bg-white">
                     <p className="text-xs font-medium text-sub mb-1.5">当前提示词</p>
                     <p className="text-xs text-text leading-relaxed whitespace-pre-wrap break-words">{initialPrompt}</p>
                   </div>
@@ -210,10 +212,10 @@ export default function AgentDialog({
               ))}
               {sending && (
                 <div className="flex gap-2.5 mb-4">
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 bg-soft border border-line">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-white border border-line shadow-xs">
                     <Bot className="w-3.5 h-3.5 text-brand" />
                   </div>
-                  <div className="bg-soft border border-line rounded-2xl rounded-tl-sm px-3.5 py-2.5">
+                  <div className="bg-white border border-line rounded-2xl rounded-tl-sm px-3.5 py-2.5 shadow-xs">
                     <Loader2 className="w-4 h-4 animate-spin text-muted" />
                   </div>
                 </div>
@@ -224,7 +226,7 @@ export default function AgentDialog({
         </div>
 
         {/* 输入区域 */}
-        <div className="px-4 py-3 border-t border-line shrink-0">
+        <div className="px-5 py-4 border-t border-line shrink-0 bg-white">
           <div className="flex gap-2 items-end">
             <Textarea
               value={input}
@@ -235,9 +237,9 @@ export default function AgentDialog({
                   handleSend();
                 }
               }}
-              placeholder="描述你的修改需求… (Enter 发送，Shift+Enter 换行)"
+              placeholder="描述你的修改需求…"
               rows={2}
-              className="resize-none text-sm"
+              className="resize-none text-sm min-h-[72px]"
               disabled={sending || loading}
             />
             <Button

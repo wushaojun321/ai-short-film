@@ -41,11 +41,11 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-soft flex flex-col items-center justify-center px-4">
+    <div className="app-workspace flex min-h-screen flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex flex-col items-center gap-3 mb-8">
-          <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center shadow-md">
+          <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center shadow-md ring-1 ring-primary/10">
             <Clapperboard className="w-6 h-6 text-white" />
           </div>
           <div className="text-center">
@@ -55,9 +55,9 @@ export default function LoginPage() {
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-2xl border border-line shadow-sm p-6">
+        <div className="page-panel p-6">
           {/* Tabs */}
-          <div className="flex gap-0 mb-6 bg-soft rounded-lg p-1">
+          <div className="flex gap-0 mb-6 bg-soft rounded-xl p-1 ring-1 ring-line/60">
             {(["login", "register"] as Tab[]).map((t) => (
               <button
                 key={t}
@@ -116,7 +116,7 @@ export default function LoginPage() {
             )}
 
             {error && (
-              <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              <p className="text-xs text-danger bg-danger-soft border border-danger/20 rounded-lg px-3 py-2">
                 {error}
               </p>
             )}

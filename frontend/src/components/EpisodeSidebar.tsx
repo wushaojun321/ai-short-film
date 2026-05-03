@@ -50,9 +50,9 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
   };
 
   return (
-    <aside className="w-56 shrink-0 border-r border-line bg-white flex flex-col h-[calc(100vh-56px)] sticky top-14">
+    <aside className="w-60 shrink-0 border-r border-line bg-white/92 flex flex-col h-[calc(100vh-56px)] sticky top-14 shadow-xs backdrop-blur">
       {/* 顶部标题 */}
-      <div className="px-4 py-4 border-b border-line">
+      <div className="px-4 py-4 border-b border-line bg-white">
         <div className="flex items-center gap-2">
           <Film className="w-4 h-4 text-primary" />
           <h3 className="text-xs font-bold text-primary uppercase tracking-widest">分集列表</h3>
@@ -85,11 +85,11 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
                 key={ep.id}
                 onClick={() => handleSelect(ep.id)}
                 className={cn(
-                  "w-full text-left px-3 py-2.5 rounded-xl mb-0.5 flex items-center gap-2.5",
+                  "w-full text-left px-3 py-2.5 rounded-xl mb-1 flex items-center gap-2.5 border",
                   "transition-all duration-150 group",
                   isActive
-                    ? "bg-primary-soft border border-primary/15"
-                    : "hover:bg-soft border border-transparent",
+                    ? "bg-primary-soft border-primary/20 shadow-xs"
+                    : "hover:bg-soft border-transparent",
                 )}
               >
                 {/* 状态点 */}
@@ -126,7 +126,7 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
       </ScrollArea>
 
       {/* 底部汇总 */}
-      <div className="px-4 py-3 border-t border-line bg-elev/50">
+      <div className="px-4 py-3 border-t border-line bg-elev/70">
         <div className="text-xs text-muted text-center">
           共 <span className="font-bold text-text tabular-nums">{episodes.length}</span> 集
           · <span className="text-brand font-bold tabular-nums">{counts.completed}</span> 完成

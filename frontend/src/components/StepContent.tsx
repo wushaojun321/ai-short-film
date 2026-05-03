@@ -64,7 +64,7 @@ function ApprovalBar({
 }: ApprovalBarProps) {
   return (
     <div className={cn(
-      "flex items-center gap-4 px-4 bg-soft rounded-xl border border-line",
+      "flex items-center gap-4 px-4 bg-white rounded-xl border border-line shadow-xs",
       compact ? "py-2.5" : "mb-5 py-3"
     )}>
       <div className="flex-1">
@@ -250,8 +250,8 @@ function StepScript({
 
   if (!generated) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <div className="w-14 h-14 rounded-full bg-soft flex items-center justify-center">
+      <div className="page-panel flex flex-col items-center justify-center py-20 gap-4">
+        <div className="w-14 h-14 rounded-2xl bg-soft flex items-center justify-center">
           <Layers className="w-7 h-7 text-muted" />
         </div>
         <div className="text-center">
@@ -266,7 +266,7 @@ function StepScript({
             <p className="text-xs text-muted">{episode.continuityNotes}</p>
           </div>
         )}
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {error && <p className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">{error}</p>}
         <Button onClick={handleGenerate} disabled={generating}>
           {generating
             ? <><Loader2 className="w-4 h-4 animate-spin" />AI 生成中，请稍候…</>
@@ -287,8 +287,8 @@ function StepScript({
       )}
 
       {error && (
-        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3">
-          <p className="text-xs text-red-600">{error}</p>
+        <div className="mb-4 rounded-xl border border-danger/20 bg-danger-soft p-3">
+          <p className="text-xs text-danger">{error}</p>
         </div>
       )}
 
@@ -312,12 +312,12 @@ function StepScript({
             <div
               key={shot.id}
               className={cn(
-                "border rounded-xl p-4 bg-white transition-all",
-                approved ? "border-brand/30" : "border-line hover:shadow-card",
+                "media-card p-4",
+                approved ? "border-brand/30 bg-brand/5" : "border-line",
               )}
             >
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-soft flex items-center justify-center text-xs font-semibold text-sub shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-soft flex items-center justify-center text-xs font-semibold text-sub shrink-0 ring-1 ring-line/80">
                   {idx + 1}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -370,21 +370,21 @@ function StepScript({
                       <p className="text-xs text-sub leading-relaxed flex-1">{shot.description}</p>
                       <button
                         onClick={() => setPromptShot(shot)}
-                        className="opacity-0 group-hover/desc:opacity-100 transition-opacity shrink-0 p-1 rounded hover:bg-soft text-muted hover:text-brand"
+                        className="shrink-0 p-1.5 rounded-lg border border-line bg-white text-muted transition-colors hover:bg-soft hover:text-brand"
                         title="查看完整提交提示词"
                       >
                         <FileText className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => handleStartEdit(shot)}
-                        className="opacity-0 group-hover/desc:opacity-100 transition-opacity shrink-0 p-1 rounded hover:bg-soft text-muted hover:text-primary"
+                        className="shrink-0 p-1.5 rounded-lg border border-line bg-white text-muted transition-colors hover:bg-soft hover:text-primary"
                         title="编辑描述"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => setAgentTarget(shot.id)}
-                        className="opacity-0 group-hover/desc:opacity-100 transition-opacity shrink-0 p-1 rounded hover:bg-soft text-muted hover:text-brand"
+                        className="shrink-0 p-1.5 rounded-lg border border-line bg-white text-muted transition-colors hover:bg-soft hover:text-brand"
                         title="AI 修改"
                       >
                         <Bot className="w-3.5 h-3.5" />
@@ -560,13 +560,13 @@ function StepVideos({
   return (
     <div className="space-y-3">
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-3">
-          <p className="text-xs text-red-600">{error}</p>
+        <div className="rounded-xl border border-danger/20 bg-danger-soft p-3">
+          <p className="text-xs text-danger">{error}</p>
         </div>
       )}
 
       {hasUngenerated && (
-        <div className="flex items-center justify-between rounded-xl border border-line bg-soft px-4 py-2.5">
+        <div className="status-banner status-banner-info flex items-center justify-between gap-3">
           <span className="text-xs text-sub">
             {shots.filter((s) => !s.videoUrl).length} 个分镜尚未生成视频
           </span>
@@ -597,9 +597,18 @@ function StepVideos({
       <div className="space-y-3">
         {/* 中央预览 */}
         {shot && (
-          <div className="flex flex-col items-center">
+          <div className="page-panel flex flex-col items-center p-4">
             <div className="w-full max-w-[420px]">
-              <div className="mx-auto h-[clamp(300px,38vh,460px)] aspect-[9/16] max-w-full bg-black rounded-2xl border border-line flex items-center justify-center mb-3 relative overflow-hidden shadow-sm">
+              <div className="mb-3 flex items-center justify-between rounded-xl border border-line bg-[#F8FAFC] px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-text">镜头 {shot.shotCode}</p>
+                  <p className="text-xs text-muted">{shot.segmentName || "未分段"} · {shot.duration}s</p>
+                </div>
+                <Badge variant={shotApproved ? "success" : shot.videoUrl ? "warning" : "outline"}>
+                  {shotApproved ? "已通过" : shot.videoUrl ? "待审批" : "待生成"}
+                </Badge>
+              </div>
+              <div className="mx-auto h-[clamp(300px,38vh,460px)] aspect-[9/16] max-w-full bg-black rounded-2xl border border-line flex items-center justify-center mb-3 relative overflow-hidden shadow-lg">
                 {(loadingIds.has(shot.id) || shot.state === "rendering") ? (
                   <div className="flex flex-col items-center gap-2">
                     <Loader2 className="w-8 h-8 text-brand animate-spin" />
@@ -621,7 +630,7 @@ function StepVideos({
                 )}
               </div>
 
-              <p className="text-xs text-sub text-center mb-2 px-2 leading-relaxed line-clamp-2">{shot.description}</p>
+              <p className="rounded-xl bg-[#F8FAFC] px-3 py-2 text-xs text-sub text-center mb-2 leading-relaxed line-clamp-2">{shot.description}</p>
 
               {submittedPrompt && (
                 <button
@@ -633,7 +642,7 @@ function StepVideos({
               )}
 
               {!shotBusy && (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2 rounded-2xl border border-line bg-white p-2 shadow-xs">
                   <Button
                     variant={shot.videoUrl ? "outline" : "default"}
                     className="col-span-2"
@@ -658,7 +667,7 @@ function StepVideos({
         )}
 
         {/* 底部横向镜头列表 */}
-        <div className="rounded-2xl border border-line bg-white px-3 py-2">
+        <div className="page-panel px-3 py-2">
           <div className="mb-1.5 flex items-center justify-between">
             <span className="text-xs font-medium text-sub">镜头列表</span>
             <span className="text-xs text-muted">
@@ -675,7 +684,7 @@ function StepVideos({
                   onClick={() => setSelected(idx)}
                   className={cn(
                     "min-w-[150px] max-w-[150px] rounded-xl border p-2 text-left transition-all",
-                    selected === idx ? "border-primary bg-primary-soft shadow-sm" : "border-line hover:bg-soft"
+                    selected === idx ? "border-primary bg-primary-soft shadow-sm" : "border-line bg-white hover:bg-soft"
                   )}
                 >
                   <div className="flex items-center gap-2">
@@ -751,8 +760,8 @@ function StepDubbing({ episode, projectId, isPast }: { episode: EpisodeDetail; p
   };
 
   return (
-    <div className="flex flex-col items-center justify-center py-20 gap-4">
-      <div className="w-14 h-14 rounded-full bg-soft flex items-center justify-center">
+    <div className="page-panel flex flex-col items-center justify-center py-20 gap-4">
+      <div className="w-14 h-14 rounded-2xl bg-soft flex items-center justify-center">
         <Volume2 className="w-7 h-7 text-muted" />
       </div>
       <div className="text-center">
@@ -828,9 +837,9 @@ function StepMerge({
   const sec = totalDuration % 60;
 
   return (
-    <div className="max-w-md mx-auto py-8">
+    <div className="page-panel max-w-md mx-auto p-8">
       <div className="text-center mb-8">
-        <div className="w-16 h-16 rounded-full bg-brand-soft flex items-center justify-center mx-auto mb-4">
+        <div className="w-16 h-16 rounded-2xl bg-brand-soft flex items-center justify-center mx-auto mb-4">
           <Film className="w-8 h-8 text-brand" />
         </div>
         <h3 className="text-lg font-semibold text-text">合并成片</h3>
@@ -840,8 +849,8 @@ function StepMerge({
       </div>
 
       {error && (
-        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-3 text-center">
-          <p className="text-xs text-red-600">{error}</p>
+        <div className="mb-6 rounded-xl border border-danger/20 bg-danger-soft p-3 text-center">
+          <p className="text-xs text-danger">{error}</p>
         </div>
       )}
 
@@ -876,7 +885,7 @@ function StepDone({ episode }: { episode: EpisodeDetail }) {
   const sec = totalDuration % 60;
 
   return (
-    <div className="max-w-md mx-auto py-8 text-center">
+    <div className="page-panel max-w-md mx-auto p-8 text-center">
       <CheckCircle2 className="w-16 h-16 text-brand mx-auto mb-4" />
       <h3 className="text-xl font-semibold text-text mb-1">
         第 {episode.number} 集制作完成
@@ -884,15 +893,15 @@ function StepDone({ episode }: { episode: EpisodeDetail }) {
       <p className="text-sm text-sub mb-6">{episode.title}</p>
 
       <div className="grid grid-cols-3 gap-4 mb-8">
-        <div className="border border-line rounded-xl p-4">
+        <div className="metric-tile">
           <div className="text-lg font-semibold text-text">{episode.shots.length}</div>
           <div className="text-xs text-muted mt-0.5">分镜数</div>
         </div>
-        <div className="border border-line rounded-xl p-4">
+        <div className="metric-tile">
           <div className="text-lg font-semibold text-text">{m}:{sec.toString().padStart(2, "0")}</div>
           <div className="text-xs text-muted mt-0.5">时长</div>
         </div>
-        <div className="border border-line rounded-xl p-4">
+        <div className="metric-tile">
           <div className="text-lg font-semibold text-text">100%</div>
           <div className="text-xs text-muted mt-0.5">完成度</div>
         </div>

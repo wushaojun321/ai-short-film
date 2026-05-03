@@ -66,6 +66,8 @@ export default {
         md:    "0 4px 8px rgba(15,23,42,0.08), 0 2px 4px rgba(15,23,42,0.05)",
         lg:    "0 8px 24px rgba(15,23,42,0.10), 0 2px 8px rgba(15,23,42,0.06)",
         brand: "0 0 0 3px rgba(5,150,105,0.20)",
+        card:  "0 10px 30px rgba(15,23,42,0.08)",
+        "card-hover": "0 16px 42px rgba(15,23,42,0.12), 0 4px 12px rgba(15,23,42,0.06)",
         inner: "inset 0 1px 2px rgba(15,23,42,0.06)",
       },
       transitionDuration: {

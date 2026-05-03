@@ -20,7 +20,7 @@
   }
 
   body {
-    background: #FFFFFF;
+    background: #F5F7FA;
     color: #0F172A;
     font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
     line-height: 1.6;
@@ -47,12 +47,84 @@
 
 /* ── Utility Classes ───────────────────────────────────────── */
 @layer components {
+  .app-workspace {
+    @apply min-h-screen bg-[#F5F7FA] text-text;
+    background-image:
+      linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(245,247,250,0.88) 220px, rgba(245,247,250,1) 520px),
+      radial-gradient(circle at 12% 0%, rgba(5,150,105,0.08), transparent 28%),
+      radial-gradient(circle at 82% 2%, rgba(30,58,95,0.08), transparent 32%);
+  }
+
+  .page-shell {
+    @apply mx-auto w-full max-w-6xl px-4 sm:px-6;
+  }
+
+  .page-panel {
+    @apply rounded-2xl border border-line bg-white shadow-sm;
+  }
+
+  .page-header {
+    @apply rounded-2xl border border-line bg-white/90 px-5 py-5 shadow-sm backdrop-blur;
+  }
+
+  .toolbar {
+    @apply flex flex-wrap items-center gap-2 rounded-xl border border-line bg-white px-3 py-2 shadow-xs;
+  }
+
+  .metric-tile {
+    @apply rounded-xl border border-line bg-white px-3 py-2 shadow-xs;
+  }
+
+  .mini-stat {
+    @apply rounded-xl border border-line bg-white px-3 py-2 shadow-xs;
+  }
+
+  .status-banner {
+    @apply rounded-xl border px-3 py-2 text-sm;
+  }
+
+  .status-banner-info {
+    @apply border-primary/15 bg-primary-soft text-primary;
+  }
+
+  .status-banner-danger {
+    @apply border-danger/20 bg-danger-soft text-danger;
+  }
+
+  .empty-state-panel {
+    @apply rounded-2xl border border-dashed border-line bg-white/70 px-5 py-12 text-center text-sm text-muted;
+  }
+
+  .sticky-action-bar {
+    @apply sticky bottom-4 z-20 mt-6 flex flex-col gap-3 rounded-2xl border border-line bg-white/95 px-4 py-3 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-between;
+  }
+
+  .prompt-block {
+    @apply rounded-xl border border-line bg-soft p-3 text-xs leading-relaxed text-text;
+  }
+
+  .icon-button {
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white text-muted transition-all hover:border-primary/25 hover:bg-soft hover:text-primary;
+  }
+
   /* 卡片 */
   .card {
-    @apply bg-white rounded-xl border border-line shadow-sm transition-shadow duration-200;
+    @apply bg-white rounded-xl border border-line shadow-sm transition-all duration-200;
   }
   .card-hover {
-    @apply hover:shadow-md hover:border-primary/20;
+    @apply hover:shadow-md hover:border-primary/20 hover:-translate-y-0.5;
+  }
+
+  .media-card {
+    @apply rounded-xl border border-line bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:border-primary/20;
+  }
+
+  .action-row {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .section-title {
+    @apply text-xs font-bold uppercase tracking-[0.16em] text-muted;
   }
 
   /* 徽章/标签 */

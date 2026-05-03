@@ -10,7 +10,7 @@ export default function Shell({ children }: ShellProps) {
   const isHome = location.pathname === "/projects" || location.pathname === "/";
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="app-workspace">
       <Nav />
       <main className={`pt-14 ${isHome ? "" : ""}`}>
         {children}
