@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Upload, FileText, ChevronRight, Check, Loader2,
   Edit2, Clock, Hash, Sparkles, Terminal, RefreshCw,
-  AlertTriangle, Activity, Bot, X, ZoomIn, Trash2,
+  AlertTriangle, Activity, Bot, X, ZoomIn, Trash2, Play,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -809,7 +809,7 @@ function Phase2({
           <Button variant="outline" onClick={() => setAgentOpen(true)} className="flex items-center gap-1.5">
             <Bot className="w-4 h-4" />返工修改
           </Button>
-          <p className="text-sm text-sub">确认后将进入图片生成阶段，分集和资产不可再大幅调整。</p>
+          <p className="text-sm text-sub">确认后进入图片确认阶段，不会自动生成图片；需手动生成全部或单个资产。</p>
         </div>
         <Button onClick={handleConfirm} disabled={submitting || episodes.length === 0}>
           {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />确认中…</> : <>确认分集与资产 <ChevronRight className="w-4 h-4" /></>}
@@ -859,6 +859,7 @@ function AssetCard({
   onUpdate: () => void;
 }) {
   const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
   const [lightbox, setLightbox] = useState(false);
   const { cosUrl } = useCos();
@@ -890,6 +891,16 @@ function AssetCard({
       onUpdate();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      await generateAPI.assetImage(asset.id);
+      onUpdate();
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -937,8 +948,22 @@ function AssetCard({
               </div>
             </>
           ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <span className="text-muted text-xs">暂无预览</span>
+            <div
+              className="w-full h-full flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-line/40 transition-colors"
+              onClick={handleGenerate}
+              title="点击生成资产图"
+            >
+              {generating ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin text-brand" />
+                  <span className="text-muted text-xs">提交中…</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-5 h-5 text-muted" />
+                  <span className="text-muted text-xs">点击生成</span>
+                </>
+              )}
             </div>
           )}
           <div className="absolute top-2 left-2">
@@ -962,6 +987,15 @@ function AssetCard({
             <p className="text-xs text-sub mt-1 line-clamp-2">音色：{asset.voice_profile}</p>
           )}
           <div className="mt-3 flex gap-1.5 justify-end">
+            {/* 直接生成 / 重新生成 */}
+            <Button
+              size="sm" variant="outline" className="w-8 h-8 p-0"
+              onClick={handleGenerate}
+              disabled={isGenerating || generating}
+              title={asset.preview_url ? "重新生成资产图" : "生成资产图"}
+            >
+              {generating || isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+            </Button>
             {/* 重新生成：打开 AgentDialog */}
             <Button
               size="sm" variant="outline" className="w-8 h-8 p-0"
@@ -1003,8 +1037,8 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
   const [tab, setTab] = useState("character");
   const [assets, setAssets] = useState<ApiAsset[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [batchGenerating, setBatchGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const autoGenStartedRef = useRef(false);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pollKey, setPollKey] = useState(0);
 
@@ -1026,24 +1060,9 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
       const list = await loadAssets();
       if (cancelled) return;
 
-      // 首次进入：触发所有没有预览图且未在生成中的资产
-      if (!autoGenStartedRef.current) {
-        autoGenStartedRef.current = true;
-        const needGen = list.filter(
-          (a) => !a.preview_url && a.status !== "generating" && a.status !== "queued"
-        );
-        for (const a of needGen) {
-          try { await generateAPI.assetImage(a.id); } catch { /* 忽略单个失败 */ }
-        }
-      }
-
-      const refreshed = await assetAPI.list(projectId).catch(() => list);
-      if (!cancelled) {
-        setAssets(refreshed);
-        const stillPending = refreshed.some((a) =>
-          !a.preview_url || a.status === "generating" || a.status === "queued"
-        );
-        if (stillPending) scheduleNextPoll(tick);
+      const stillRunning = list.some((a) => a.status === "generating" || a.status === "queued");
+      if (!cancelled && stillRunning) {
+        scheduleNextPoll(tick);
       }
     };
 
@@ -1058,6 +1077,26 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
   const currentAssets = assets.filter((a) => a.asset_type === tab);
   const pendingCount = assets.filter((a) => a.status !== "approved").length;
   const generatingCount = assets.filter((a) => a.status === "generating" || a.status === "queued").length;
+  const needGenerateCount = assets.filter((a) =>
+    !a.preview_url && a.status !== "generating" && a.status !== "queued"
+  ).length;
+
+  const handleGenerateAll = async () => {
+    const needGen = assets.filter((a) =>
+      !a.preview_url && a.status !== "generating" && a.status !== "queued"
+    );
+    if (needGen.length === 0) return;
+
+    setBatchGenerating(true);
+    setError(null);
+    try {
+      await Promise.allSettled(needGen.map((a) => generateAPI.assetImage(a.id)));
+      await loadAssets();
+      setPollKey((k) => k + 1);
+    } finally {
+      setBatchGenerating(false);
+    }
+  };
 
   const handleFinish = async () => {
     if (!manageMode) {
@@ -1087,14 +1126,25 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
       <div className="flex items-start justify-between mb-6">
         <div>
           <h2 className="text-xl font-semibold text-text mb-1">图片确认</h2>
-          <p className="text-sm text-sub">AI 正在为所有资产生成参考图，生成完毕后逐个确认即可。</p>
+          <p className="text-sm text-sub">请手动点击「生成全部资产」，或在单个资产卡片上点击生成按钮后再逐个确认。</p>
         </div>
         <div className="flex gap-3 items-center shrink-0">
+          <Button
+            size="sm"
+            onClick={handleGenerateAll}
+            disabled={batchGenerating || needGenerateCount === 0}
+            variant="outline"
+            title={needGenerateCount === 0 ? "没有待生成资产" : `生成 ${needGenerateCount} 个未生成资产`}
+          >
+            {batchGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+            生成全部资产
+          </Button>
           {generatingCount > 0 && (
             <span className="text-xs text-muted flex items-center gap-1">
               <Loader2 className="w-3 h-3 animate-spin" />{generatingCount} 张生成中
             </span>
           )}
+          {needGenerateCount > 0 && <Badge variant="secondary">{needGenerateCount} 项待生成</Badge>}
           {pendingCount > 0 && <Badge variant="warning">{pendingCount} 项待确认</Badge>}
         </div>
       </div>
@@ -1119,7 +1169,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
         </Tabs>
       ) : (
         <div className="py-12 text-center text-muted text-sm">
-          <Loader2 className="w-5 h-5 animate-spin mx-auto mb-3" />资产生成中，请稍候…
+          暂无资产，请返回分集与资产确认页检查资产清单。
         </div>
       )}
 
@@ -1137,6 +1187,8 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
             ? (pendingCount > 0 ? `${pendingCount} 个资产未确认。` : "所有资产已确认。")
             : (generatingCount > 0
                 ? `${generatingCount} 个资产生成中，请等待完成后再确认。`
+                : needGenerateCount > 0
+                  ? `还有 ${needGenerateCount} 个资产未生成，请先生成资产图。`
                 : pendingCount > 0
                   ? `还有 ${pendingCount} 个资产未确认，仍可继续初始化。`
                   : "所有资产已确认，可以开始制作。")}
