@@ -28,7 +28,7 @@ export default function ProjectDetailPage() {
   if (!projectId) return <Navigate to="/projects" replace />;
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
     </div>
   );
   if (notFound || !project) return <Navigate to="/projects" replace />;

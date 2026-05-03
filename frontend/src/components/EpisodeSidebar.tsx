@@ -16,8 +16,8 @@ const statusConfig: Record<EpisodeStatus, {
   label: string;
 }> = {
   completed:   {
-    icon: <CheckCircle2 className="w-3.5 h-3.5 text-brand shrink-0" />,
-    dot:  "bg-brand",
+    icon: <CheckCircle2 className="w-3.5 h-3.5 text-success shrink-0" />,
+    dot:  "bg-success",
     label: "已完成",
   },
   in_progress: {
@@ -26,7 +26,7 @@ const statusConfig: Record<EpisodeStatus, {
     label: "制作中",
   },
   not_started: {
-    icon: <Circle className="w-3.5 h-3.5 text-line shrink-0" />,
+    icon: <Circle className="w-3.5 h-3.5 text-muted shrink-0" />,
     dot:  "bg-line",
     label: "未开始",
   },
@@ -50,17 +50,17 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
   };
 
   return (
-    <aside className="w-60 shrink-0 border-r border-line bg-white/92 flex flex-col h-[calc(100vh-56px)] sticky top-14 shadow-xs backdrop-blur">
+    <aside className="w-60 shrink-0 border-r border-line bg-panel/95 flex flex-col h-[calc(100vh-56px)] sticky top-14 shadow-sm backdrop-blur">
       {/* 顶部标题 */}
-      <div className="px-4 py-4 border-b border-line bg-white">
+      <div className="px-4 py-4 border-b border-line bg-elev/70">
         <div className="flex items-center gap-2">
-          <Film className="w-4 h-4 text-primary" />
-          <h3 className="text-xs font-bold text-primary uppercase tracking-widest">分集列表</h3>
+          <Film className="w-4 h-4 text-brand" />
+          <h3 className="text-xs font-bold text-text uppercase tracking-widest">分集列表</h3>
         </div>
         <div className="flex gap-3 mt-3">
           <div className="flex items-center gap-1 text-xs text-muted">
-            <div className="w-1.5 h-1.5 rounded-full bg-brand" />
-            <span className="tabular-nums font-medium text-brand">{counts.completed}</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-success" />
+            <span className="tabular-nums font-medium text-success">{counts.completed}</span>
           </div>
           <div className="flex items-center gap-1 text-xs text-muted">
             <div className="w-1.5 h-1.5 rounded-full bg-warn" />
@@ -88,8 +88,8 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
                   "w-full text-left px-3 py-2.5 rounded-xl mb-1 flex items-center gap-2.5 border",
                   "transition-all duration-150 group",
                   isActive
-                    ? "bg-primary-soft border-primary/20 shadow-xs"
-                    : "hover:bg-soft border-transparent",
+                    ? "bg-brand-soft border-brand/30 shadow-xs"
+                    : "border-transparent hover:bg-soft",
                 )}
               >
                 {/* 状态点 */}
@@ -99,13 +99,13 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
                 <div className="flex-1 min-w-0">
                   <div className={cn(
                     "text-xs font-bold leading-tight",
-                    isActive ? "text-primary" : "text-text"
+                    isActive ? "text-text" : "text-sub"
                   )}>
                     第 {ep.number} 集
                   </div>
                   <div className={cn(
                     "text-xs leading-tight mt-0.5 truncate",
-                    isActive ? "text-primary/70" : "text-sub",
+                    isActive ? "text-sub" : "text-muted",
                     ep.status === "not_started" && "italic text-muted"
                   )}>
                     {ep.title || "待规划"}
@@ -129,7 +129,7 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
       <div className="px-4 py-3 border-t border-line bg-elev/70">
         <div className="text-xs text-muted text-center">
           共 <span className="font-bold text-text tabular-nums">{episodes.length}</span> 集
-          · <span className="text-brand font-bold tabular-nums">{counts.completed}</span> 完成
+          · <span className="text-success font-bold tabular-nums">{counts.completed}</span> 完成
         </div>
       </div>
     </aside>

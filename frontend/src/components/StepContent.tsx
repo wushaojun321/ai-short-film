@@ -64,7 +64,7 @@ function ApprovalBar({
 }: ApprovalBarProps) {
   return (
     <div className={cn(
-      "flex items-center gap-4 px-4 bg-white rounded-xl border border-line shadow-xs",
+      "flex items-center gap-4 px-4 bg-panel/95 rounded-xl border border-line shadow-xs",
       compact ? "py-2.5" : "mb-5 py-3"
     )}>
       <div className="flex-1">
@@ -72,14 +72,14 @@ function ApprovalBar({
           <span className="text-xs text-sub">审批进度</span>
           <span className={cn(
             "text-xs font-bold tabular-nums",
-            approved === total ? "text-brand" : "text-text"
+            approved === total ? "text-success" : "text-text"
           )}>
             {approved} / {total}
           </span>
         </div>
         <div className="h-1.5 bg-line rounded-full overflow-hidden">
           <div
-            className="h-full bg-brand rounded-full transition-all duration-500"
+            className="h-full bg-gradient-to-r from-signal to-success rounded-full transition-all duration-500"
             style={{ width: total > 0 ? `${(approved / total) * 100}%` : "0%" }}
           />
         </div>
@@ -250,7 +250,7 @@ function StepScript({
 
   if (!generated) {
     return (
-      <div className="page-panel flex flex-col items-center justify-center py-20 gap-4">
+      <div className="page-panel tech-border flex flex-col items-center justify-center py-20 gap-4">
         <div className="w-14 h-14 rounded-2xl bg-soft flex items-center justify-center">
           <Layers className="w-7 h-7 text-muted" />
         </div>
@@ -370,21 +370,21 @@ function StepScript({
                       <p className="text-xs text-sub leading-relaxed flex-1">{shot.description}</p>
                       <button
                         onClick={() => setPromptShot(shot)}
-                        className="shrink-0 p-1.5 rounded-lg border border-line bg-white text-muted transition-colors hover:bg-soft hover:text-brand"
+                        className="shrink-0 p-1.5 rounded-lg border border-line bg-panel text-muted transition-colors hover:bg-soft hover:text-brand"
                         title="查看完整提交提示词"
                       >
                         <FileText className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => handleStartEdit(shot)}
-                        className="shrink-0 p-1.5 rounded-lg border border-line bg-white text-muted transition-colors hover:bg-soft hover:text-primary"
+                        className="shrink-0 p-1.5 rounded-lg border border-line bg-panel text-muted transition-colors hover:bg-soft hover:text-brand"
                         title="编辑描述"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => setAgentTarget(shot.id)}
-                        className="shrink-0 p-1.5 rounded-lg border border-line bg-white text-muted transition-colors hover:bg-soft hover:text-brand"
+                        className="shrink-0 p-1.5 rounded-lg border border-line bg-panel text-muted transition-colors hover:bg-soft hover:text-brand"
                         title="AI 修改"
                       >
                         <Bot className="w-3.5 h-3.5" />
@@ -597,9 +597,9 @@ function StepVideos({
       <div className="space-y-3">
         {/* 中央预览 */}
         {shot && (
-          <div className="page-panel flex flex-col items-center p-4">
+          <div className="page-panel tech-border flex flex-col items-center p-4">
             <div className="w-full max-w-[420px]">
-              <div className="mb-3 flex items-center justify-between rounded-xl border border-line bg-[#F8FAFC] px-3 py-2">
+              <div className="mb-3 flex items-center justify-between rounded-xl border border-line bg-elev px-3 py-2">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-text">镜头 {shot.shotCode}</p>
                   <p className="text-xs text-muted">{shot.segmentName || "未分段"} · {shot.duration}s</p>
@@ -630,19 +630,19 @@ function StepVideos({
                 )}
               </div>
 
-              <p className="rounded-xl bg-[#F8FAFC] px-3 py-2 text-xs text-sub text-center mb-2 leading-relaxed line-clamp-2">{shot.description}</p>
+              <p className="rounded-xl bg-elev px-3 py-2 text-xs text-sub text-center mb-2 leading-relaxed line-clamp-2">{shot.description}</p>
 
               {submittedPrompt && (
                 <button
                   onClick={() => setPromptSheetOpen(true)}
-                  className="w-full flex items-center justify-center gap-1.5 py-1 mb-2 rounded-lg text-xs text-muted hover:text-brand hover:bg-brand/5 transition-colors border border-dashed border-line hover:border-brand/30"
+                  className="w-full flex items-center justify-center gap-1.5 py-1 mb-2 rounded-lg text-xs text-muted hover:text-brand hover:bg-brand-soft transition-colors border border-dashed border-line hover:border-brand/30"
                 >
                   <FileText className="w-3 h-3" />查看最终提交提示词
                 </button>
               )}
 
               {!shotBusy && (
-                <div className="grid grid-cols-2 gap-2 rounded-2xl border border-line bg-white p-2 shadow-xs">
+                <div className="grid grid-cols-2 gap-2 rounded-2xl border border-line bg-panel p-2 shadow-xs">
                   <Button
                     variant={shot.videoUrl ? "outline" : "default"}
                     className="col-span-2"
@@ -684,7 +684,7 @@ function StepVideos({
                   onClick={() => setSelected(idx)}
                   className={cn(
                     "min-w-[150px] max-w-[150px] rounded-xl border p-2 text-left transition-all",
-                    selected === idx ? "border-primary bg-primary-soft shadow-sm" : "border-line bg-white hover:bg-soft"
+                    selected === idx ? "border-brand bg-brand-soft shadow-sm" : "border-line bg-panel hover:bg-soft"
                   )}
                 >
                   <div className="flex items-center gap-2">
@@ -760,7 +760,7 @@ function StepDubbing({ episode, projectId, isPast }: { episode: EpisodeDetail; p
   };
 
   return (
-    <div className="page-panel flex flex-col items-center justify-center py-20 gap-4">
+    <div className="page-panel tech-border flex flex-col items-center justify-center py-20 gap-4">
       <div className="w-14 h-14 rounded-2xl bg-soft flex items-center justify-center">
         <Volume2 className="w-7 h-7 text-muted" />
       </div>

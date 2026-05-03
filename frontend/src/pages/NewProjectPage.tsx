@@ -29,9 +29,9 @@ export default function NewProjectPage() {
 
   return (
     <div className="page-shell flex min-h-[calc(100vh-56px)] items-center justify-center py-10">
-      <div className="w-full max-w-md page-panel p-6">
+      <div className="w-full max-w-md page-panel tech-border p-6">
         <div className="mb-6 flex items-start gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white shadow-sm">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white shadow-md ring-1 ring-black/10">
             <Clapperboard className="h-5 w-5" />
           </div>
           <div>
@@ -52,7 +52,7 @@ export default function NewProjectPage() {
           />
         </div>
 
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {error && <p className="status-banner status-banner-danger">{error}</p>}
 
         <div className="flex gap-3 pt-2">
           <Button variant="outline" onClick={() => navigate("/projects")} disabled={creating}>

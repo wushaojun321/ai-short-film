@@ -45,12 +45,12 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex flex-col items-center gap-3 mb-8">
-          <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center shadow-md ring-1 ring-primary/10">
+          <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center shadow-md ring-1 ring-black/10">
             <Clapperboard className="w-6 h-6 text-white" />
           </div>
           <div className="text-center">
-            <h1 className="text-xl font-bold text-primary">短剧制作</h1>
-            <p className="text-xs text-muted mt-0.5">AI 驱动的短剧生产系统</p>
+            <h1 className="text-xl font-bold text-text">短剧制作</h1>
+            <p className="text-xs text-muted mt-0.5">企业级 AI 短剧生产工作台</p>
           </div>
         </div>
 
@@ -66,7 +66,7 @@ export default function LoginPage() {
                 className={
                   "flex-1 py-1.5 text-sm font-medium rounded-md transition-all " +
                   (tab === t
-                    ? "bg-white text-primary shadow-sm"
+                    ? "bg-panel text-brand shadow-sm"
                     : "text-muted hover:text-text")
                 }
               >

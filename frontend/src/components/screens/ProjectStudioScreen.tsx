@@ -117,7 +117,7 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
   if (loading) {
     return (
       <div className="flex h-[calc(100vh-56px)] items-center justify-center">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -148,7 +148,7 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
 
         <div className="flex-1 overflow-y-auto">
           <div className={cn("mx-auto px-6", isVideoStep ? "max-w-6xl py-4" : "max-w-5xl py-6")}>
-            <div className={cn("page-panel", isVideoStep ? "mb-3 p-4" : "mb-6 p-5")}>
+            <div className={cn("page-panel tech-border", isVideoStep ? "mb-3 p-4" : "mb-6 p-5")}>
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0">
                   <p className="section-title mb-1">Episode Workspace</p>

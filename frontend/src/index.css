@@ -1,5 +1,5 @@
 /* ── Google Fonts ──────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;500;600;700;800;900&display=swap');
 
 @font-face { font-family: "IBM Plex Mono"; src: url("https://fonts.gstatic.com/s/ibmplexmono/v19/-F6pfjptAgt5VM-kVkqdyU8n1ioSGlI.woff2") format("woff2"); font-weight: 400; font-display: swap; }
 @font-face { font-family: "Instrument Serif"; src: url("https://fonts.gstatic.com/s/instrumentserif/v4/jizDRFKBt9c9VYdBdhPkpdbvGxEMaTnnQwQ.woff2") format("woff2"); font-style: italic; font-display: swap; }
@@ -20,39 +20,40 @@
   }
 
   body {
-    background: #F5F7FA;
-    color: #0F172A;
-    font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+    background: #FAFAFA;
+    color: #171717;
+    font-family: "Lato", ui-sans-serif, system-ui, sans-serif;
     line-height: 1.6;
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-weight: 700;
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
     line-height: 1.25;
-    color: #0F172A;
+    color: #171717;
   }
 
   ::selection {
-    background: rgba(5, 150, 105, 0.18);
-    color: #0F172A;
+    background: rgba(0, 0, 0, 0.12);
+    color: #000000;
   }
 
   /* 统一滚动条 */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 99px; }
-  ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+  ::-webkit-scrollbar-thumb { background: #D4D4D4; border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: #737373; }
 }
 
 /* ── Utility Classes ───────────────────────────────────────── */
 @layer components {
   .app-workspace {
-    @apply min-h-screen bg-[#F5F7FA] text-text;
+    @apply min-h-screen bg-bg text-text;
     background-image:
-      linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(245,247,250,0.88) 220px, rgba(245,247,250,1) 520px),
-      radial-gradient(circle at 12% 0%, rgba(5,150,105,0.08), transparent 28%),
-      radial-gradient(circle at 82% 2%, rgba(30,58,95,0.08), transparent 32%);
+      linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(250,250,250,0.94) 360px, #FAFAFA 760px),
+      linear-gradient(rgba(0,0,0,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,0,0,0.02) 1px, transparent 1px);
+    background-size: auto, 32px 32px, 32px 32px;
   }
 
   .page-shell {
@@ -60,23 +61,27 @@
   }
 
   .page-panel {
-    @apply rounded-2xl border border-line bg-white shadow-sm;
+    @apply rounded-2xl border border-line bg-panel/95 shadow-sm;
+    box-shadow: 0 12px 28px rgba(23,23,23,0.06), inset 0 1px 0 rgba(255,255,255,0.75);
   }
 
   .page-header {
-    @apply rounded-2xl border border-line bg-white/90 px-5 py-5 shadow-sm backdrop-blur;
+    @apply rounded-2xl border border-line bg-panel/90 px-5 py-5 shadow-sm backdrop-blur;
+    background-image: linear-gradient(135deg, rgba(255,255,255,0.96), rgba(245,245,245,0.88));
+    box-shadow: 0 12px 28px rgba(23,23,23,0.07), inset 0 1px 0 rgba(255,255,255,0.85);
   }
 
   .toolbar {
-    @apply flex flex-wrap items-center gap-2 rounded-xl border border-line bg-white px-3 py-2 shadow-xs;
+    @apply flex flex-wrap items-center gap-2 rounded-xl border border-line bg-panel/95 px-3 py-2 shadow-xs;
   }
 
   .metric-tile {
-    @apply rounded-xl border border-line bg-white px-3 py-2 shadow-xs;
+    @apply rounded-xl border border-line bg-panel/95 px-3 py-2 shadow-xs;
   }
 
   .mini-stat {
-    @apply rounded-xl border border-line bg-white px-3 py-2 shadow-xs;
+    @apply rounded-xl border border-line bg-panel/95 px-3 py-2 shadow-xs;
+    background-image: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(250,250,250,0.92));
   }
 
   .status-banner {
@@ -84,7 +89,7 @@
   }
 
   .status-banner-info {
-    @apply border-primary/15 bg-primary-soft text-primary;
+    @apply border-info/20 bg-info-soft text-info;
   }
 
   .status-banner-danger {
@@ -92,11 +97,12 @@
   }
 
   .empty-state-panel {
-    @apply rounded-2xl border border-dashed border-line bg-white/70 px-5 py-12 text-center text-sm text-muted;
+    @apply rounded-2xl border border-dashed border-line bg-panel/75 px-5 py-12 text-center text-sm text-muted;
   }
 
   .sticky-action-bar {
-    @apply sticky bottom-4 z-20 mt-6 flex flex-col gap-3 rounded-2xl border border-line bg-white/95 px-4 py-3 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-between;
+    @apply sticky bottom-4 z-20 mt-6 flex flex-col gap-3 rounded-2xl border border-line bg-panel/95 px-4 py-3 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-between;
+    box-shadow: 0 18px 42px rgba(23,23,23,0.12), inset 0 1px 0 rgba(255,255,255,0.80);
   }
 
   .prompt-block {
@@ -104,19 +110,32 @@
   }
 
   .icon-button {
-    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white text-muted transition-all hover:border-primary/25 hover:bg-soft hover:text-primary;
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-panel text-muted transition-all hover:border-brand/35 hover:bg-soft hover:text-brand;
+  }
+
+  .tech-border {
+    position: relative;
+  }
+  .tech-border::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    border: 1px solid rgba(0,0,0,0.08);
+    mask-image: linear-gradient(135deg, #000, transparent 38%, transparent 62%, #000);
   }
 
   /* 卡片 */
   .card {
-    @apply bg-white rounded-xl border border-line shadow-sm transition-all duration-200;
+    @apply bg-panel/95 rounded-xl border border-line shadow-sm transition-all duration-200;
   }
   .card-hover {
-    @apply hover:shadow-md hover:border-primary/20 hover:-translate-y-0.5;
+    @apply hover:shadow-card-hover hover:border-brand/35 hover:-translate-y-0.5;
   }
 
   .media-card {
-    @apply rounded-xl border border-line bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:border-primary/20;
+    @apply rounded-xl border border-line bg-panel/95 shadow-sm transition-all duration-200 hover:shadow-card-hover hover:border-brand/35;
   }
 
   .action-row {
@@ -124,7 +143,7 @@
   }
 
   .section-title {
-    @apply text-xs font-bold uppercase tracking-[0.16em] text-muted;
+    @apply text-xs font-bold uppercase tracking-[0.18em] text-muted;
   }
 
   /* 徽章/标签 */
@@ -133,7 +152,7 @@
   }
 
   /* 状态点 */
-  .dot-success  { @apply w-2 h-2 rounded-full bg-brand; }
+  .dot-success  { @apply w-2 h-2 rounded-full bg-success; }
   .dot-warning  { @apply w-2 h-2 rounded-full bg-warn; }
   .dot-danger   { @apply w-2 h-2 rounded-full bg-danger; }
   .dot-idle     { @apply w-2 h-2 rounded-full bg-line; }
@@ -144,7 +163,7 @@
 
   /* 骨架屏 */
   .skeleton {
-    background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+    background: linear-gradient(90deg, #F5F5F5 25%, #E5E5E5 50%, #F5F5F5 75%);
     background-size: 200% 100%;
     @apply rounded animate-shimmer;
   }
@@ -164,14 +183,14 @@
     @apply w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
            transition-all duration-200;
   }
-  .step-badge-done    { @apply bg-brand/15 text-brand; }
+  .step-badge-done    { @apply bg-success-soft text-success; }
   .step-badge-active  { @apply bg-brand text-white shadow-brand; }
   .step-badge-pending { @apply bg-soft text-muted border border-line; }
 }
 
 /* ── Focus Ring ────────────────────────────────────────────── */
 :focus-visible {
-  outline: 2px solid #059669;
+  outline: 2px solid #000000;
   outline-offset: 2px;
   border-radius: 4px;
 }

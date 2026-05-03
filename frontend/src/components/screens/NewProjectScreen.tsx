@@ -122,7 +122,7 @@ function Phase1({
   };
 
   return (
-    <div className="page-panel max-w-xl mx-auto p-6">
+    <div className="page-panel tech-border max-w-xl mx-auto p-6">
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-text mb-1">上传剧本</h2>
         <p className="text-sm text-sub">上传剧本文件，AI 将自动解析分集规划和资产需求。</p>
@@ -134,7 +134,7 @@ function Phase1({
         onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
         onClick={() => !uploadedFile && fileRef.current?.click()}
         className={cn(
-          "border-2 border-dashed rounded-xl p-10 text-center transition-all cursor-pointer bg-white",
+          "border-2 border-dashed rounded-xl p-10 text-center transition-all cursor-pointer bg-panel",
           dragging ? "border-brand bg-brand-soft" : "border-line hover:border-brand/50 hover:bg-soft",
           uploadedFile && "border-brand bg-brand-soft cursor-default"
         )}
@@ -314,7 +314,7 @@ function PhaseWaiting({
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [logs]);
 
   return (
-    <div className="page-panel max-w-xl mx-auto p-6">
+    <div className="page-panel tech-border max-w-xl mx-auto p-6">
       <div className="mb-6 flex items-start gap-4">
         <div className={cn(
           "w-12 h-12 rounded-xl flex items-center justify-center shrink-0",
@@ -322,7 +322,7 @@ function PhaseWaiting({
         )}>
           {finished
             ? (error ? <AlertTriangle className="w-6 h-6 text-danger" /> : <Sparkles className="w-6 h-6 text-brand" />)
-            : <Loader2 className="w-6 h-6 text-primary animate-spin" />}
+            : <Loader2 className="w-6 h-6 text-brand animate-spin" />}
         </div>
         <div>
           <h2 className="text-xl font-semibold text-text mb-1">
@@ -518,7 +518,7 @@ function Phase2({
   };
 
   return (
-    <div className="page-panel max-w-6xl mx-auto p-5 sm:p-6">
+    <div className="page-panel tech-border max-w-6xl mx-auto p-5 sm:p-6">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between mb-6">
         <div>
           <p className="section-title mb-2">Plan Review</p>
@@ -542,7 +542,7 @@ function Phase2({
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
         {/* 左侧：分集列表 */}
-        <div className="rounded-2xl border border-line bg-[#F8FAFC] p-3">
+        <div className="rounded-2xl border border-line bg-elev p-3">
           <div className="mb-3 flex items-center justify-between px-1">
             <h3 className="text-sm font-semibold text-text">分集规划</h3>
             <span className="text-xs text-muted">{episodes.length} 集</span>
@@ -602,7 +602,7 @@ function Phase2({
         </div>
 
         {/* 右侧：资产列表 */}
-        <div className="rounded-2xl border border-line bg-[#F8FAFC] p-3">
+        <div className="rounded-2xl border border-line bg-elev p-3">
           <div className="mb-3 flex items-center justify-between px-1">
             <h3 className="text-sm font-semibold text-text">资产清单</h3>
             <span className="text-xs text-muted">{currentAssets.length} 项</span>
@@ -1122,7 +1122,7 @@ function AssetCard({
             <img src={cosUrl(lightboxUrl)} alt={asset.name} className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl" onClick={(e) => e.stopPropagation()} />
           </div>
         )}
-        <div className="border border-line rounded-xl bg-white p-3 hover:shadow-card-hover transition-all">
+        <div className="border border-line rounded-xl bg-panel p-3 hover:shadow-card-hover transition-all">
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="lg:w-[280px] shrink-0">
               {isGenerating ? (
@@ -1196,7 +1196,7 @@ function AssetCard({
           />
         </div>
       )}
-      <div className="border border-line rounded-xl overflow-hidden bg-white hover:shadow-card-hover transition-all">
+      <div className="border border-line rounded-xl overflow-hidden bg-panel hover:shadow-card-hover transition-all">
         <div className="aspect-[4/5] bg-soft relative overflow-hidden group">
           {isGenerating ? (
             <div className="w-full h-full flex flex-col items-center justify-center gap-2">
@@ -1264,7 +1264,7 @@ function AssetGroupCard({
     .join(" / ");
 
   return (
-    <div className="border border-line rounded-xl bg-white overflow-hidden transition-all hover:shadow-card-hover">
+    <div className="border border-line rounded-xl bg-panel overflow-hidden transition-all hover:shadow-card-hover">
       <button type="button" className="block w-full text-left" onClick={onOpen}>
         <div className="relative aspect-[4/3] bg-soft overflow-hidden">
           {previewUrl ? (
@@ -1472,7 +1472,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
 
   return (
     <div className="mx-auto max-w-6xl">
-      <div className="page-panel mb-5 p-5">
+      <div className="page-panel tech-border mb-5 p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="section-title mb-2">Asset Review</p>
@@ -1531,7 +1531,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
               "h-8 rounded-full border px-3 text-xs font-medium transition-colors",
               assetFilter === filter.key
                 ? "border-brand bg-brand text-white"
-                : "border-line bg-white text-sub hover:border-brand/40 hover:text-text"
+                : "border-line bg-panel text-sub hover:border-brand/40 hover:text-text"
             )}
           >
             {filter.label}

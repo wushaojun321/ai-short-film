@@ -19,11 +19,11 @@ const initStatusConfig: Record<Project["initStatus"], {
   variant: "success" | "warning" | "secondary" | "outline" | "primary";
   dot: string;
 }> = {
-  initialized:        { label: "制作中",   variant: "success",  dot: "bg-brand" },
+  initialized:        { label: "制作中",   variant: "success",  dot: "bg-success" },
   assets_confirmed:   { label: "资产审核", variant: "warning",  dot: "bg-warn animate-pulse" },
   episodes_confirmed: { label: "分集规划", variant: "warning",  dot: "bg-warn animate-pulse" },
-  script_uploaded:    { label: "待解析",   variant: "secondary",dot: "bg-sub/40" },
-  not_started:        { label: "未初始化", variant: "outline",  dot: "bg-line" },
+  script_uploaded:    { label: "待解析",   variant: "secondary",dot: "bg-slate-400" },
+  not_started:        { label: "未初始化", variant: "outline",  dot: "bg-slate-300" },
 };
 
 function ProjectCard({ project }: { project: Project }) {
@@ -53,21 +53,24 @@ function ProjectCard({ project }: { project: Project }) {
       <div
         onClick={() => navigate(`/projects/${project.id}`)}
         className={cn(
-          "group media-card relative cursor-pointer overflow-hidden p-5",
+          "group media-card tech-border relative cursor-pointer overflow-hidden p-5",
           "animate-fade-in"
         )}
       >
-        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand via-primary to-warn opacity-80" />
+        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-sub to-line opacity-90" />
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(0,0,0,0.025),transparent_35%,rgba(0,0,0,0.035))] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
         <div className="flex items-start justify-between gap-3 mb-5">
           <div className="flex items-start gap-3 min-w-0">
             <div className={cn(
               "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs ring-1 ring-black/5",
-              project.initStatus === "initialized" ? "bg-primary text-white" : "bg-soft text-sub"
+              project.initStatus === "initialized"
+                ? "bg-primary text-white shadow-md ring-1 ring-black/10"
+                : "bg-soft text-sub"
             )}>
               <Play className="w-4.5 h-4.5" style={{ width: "1.125rem", height: "1.125rem" }} />
             </div>
             <div className="min-w-0">
-              <h3 className="font-bold text-text text-base leading-snug group-hover:text-primary transition-colors line-clamp-2">
+              <h3 className="font-bold text-text text-base leading-snug group-hover:text-brand transition-colors line-clamp-2">
                 {project.title}
               </h3>
               <p className="mt-1 text-xs text-muted truncate">{project.format}</p>
@@ -101,11 +104,11 @@ function ProjectCard({ project }: { project: Project }) {
           <div className="mb-4">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-muted">制作进度</span>
-              <span className="text-xs font-bold text-primary tabular-nums">{project.progress}%</span>
+              <span className="text-xs font-bold text-brand tabular-nums">{project.progress}%</span>
             </div>
             <div className="h-2 bg-soft rounded-full overflow-hidden ring-1 ring-line/70">
               <div
-                className="h-full bg-gradient-to-r from-brand to-brand/80 rounded-full transition-all duration-500"
+                className="h-full bg-brand rounded-full transition-all duration-500"
                 style={{ width: `${project.progress}%` }}
               />
             </div>
@@ -113,17 +116,17 @@ function ProjectCard({ project }: { project: Project }) {
         )}
 
         <div className="grid grid-cols-3 gap-2 mb-4">
-          <div className="bg-elev rounded-xl p-3 text-center">
+          <div className="rounded-xl border border-line/70 bg-elev p-3 text-center">
             <div className="text-lg font-bold text-text tabular-nums">{project.renderedEpisodes}</div>
             <div className="text-2xs text-muted mt-0.5">已完成</div>
           </div>
-          <div className="bg-elev rounded-xl p-3 text-center">
+          <div className="rounded-xl border border-line/70 bg-elev p-3 text-center">
             <div className="text-lg font-bold text-text tabular-nums">{project.episodes || "—"}</div>
             <div className="text-2xs text-muted mt-0.5">总集数</div>
           </div>
           <div className={cn(
-            "rounded-xl p-3 text-center",
-            project.blockers && project.blockers > 0 ? "bg-danger-soft" : "bg-elev"
+            "rounded-xl border border-line/70 p-3 text-center",
+            project.blockers && project.blockers > 0 ? "border-danger/20 bg-danger-soft" : "bg-elev"
           )}>
             <div className={cn(
               "text-lg font-bold tabular-nums",
@@ -150,7 +153,7 @@ function ProjectCard({ project }: { project: Project }) {
 
         <div className="mt-4 pt-3 border-t border-line flex items-center justify-between">
           <span className="text-xs text-muted">{project.stage}</span>
-          <span className="text-xs font-semibold text-brand flex items-center gap-1 rounded-lg bg-brand-soft px-2 py-1">
+          <span className="text-xs font-semibold text-brand flex items-center gap-1 rounded-lg bg-brand-soft px-2 py-1 transition-colors group-hover:text-brand">
             进入项目 <ChevronRight className="w-3.5 h-3.5" />
           </span>
         </div>
