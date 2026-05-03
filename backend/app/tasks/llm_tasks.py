@@ -183,12 +183,119 @@ def _norm_token(value) -> str:
     return str(value or "").strip().lower().replace(" ", "_").replace("-", "_")
 
 
-def _should_materialize_asset(item: dict, parent: dict | None = None) -> bool:
+def _contains_any(text: str, keywords: tuple[str, ...]) -> bool:
+    return any(keyword in text for keyword in keywords)
+
+
+def _is_repeated_scope(*values) -> bool:
+    """Detect cross-episode/reusable scope without imposing a numeric asset cap."""
+    import re
+
+    text = " ".join(str(value or "") for value in values if value is not None).strip()
+    if not text:
+        return False
+
+    normalized = text.lower()
+    repeated_keywords = (
+        "全剧",
+        "贯穿",
+        "反复",
+        "多集",
+        "跨集",
+        "复用",
+        "高频",
+        "recurring",
+        "series",
+        "all episodes",
+    )
+    if _contains_any(normalized, repeated_keywords):
+        return True
+
+    episodes: set[int] = set()
+    for value in values:
+        scope = str(value or "").strip()
+        if not scope:
+            continue
+        scope_lower = scope.lower()
+        looks_like_episode_scope = (
+            "集" in scope
+            or "episode" in scope_lower
+            or scope_lower.startswith("ep")
+            or bool(re.fullmatch(r"\s*\d{1,3}\s*[-~—－至到]\s*\d{1,3}\s*", scope))
+            or bool(re.fullmatch(r"\s*\d{1,3}(?:\s*[、,]\s*\d{1,3})+\s*", scope))
+        )
+        if not looks_like_episode_scope:
+            continue
+        for start, end in re.findall(r"(?:第|ep(?:isode)?\s*)?\s*(\d{1,3})\s*(?:[-~—－至到]\s*(\d{1,3}))?\s*集?", scope, flags=re.IGNORECASE):
+            try:
+                start_num = int(start)
+                end_num = int(end) if end else start_num
+            except ValueError:
+                continue
+            if end and end_num != start_num:
+                return True
+            episodes.add(start_num)
+    return len(episodes) >= 2
+
+
+def _is_generic_functional_name(value: str) -> bool:
+    name = str(value or "").strip()
+    if not name:
+        return False
+    generic_names = {
+        "士兵",
+        "通信兵",
+        "驾驶员",
+        "百姓",
+        "群众",
+        "路人",
+        "村民",
+        "难民",
+        "军官",
+        "临时军官",
+        "医疗兵",
+        "工人",
+        "守卫",
+        "警卫",
+        "侍卫",
+        "小兵",
+        "倭兵",
+        "传令兵",
+        "司机",
+        "记者",
+        "护士",
+        "医生",
+        "参谋",
+    }
+    if name in generic_names:
+        return True
+    return bool(len(name) <= 4 and any(token in name for token in ("无名", "临时", "路人", "群众")))
+
+
+def _should_materialize_asset(item: dict, parent: dict | None = None, bucket: str = "") -> bool:
     """Qualitative asset gate: skip background/reference-only entries without a hard count cap."""
     parent = parent or {}
     level = _norm_token(item.get("asset_level") or item.get("build_level") or parent.get("asset_level"))
     importance = _norm_token(item.get("importance") or parent.get("importance"))
-    text = f"{level} {importance} {item.get('reason', '')} {item.get('description', '')}"
+    raw_text = " ".join(str(value or "") for value in (
+        level,
+        importance,
+        item.get("reason"),
+        item.get("description"),
+        item.get("role"),
+        parent.get("role"),
+        item.get("name"),
+        parent.get("name"),
+        item.get("character_name"),
+        parent.get("character_name"),
+        item.get("scene_scope"),
+        parent.get("scene_scope"),
+        item.get("episode_range"),
+        item.get("episodes"),
+        item.get("reuse_scope"),
+        parent.get("reuse_scope"),
+    ))
+    text = raw_text.lower()
     blocked = (
         "background",
         "ignored",
@@ -204,7 +311,52 @@ def _should_materialize_asset(item: dict, parent: dict | None = None) -> bool:
         "路人",
         "群众",
     )
-    return not any(token in text for token in blocked)
+    if _contains_any(text, blocked):
+        return False
+
+    force_keywords = (
+        "must_build",
+        "required",
+        "critical",
+        "key",
+        "lead",
+        "main",
+        "protagonist",
+        "core",
+        "核心",
+        "关键",
+        "主角",
+        "重要",
+        "关键反派",
+    )
+    if _contains_any(text, force_keywords):
+        return True
+
+    repeated = _is_repeated_scope(
+        item.get("episodes"),
+        item.get("episode_range"),
+        item.get("reuse_scope"),
+        parent.get("reuse_scope"),
+        item.get("scene_scope"),
+        parent.get("scene_scope"),
+        item.get("reason"),
+        item.get("description"),
+    )
+    bucket = bucket or ""
+
+    if bucket == "characters":
+        character_name = _text_value(item.get("character_name"), item.get("name"), parent.get("character_name"), parent.get("name"))
+        if _is_generic_functional_name(character_name):
+            return False
+        return repeated or _contains_any(text, ("supporting", "反复出现", "多次出现", "配角"))
+
+    if bucket == "scenes":
+        return repeated or _contains_any(text, ("recurring", "复用", "高频", "强剧情功能", "核心场景"))
+
+    if bucket == "props":
+        return repeated or _contains_any(text, ("recurring", "标志", "线索", "推动剧情", "关键物", "核心道具", "贯穿"))
+
+    return True
 
 
 def _merge_key(*parts: str) -> str:
@@ -262,6 +414,9 @@ def _jsonl_plan_from_text(raw_text: str) -> tuple[dict, dict]:
     char_map: dict[str, dict] = {}
     scene_map: dict[str, dict] = {}
     prop_map: dict[str, dict] = {}
+    char_name_index: dict[str, str] = {}
+    scene_name_index: dict[str, str] = {}
+    prop_name_index: dict[str, str] = {}
 
     def key_for(*values) -> str:
         return _merge_key(*(_text_value(value) for value in values))
@@ -269,6 +424,10 @@ def _jsonl_plan_from_text(raw_text: str) -> tuple[dict, dict]:
     def get_character(name: str, package: str = "") -> dict:
         character_name = _text_value(name, package)
         asset_package = _text_value(package, character_name)
+        for token in (_norm_token(character_name), _norm_token(asset_package)):
+            existing_key = char_name_index.get(token)
+            if existing_key and existing_key in char_map:
+                return char_map[existing_key]
         key = key_for(asset_package, character_name)
         if key not in char_map:
             char_map[key] = {
@@ -282,11 +441,18 @@ def _jsonl_plan_from_text(raw_text: str) -> tuple[dict, dict]:
                 "variants": [],
             }
             result["asset_registry"]["characters"].append(char_map[key])
+        for token in (_norm_token(character_name), _norm_token(asset_package)):
+            if token:
+                char_name_index[token] = key
         return char_map[key]
 
     def get_scene(name: str, package: str = "") -> dict:
         scene_name = _text_value(name, package)
         scene_package = _text_value(package, scene_name)
+        for token in (_norm_token(scene_name), _norm_token(scene_package)):
+            existing_key = scene_name_index.get(token)
+            if existing_key and existing_key in scene_map:
+                return scene_map[existing_key]
         key = key_for(scene_package, scene_name)
         if key not in scene_map:
             scene_map[key] = {
@@ -297,11 +463,18 @@ def _jsonl_plan_from_text(raw_text: str) -> tuple[dict, dict]:
                 "variants": [],
             }
             result["asset_registry"]["scenes"].append(scene_map[key])
+        for token in (_norm_token(scene_name), _norm_token(scene_package)):
+            if token:
+                scene_name_index[token] = key
         return scene_map[key]
 
     def get_prop(name: str, package: str = "") -> dict:
         prop_name = _text_value(name, package)
         prop_package = _text_value(package, prop_name)
+        for token in (_norm_token(prop_name), _norm_token(prop_package)):
+            existing_key = prop_name_index.get(token)
+            if existing_key and existing_key in prop_map:
+                return prop_map[existing_key]
         key = key_for(prop_package, prop_name)
         if key not in prop_map:
             prop_map[key] = {
@@ -313,6 +486,9 @@ def _jsonl_plan_from_text(raw_text: str) -> tuple[dict, dict]:
                 "variants": [],
             }
             result["asset_registry"]["props"].append(prop_map[key])
+        for token in (_norm_token(prop_name), _norm_token(prop_package)):
+            if token:
+                prop_name_index[token] = key
         return prop_map[key]
 
     for raw_line in raw_text.splitlines():
@@ -450,6 +626,13 @@ def _character_bible_from_registry(characters: list[dict]) -> list[dict]:
         character_name = _text_value(item.get("character_name"), item.get("name"))
         if not character_name:
             continue
+        raw_variants = _as_list(item.get("variants"))
+        has_materialized_variant = any(
+            isinstance(variant, dict) and _should_materialize_asset(variant, item, "characters")
+            for variant in raw_variants
+        )
+        if not has_materialized_variant and not _should_materialize_asset(item, item, "characters"):
+            continue
         asset_package = _text_value(item.get("asset_package"), character_name)
         key = _merge_key(asset_package)
         if key in seen:
@@ -500,9 +683,9 @@ def _character_variants_from_registry(characters: list[dict]) -> list[dict]:
         )
         raw_variants = _as_list(item.get("variants"))
         if not raw_variants:
-            raw_variants = [item]
+            raw_variants = [item] if _should_materialize_asset(item, item, "characters") else []
         for variant in raw_variants:
-            if not isinstance(variant, dict) or not _should_materialize_asset(variant, item):
+            if not isinstance(variant, dict) or not _should_materialize_asset(variant, item, "characters"):
                 continue
             scene_scope = _text_value(variant.get("scene_scope"), item.get("scene_scope"), "按剧本主要场景")
             appearance_stage = _text_value(
@@ -560,9 +743,9 @@ def _bucket_variants_from_registry(items: list[dict], bucket: str) -> list[dict]
             continue
         raw_variants = _as_list(item.get("variants"))
         if not raw_variants:
-            raw_variants = [item]
+            raw_variants = [item] if _should_materialize_asset(item, item, bucket) else []
         for variant in raw_variants:
-            if not isinstance(variant, dict) or not _should_materialize_asset(variant, item):
+            if not isinstance(variant, dict) or not _should_materialize_asset(variant, item, bucket):
                 continue
             state = _text_value(variant.get("state"), item.get("state"), state_fallback)
             name = _text_value(variant.get("name"), item.get("asset_name"), item.get("name"), f"{package}-{state}")
@@ -707,6 +890,8 @@ def _fallback_character_bible_from_requirements(episodes: list[dict]) -> list[di
             name = item.get("name", "")
             if not name or name in characters:
                 continue
+            if not _should_materialize_asset(item, item, "characters"):
+                continue
             characters[name] = {
                 "character_id": name,
                 "character_name": name,
@@ -725,6 +910,7 @@ def _fallback_character_bible_from_requirements(episodes: list[dict]) -> list[di
 def _fallback_assets_from_requirements(episodes: list[dict], key: str) -> list[dict]:
     seen: set[str] = set()
     result: list[dict] = []
+    bucket = key
     for ep in episodes:
         req = ep.get("asset_requirements", {}) if isinstance(ep, dict) else {}
         for item in _as_list(req.get(key) if isinstance(req, dict) else []):
@@ -732,6 +918,8 @@ def _fallback_assets_from_requirements(episodes: list[dict], key: str) -> list[d
                 continue
             name = item.get("name", "")
             if not name or name in seen:
+                continue
+            if not _should_materialize_asset(item, item, bucket):
                 continue
             seen.add(name)
             state = item.get("state", "")
@@ -768,7 +956,7 @@ def _fallback_assets_from_blocks(blocks) -> tuple[list[dict], list[dict], list[d
         if not speaker:
             match = speaker_line_re.match(getattr(block, "text", "") or "")
             speaker = match.group(1).strip() if match else ""
-        if speaker and speaker not in non_speakers:
+        if speaker and speaker not in non_speakers and not _is_generic_functional_name(speaker):
             item = speakers.setdefault(speaker, {"count": 0, "episodes": set()})
             item["count"] += 1
             if getattr(block, "episode_hint", None):
@@ -785,6 +973,8 @@ def _fallback_assets_from_blocks(blocks) -> tuple[list[dict], list[dict], list[d
     character_bible: list[dict] = []
     character_variants: list[dict] = []
     for name, meta in speakers.items():
+        if meta["count"] < 2 and len(meta["episodes"]) < 2:
+            continue
         episode_range = _episode_range_label(meta["episodes"])
         character_bible.append({
             "character_id": name,
@@ -816,6 +1006,8 @@ def _fallback_assets_from_blocks(blocks) -> tuple[list[dict], list[dict], list[d
 
     scene_variants: list[dict] = []
     for name, meta in scenes.items():
+        if meta["count"] < 2 and len(meta["episodes"]) < 2:
+            continue
         scene_variants.append({
             "name": name,
             "scene_package": name,
