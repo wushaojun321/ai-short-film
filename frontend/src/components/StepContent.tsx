@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { EpisodeStep, EpisodeDetail, Shot, ShotState, getStepIndex } from "@/lib/data";
 import { cn } from "@/lib/utils";
-import { generateAPI, shotAPI, episodeAPI } from "@/lib/api";
+import { generateAPI, shotAPI, episodeAPI, type ApiGenResponse } from "@/lib/api";
 import { useCos } from "@/lib/CosContext";
 
 interface StepContentProps {
@@ -504,6 +504,17 @@ function StepScript({
 
 // ─── Step 2：分镜视频（含审批）──────────────────────────────
 
+type WatchedVideoTask = {
+  recordId: string;
+  label: string;
+  shotId?: string;
+  shotIds?: string[];
+};
+
+function errorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error && err.message ? err.message : fallback;
+}
+
 function StepVideos({
   episode, projectId, isPast,
 }: { episode: EpisodeDetail; projectId: string; isPast?: boolean }) {
@@ -526,6 +537,7 @@ function StepVideos({
   const [restoringVersion, setRestoringVersion] = useState<string | null>(null);
   const [approving, setApproving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [watchedVideoTasks, setWatchedVideoTasks] = useState<WatchedVideoTask[]>([]);
 
   // 由后端 running_tasks 派生，刷新后状态自动恢复
   const batchGenerating = episode.runningTasks.includes("gen_shot_video");
@@ -543,7 +555,9 @@ function StepVideos({
     });
   }, [shots]);
 
-  const hasUngenerated = shots.some((s) => !s.videoUrl && !loadingIds.has(s.id) && s.state !== "rendering");
+  const missingVideoCount = shots.filter((s) => !s.videoUrl).length;
+  const pendingVideoShots = shots.filter((s) => !s.videoUrl && !loadingIds.has(s.id) && s.state !== "rendering");
+  const hasUngenerated = missingVideoCount > 0;
   const shot = shots[selected] ?? shots[0];
   const submittedPrompt = shot?.submittedPrompt;
   const shotBusy = !!shot && (loadingIds.has(shot.id) || shot.state === "rendering");
@@ -555,15 +569,64 @@ function StepVideos({
     setVideoPromptDraft(submittedPrompt || shot?.prompt || "");
   }, [promptSheetOpen, submittedPrompt, shot?.prompt, shot?.id]);
 
+  const watchVideoTask = (response: ApiGenResponse, task: Omit<WatchedVideoTask, "recordId">) => {
+    if (!response.record_id) return;
+    setWatchedVideoTasks((prev) => {
+      if (prev.some((item) => item.recordId === response.record_id)) return prev;
+      return [...prev, { ...task, recordId: response.record_id }];
+    });
+  };
+
+  useEffect(() => {
+    if (watchedVideoTasks.length === 0) return;
+    let stopped = false;
+
+    const poll = async () => {
+      const settled = new Set<string>();
+      for (const task of watchedVideoTasks) {
+        try {
+          const record = await generateAPI.getTask(task.recordId);
+          if (record.status === "failed") {
+            const msg = record.error || "后端视频生成任务失败，但未返回具体错误。";
+            setError(`${task.label}失败：${msg}`);
+            setLoadingIds((prev) => {
+              if (prev.size === 0) return prev;
+              const next = new Set(prev);
+              if (task.shotId) next.delete(task.shotId);
+              task.shotIds?.forEach((id) => next.delete(id));
+              return next;
+            });
+            settled.add(task.recordId);
+          } else if (record.status === "success" || record.status === "cancelled") {
+            settled.add(task.recordId);
+          }
+        } catch (err: unknown) {
+          setError(`获取视频生成任务状态失败：${errorMessage(err, "请求失败")}`);
+        }
+      }
+      if (!stopped && settled.size > 0) {
+        setWatchedVideoTasks((prev) => prev.filter((item) => !settled.has(item.recordId)));
+      }
+    };
+
+    poll();
+    const id = window.setInterval(poll, 2500);
+    return () => {
+      stopped = true;
+      window.clearInterval(id);
+    };
+  }, [watchedVideoTasks]);
+
   const handleBatchGenerate = async () => {
     const targets = shots.filter((s) => !s.videoUrl && !loadingIds.has(s.id) && s.state !== "rendering");
     if (targets.length === 0) return;
     setError(null);
     setLoadingIds((prev) => new Set([...prev, ...targets.map((s) => s.id)]));
     try {
-      await generateAPI.episodeShotVideos(episode.id);
+      const response = await generateAPI.episodeShotVideos(episode.id);
+      watchVideoTask(response, { label: "批量视频生成", shotIds: targets.map((s) => s.id) });
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "批量生成失败");
+      setError(errorMessage(e, "批量生成失败"));
       setLoadingIds((prev) => {
         const next = new Set(prev);
         targets.forEach((s) => next.delete(s.id));
@@ -576,9 +639,11 @@ function StepVideos({
     setLoadingIds((prev) => new Set([...prev, shotId]));
     setError(null);
     try {
-      await generateAPI.shotVideo(shotId);
+      const target = shots.find((s) => s.id === shotId);
+      const response = await generateAPI.shotVideo(shotId);
+      watchVideoTask(response, { label: `镜头 ${target?.shotCode ?? ""} 视频生成`.trim(), shotId });
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "重新生成失败");
+      setError(errorMessage(e, "重新生成失败"));
       setLoadingIds((prev) => { const n = new Set(prev); n.delete(shotId); return n; });
     }
   };
@@ -646,13 +711,13 @@ function StepVideos({
       {hasUngenerated && (
         <div className="status-banner status-banner-info flex items-center justify-between gap-3">
           <span className="text-xs text-sub">
-            {shots.filter((s) => !s.videoUrl).length} 个分镜尚未生成视频
+            {missingVideoCount} 个分镜尚未生成视频
           </span>
           <Button size="sm" onClick={handleBatchGenerate} disabled={batchGenerating}>
             {batchGenerating ? (
               <><Loader2 className="w-3.5 h-3.5 animate-spin" />生成中… {episode.taskProgress["gen_shot_video"] ? `${episode.taskProgress["gen_shot_video"]}%` : ""}</>
             ) : (
-              <><Play className="w-3.5 h-3.5" />批量生成全部</>
+              <><Play className="w-3.5 h-3.5" />生成所有镜头</>
             )}
           </Button>
         </div>
@@ -735,6 +800,21 @@ function StepVideos({
 
                   {!shotBusy ? (
                     <div className="grid grid-cols-2 gap-2">
+                      {hasUngenerated && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="col-span-2"
+                          onClick={handleBatchGenerate}
+                          disabled={batchGenerating || pendingVideoShots.length === 0}
+                        >
+                          {batchGenerating ? (
+                            <><Loader2 className="w-3.5 h-3.5 animate-spin" />生成中…</>
+                          ) : (
+                            <><Play className="w-3.5 h-3.5" />生成所有镜头</>
+                          )}
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant={shot.videoUrl ? "outline" : "default"}

@@ -39,7 +39,7 @@ async def _gen_episode_videos_async(celery_id: str, episode_id: str):
         shots = await Shot.find(Shot.episode_id == episode.id).sort("+order").to_list()
         targets = [
             shot for shot in shots
-            if not shot.video_url and shot.state not in (ShotState.rendering, ShotState.approved)
+            if not shot.video_url and shot.state != ShotState.rendering
         ]
         total = len(targets)
         if record:

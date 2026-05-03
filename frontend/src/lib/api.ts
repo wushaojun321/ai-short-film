@@ -22,17 +22,40 @@ function normalizeIds(data: unknown): unknown {
   return data;
 }
 
-// 将 FastAPI 422 detail 数组转成可读字符串
-function extractErrorMessage(err: unknown): string {
-  const e = err as { response?: { data?: { detail?: unknown } }; message?: string };
-  const detail = e?.response?.data?.detail;
-  if (Array.isArray(detail)) {
-    return detail.map((d: { msg?: string; loc?: string[] }) =>
-      d.loc ? `${d.loc.slice(-1)[0]}: ${d.msg}` : d.msg ?? "错误"
-    ).join("; ");
+function stringifyErrorValue(value: unknown): string | null {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((item) => {
+        if (item && typeof item === "object") {
+          const obj = item as Record<string, unknown>;
+          const loc = Array.isArray(obj.loc) ? obj.loc.slice(-1)[0] : undefined;
+          const msg = stringifyErrorValue(obj.msg) ?? stringifyErrorValue(obj.message) ?? stringifyErrorValue(obj.error);
+          return loc && msg ? `${loc}: ${msg}` : msg;
+        }
+        return stringifyErrorValue(item);
+      })
+      .filter(Boolean);
+    return parts.length > 0 ? parts.join("; ") : null;
   }
-  if (typeof detail === "string") return detail;
-  return e?.message ?? "请求失败";
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    return (
+      stringifyErrorValue(obj.detail) ??
+      stringifyErrorValue(obj.message) ??
+      stringifyErrorValue(obj.error) ??
+      stringifyErrorValue(obj.msg) ??
+      JSON.stringify(obj)
+    );
+  }
+  return String(value);
+}
+
+// 将后端错误体转成可读字符串，兼容 FastAPI detail 与业务 error/message 字段
+function extractErrorMessage(err: unknown): string {
+  const e = err as { response?: { data?: unknown }; message?: string };
+  return stringifyErrorValue(e?.response?.data) ?? e?.message ?? "请求失败";
 }
 
 // 请求拦截：注入 Authorization Bearer token
