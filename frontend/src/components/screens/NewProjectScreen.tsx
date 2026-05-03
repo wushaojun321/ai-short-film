@@ -876,6 +876,11 @@ const getAssetPreviewUrl = (asset: ApiAsset) => {
   return asset.view_urls?.full_body || asset.view_urls?.face || asset.view_urls?.side || asset.preview_url;
 };
 
+const getAssetMainPreviewUrl = (asset: ApiAsset) => {
+  if (asset.asset_type !== "character") return getAssetPreviewUrl(asset);
+  return asset.view_urls?.face || asset.preview_url || asset.view_urls?.full_body || asset.view_urls?.side;
+};
+
 const isAssetRunning = (asset: ApiAsset) => asset.status === "generating" || asset.status === "queued";
 
 const matchesAssetFilter = (asset: ApiAsset, filter: AssetFilter) => {
@@ -909,7 +914,10 @@ const buildAssetGroups = (list: ApiAsset[]) => Object.values(
 );
 
 const getGroupPreviewAsset = (group: AssetGroup) =>
-  group.assets.find(isAssetImageReady) || group.assets.find((asset) => getAssetPreviewUrl(asset)) || group.assets[0];
+  group.assets.find((asset) => asset.asset_type === "character" && Boolean(asset.view_urls?.face)) ||
+  group.assets.find((asset) => Boolean(getAssetMainPreviewUrl(asset))) ||
+  group.assets.find(isAssetImageReady) ||
+  group.assets[0];
 
 const getAssetGroupStats = (group: AssetGroup) => {
   const generated = group.assets.filter(isAssetImageReady).length;
@@ -1233,23 +1241,15 @@ function AssetCard({
 function AssetGroupCard({
   group,
   type,
-  expanded,
-  projectId,
-  onToggle,
-  onUpdate,
-  onViewPrompt,
+  onOpen,
 }: {
   group: AssetGroup;
   type: string;
-  expanded: boolean;
-  projectId: string;
-  onToggle: () => void;
-  onUpdate: () => void;
-  onViewPrompt: (asset: ApiAsset) => void;
+  onOpen: () => void;
 }) {
   const { cosUrl } = useCos();
   const previewAsset = getGroupPreviewAsset(group);
-  const previewUrl = previewAsset ? getAssetPreviewUrl(previewAsset) : undefined;
+  const previewUrl = previewAsset ? getAssetMainPreviewUrl(previewAsset) : undefined;
   const stats = getAssetGroupStats(group);
   const typeLabel = ASSET_TYPE_ZH[type] ?? type;
   const completeLabel = type === "character" ? "三视角" : "图片";
@@ -1260,111 +1260,85 @@ function AssetGroupCard({
     .join(" / ");
 
   return (
-    <div className={cn(
-      "border border-line rounded-xl bg-white overflow-hidden transition-all hover:shadow-card-hover",
-      expanded && "md:col-span-2 xl:col-span-3 shadow-card-hover border-brand/35"
-    )}>
-      <button
-        type="button"
-        className="block w-full text-left"
-        onClick={onToggle}
-      >
-        <div className={cn("grid gap-0", expanded ? "md:grid-cols-[320px_1fr]" : "grid-cols-1")}>
-          <div className={cn(
-            "relative bg-soft overflow-hidden",
-            expanded ? "aspect-[4/3] md:aspect-auto md:min-h-[230px]" : "aspect-[4/3]"
-          )}>
-            {previewUrl ? (
-              <img
-                src={cosUrl(previewUrl)}
-                alt={previewAsset?.name || group.label}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted">
-                <Play className="w-7 h-7" />
-                <span className="text-sm">待生成主预览图</span>
-              </div>
-            )}
-            <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
-              <Badge variant="secondary">{typeLabel}资产包</Badge>
-              {stats.running > 0 && <Badge variant="secondary">{stats.running} 生成中</Badge>}
-              {stats.readyToConfirm > 0 && <Badge variant="warning">{stats.readyToConfirm} 待确认</Badge>}
+    <div className="border border-line rounded-xl bg-white overflow-hidden transition-all hover:shadow-card-hover">
+      <button type="button" className="block w-full text-left" onClick={onOpen}>
+        <div className="relative aspect-[4/3] bg-soft overflow-hidden">
+          {previewUrl ? (
+            <img
+              src={cosUrl(previewUrl)}
+              alt={previewAsset?.name || group.label}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted">
+              <Play className="w-7 h-7" />
+              <span className="text-sm">待生成主预览图</span>
             </div>
-            {type === "character" && previewAsset?.view_urls && (
-              <div className="absolute left-3 right-3 bottom-3 grid grid-cols-3 gap-1.5">
-                {CHARACTER_VIEW_META.map((view) => {
-                  const url = previewAsset.view_urls?.[view.key];
-                  return (
-                    <div key={view.key} className="h-12 rounded-md overflow-hidden border border-white/70 bg-black/25">
-                      {url ? (
-                        <img src={cosUrl(url)} alt={view.label} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-[10px] text-white/70">{view.label}</div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+          )}
+          <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+            <Badge variant="secondary">{typeLabel}资产包</Badge>
+            {stats.running > 0 && <Badge variant="secondary">{stats.running} 生成中</Badge>}
+            {stats.readyToConfirm > 0 && <Badge variant="warning">{stats.readyToConfirm} 待确认</Badge>}
+          </div>
+          {type === "character" && previewAsset?.view_urls && (
+            <div className="absolute left-3 right-3 bottom-3 grid grid-cols-3 gap-1.5">
+              {CHARACTER_VIEW_META.map((view) => {
+                const url = previewAsset.view_urls?.[view.key];
+                return (
+                  <div key={view.key} className="h-12 rounded-md overflow-hidden border border-white/70 bg-black/25">
+                    {url ? (
+                      <img src={cosUrl(url)} alt={view.label} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-[10px] text-white/70">{view.label}</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="absolute bottom-3 right-3 rounded-full bg-black/55 p-1.5 text-white">
+            <ZoomIn className="w-4 h-4" />
+          </div>
+        </div>
+
+        <div className="p-4 flex flex-col min-h-[210px]">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-base font-semibold text-text truncate">{group.label}</p>
+              <p className="text-xs text-sub mt-1">
+                {group.assets.length} 个{typeLabel}资产 · {stats.generated}/{stats.total} 已生成{completeLabel}
+              </p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-muted shrink-0 mt-0.5" />
           </div>
 
-          <div className="p-4 flex flex-col min-h-[210px]">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-base font-semibold text-text truncate">{group.label}</p>
-                <p className="text-xs text-sub mt-1">
-                  {group.assets.length} 个{typeLabel}资产 · {stats.generated}/{stats.total} 已生成{completeLabel}
-                </p>
-              </div>
-              <ChevronRight className={cn("w-5 h-5 text-muted shrink-0 mt-0.5 transition-transform", expanded && "rotate-90")} />
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="rounded-lg bg-soft px-2 py-2">
+              <div className="text-sm font-semibold text-text">{stats.generated}</div>
+              <div className="text-[11px] text-muted">已生成</div>
             </div>
-
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              <div className="rounded-lg bg-soft px-2 py-2">
-                <div className="text-sm font-semibold text-text">{stats.generated}</div>
-                <div className="text-[11px] text-muted">已生成</div>
-              </div>
-              <div className="rounded-lg bg-soft px-2 py-2">
-                <div className="text-sm font-semibold text-text">{stats.approved}</div>
-                <div className="text-[11px] text-muted">已确认</div>
-              </div>
-              <div className="rounded-lg bg-soft px-2 py-2">
-                <div className="text-sm font-semibold text-text">{stats.pendingGenerate}</div>
-                <div className="text-[11px] text-muted">待生成</div>
-              </div>
+            <div className="rounded-lg bg-soft px-2 py-2">
+              <div className="text-sm font-semibold text-text">{stats.approved}</div>
+              <div className="text-[11px] text-muted">已确认</div>
             </div>
-
-            <p className="mt-3 text-xs text-sub line-clamp-2 min-h-[32px]">
-              {stageSummary || previewAsset?.prompt || "点击展开查看资产明细、提示词和生成状态。"}
-            </p>
-
-            <div className="mt-auto pt-3 flex items-center justify-between text-xs text-muted">
-              <span>{expanded ? "收起资产明细" : "点击展开资产明细"}</span>
-              {stats.generated === stats.total && stats.total > 0 && (
-                <span className="text-brand">图片完整</span>
-              )}
+            <div className="rounded-lg bg-soft px-2 py-2">
+              <div className="text-sm font-semibold text-text">{stats.pendingGenerate}</div>
+              <div className="text-[11px] text-muted">待生成</div>
             </div>
+          </div>
+
+          <p className="mt-3 text-xs text-sub line-clamp-2 min-h-[32px]">
+            {stageSummary || previewAsset?.prompt || "点击查看资产明细、提示词和生成状态。"}
+          </p>
+
+          <div className="mt-auto pt-3 flex items-center justify-between text-xs text-muted">
+            <span>点击打开预览</span>
+            {stats.generated === stats.total && stats.total > 0 && (
+              <span className="text-brand">图片完整</span>
+            )}
           </div>
         </div>
       </button>
-
-      {expanded && (
-        <div className="border-t border-line bg-soft/35 p-4">
-          <div className="space-y-3">
-            {group.assets.map((asset) => (
-              <AssetCard
-                key={asset.id}
-                asset={asset}
-                projectId={projectId}
-                layout="stage"
-                onViewPrompt={onViewPrompt}
-                onUpdate={onUpdate}
-              />
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1375,7 +1349,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
   const [submitting, setSubmitting] = useState(false);
   const [batchGenerating, setBatchGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expandedPackages, setExpandedPackages] = useState<Record<string, boolean>>({});
+  const [selectedAssetGroup, setSelectedAssetGroup] = useState<{ key: string; type: string } | null>(null);
   const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
   const [promptAsset, setPromptAsset] = useState<ApiAsset | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1415,6 +1389,9 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
   const tabs = [...new Set(assets.map((a) => a.asset_type))].filter((t) => ["character", "scene", "prop"].includes(t));
   const filteredAssets = assets.filter((a) => matchesAssetFilter(a, assetFilter));
   const currentGroups = buildAssetGroups(filteredAssets.filter((a) => a.asset_type === tab));
+  const selectedGroup = selectedAssetGroup
+    ? buildAssetGroups(assets.filter((a) => a.asset_type === selectedAssetGroup.type)).find((group) => group.key === selectedAssetGroup.key)
+    : null;
   const pendingCount = assets.filter((a) => a.status !== "approved").length;
   const generatingCount = assets.filter((a) => a.status === "generating" || a.status === "queued").length;
   const needGenerateCount = assets.filter((a) =>
@@ -1494,7 +1471,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-5">
         <div>
           <h2 className="text-xl font-semibold text-text mb-1">图片确认</h2>
-          <p className="text-sm text-sub">先检查资产包一致性，再生成图片并确认。人物、场景、道具如有不同阶段资产，均按资产组展开。</p>
+          <p className="text-sm text-sub">先检查资产包一致性，再生成图片并确认。人物、场景、道具如有不同阶段资产，均按资产组卡片预览。</p>
         </div>
         <div className="flex flex-wrap gap-2 items-center shrink-0">
           <Button
@@ -1571,21 +1548,14 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
           <TabsContent value={tab}>
             {currentGroups.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
-                {currentGroups.map((group) => {
-                  const expanded = expandedPackages[group.key] ?? false;
-                  return (
-                    <AssetGroupCard
-                      key={group.key}
-                      group={group}
-                      type={tab}
-                      expanded={expanded}
-                      projectId={projectId}
-                      onToggle={() => setExpandedPackages((prev) => ({ ...prev, [group.key]: !expanded }))}
-                      onViewPrompt={setPromptAsset}
-                      onUpdate={() => setPollKey((k) => k + 1)}
-                    />
-                  );
-                })}
+                {currentGroups.map((group) => (
+                  <AssetGroupCard
+                    key={group.key}
+                    group={group}
+                    type={tab}
+                    onOpen={() => setSelectedAssetGroup({ key: group.key, type: tab })}
+                  />
+                ))}
               </div>
             ) : (
               <div className="rounded-xl border border-dashed border-line py-10 text-center text-sm text-muted">
@@ -1607,6 +1577,36 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
           <AlertTriangle className="w-4 h-4 shrink-0" />{error}
         </div>
       )}
+
+      <Dialog open={Boolean(selectedAssetGroup && selectedGroup)} onOpenChange={(open) => !open && setSelectedAssetGroup(null)}>
+        <DialogContent className="max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>{selectedGroup?.label || "资产包预览"}</DialogTitle>
+            <DialogDescription>
+              {selectedGroup
+                ? `${selectedGroup.assets.length} 个${ASSET_TYPE_ZH[selectedAssetGroup?.type || ""] ?? "资产"}，可在这里查看不同阶段、生成提示词和确认状态。`
+                : "查看资产包明细。"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[70vh] overflow-y-auto pr-1">
+            <div className="space-y-3">
+              {selectedGroup?.assets.map((asset) => (
+                <AssetCard
+                  key={asset.id}
+                  asset={asset}
+                  projectId={projectId}
+                  layout="stage"
+                  onViewPrompt={setPromptAsset}
+                  onUpdate={() => setPollKey((k) => k + 1)}
+                />
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedAssetGroup(null)}>关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={promptAsset !== null} onOpenChange={(open) => !open && setPromptAsset(null)}>
         <DialogContent className="max-w-2xl">
