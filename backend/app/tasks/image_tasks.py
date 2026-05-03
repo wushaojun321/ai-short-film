@@ -1,11 +1,94 @@
 """Image generation Celery tasks: asset images, shot storyboard images."""
 from __future__ import annotations
 import logging
+import asyncio
 from app.celery_app import celery_app
 from app.tasks.base import run_async, finish_task_record
 from app.services.asset_prompt_builder import CHARACTER_VIEW_SPECS, build_asset_submitted_prompts
 
 logger = logging.getLogger(__name__)
+
+
+def _asset_type_value(asset) -> str:
+    return asset.asset_type.value if hasattr(asset.asset_type, "value") else str(asset.asset_type)
+
+
+def _status_value(asset) -> str:
+    return asset.status.value if hasattr(asset.status, "value") else str(asset.status)
+
+
+def _character_package_key(asset) -> str:
+    return (asset.asset_package or asset.character_name or asset.name or "").strip()
+
+
+def _same_character_package(asset, other) -> bool:
+    return (
+        _asset_type_value(other) == "character"
+        and bool(_character_package_key(asset))
+        and _character_package_key(asset) == _character_package_key(other)
+    )
+
+
+def _find_character_face_reference(asset, project_assets: list) -> str:
+    """Find an existing face reference URL for the same character package."""
+    status_rank = {
+        "approved": 0,
+        "pending": 1,
+        "need_regen": 2,
+        "generating": 3,
+        "queued": 4,
+        "missing": 5,
+    }
+    candidates: list[tuple[int, str, str]] = []
+    for other in project_assets:
+        if not _same_character_package(asset, other):
+            continue
+        face_url = (other.view_urls or {}).get("face")
+        if not face_url:
+            continue
+        is_current = str(other.id) == str(asset.id)
+        rank = -1 if is_current else status_rank.get(_status_value(other), 9)
+        created_key = str(getattr(other, "created_at", "") or "")
+        candidates.append((rank, created_key, face_url))
+    candidates.sort(key=lambda item: (item[0], item[1]))
+    return candidates[0][2] if candidates else ""
+
+
+def _is_canonical_character_asset(asset, project_assets: list) -> bool:
+    same_package = [
+        other for other in project_assets
+        if _same_character_package(asset, other)
+    ]
+    if not same_package:
+        return True
+    same_package.sort(key=lambda item: (str(getattr(item, "created_at", "") or ""), str(item.id)))
+    return str(same_package[0].id) == str(asset.id)
+
+
+def _has_running_canonical_character_asset(asset, project_assets: list) -> bool:
+    same_package = [
+        other for other in project_assets
+        if _same_character_package(asset, other)
+    ]
+    if not same_package:
+        return False
+    same_package.sort(key=lambda item: (str(getattr(item, "created_at", "") or ""), str(item.id)))
+    canonical = same_package[0]
+    return str(canonical.id) != str(asset.id) and _status_value(canonical) in {"queued", "generating"}
+
+
+async def _wait_for_character_face_reference(asset, asset_model, timeout_seconds: int = 420) -> str:
+    """Let non-canonical same-character assets wait for the package face baseline."""
+    deadline = asyncio.get_running_loop().time() + timeout_seconds
+    while asyncio.get_running_loop().time() < deadline:
+        await asyncio.sleep(5)
+        project_assets = await asset_model.find(asset_model.project_id == asset.project_id).to_list()
+        face_url = _find_character_face_reference(asset, project_assets)
+        if face_url:
+            return face_url
+        if not _has_running_canonical_character_asset(asset, project_assets):
+            return ""
+    return ""
 
 
 @celery_app.task(bind=True, name="app.tasks.image.gen_asset", queue="image")
@@ -39,8 +122,21 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
         # ── 重试循环：最多 3 次，遇到敏感词错误时提取词 + 重新生成 prompt ──────
         MAX_RETRIES = 3
         image_url = None
-        asset_type_str = asset.asset_type.value if hasattr(asset.asset_type, "value") else str(asset.asset_type)
+        asset_type_str = _asset_type_value(asset)
         project_assets = await Asset.find(Asset.project_id == asset.project_id).to_list()
+        package_face_reference = ""
+        if asset_type_str == "character":
+            package_face_reference = _find_character_face_reference(asset, project_assets)
+            if (
+                not package_face_reference
+                and not _is_canonical_character_asset(asset, project_assets)
+                and _has_running_canonical_character_asset(asset, project_assets)
+            ):
+                if record:
+                    await record.set({
+                        "logs": (record.logs or []) + ["[image] 等待同角色面部基准图生成，用于保持人物一致性…"],
+                    })
+                package_face_reference = await _wait_for_character_face_reference(asset, Asset)
         generated_view_urls: dict[str, str] = {}
         submitted_prompts: dict[str, str] = {}
         submitted_prompt = ""
@@ -65,18 +161,35 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
                 if asset_type_str == "character":
                     for view_key, spec in CHARACTER_VIEW_SPECS.items():
                         view_submitted_prompt = submitted_prompts[view_key]
+                        reference_images: list[str] = []
+                        if view_key == "face":
+                            if package_face_reference:
+                                reference_images.append(package_face_reference)
+                        elif view_key == "full_body":
+                            face_url = generated_view_urls.get("face") or package_face_reference
+                            if face_url:
+                                reference_images.append(face_url)
+                        elif view_key == "side":
+                            face_url = generated_view_urls.get("face") or package_face_reference
+                            full_body_url = generated_view_urls.get("full_body") or (asset.view_urls or {}).get("full_body")
+                            reference_images = [url for url in (face_url, full_body_url) if url]
+
                         if record:
                             await record.set({
                                 "progress": 30 + min(55, len(generated_view_urls) * 18),
-                                "logs": (record.logs or []) + [f"[image] 正在生成{spec['label']}…"],
+                                "logs": (record.logs or []) + [
+                                    f"[image] 正在生成{spec['label']}…"
+                                    + (f"（参考图 {len(reference_images)} 张）" if reference_images else "")
+                                ],
                             })
                         logger.info(
-                            "[ASSET IMAGE PROMPT] asset_id=%s asset=%s view=%s attempt=%d/%d\n--- PROMPT START ---\n%s\n--- PROMPT END ---",
-                            asset_id, asset.name, view_key, attempt + 1, MAX_RETRIES, view_submitted_prompt,
+                            "[ASSET IMAGE PROMPT] asset_id=%s asset=%s view=%s attempt=%d/%d references=%d\n--- PROMPT START ---\n%s\n--- PROMPT END ---",
+                            asset_id, asset.name, view_key, attempt + 1, MAX_RETRIES, len(reference_images), view_submitted_prompt,
                         )
                         generated_view_urls[view_key] = await image_service.generate_image(
                             prompt=view_submitted_prompt,
                             size="1600x2848",
+                            image=reference_images or None,
                         )
                     image_url = generated_view_urls.get("full_body") or next(iter(generated_view_urls.values()))
                     submitted_prompt = "\n\n---\n\n".join(

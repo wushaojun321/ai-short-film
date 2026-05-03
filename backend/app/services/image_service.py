@@ -23,22 +23,32 @@ async def generate_image(
     prompt: str,
     size: str = "2048x2048",
     watermark: bool = False,
+    image: str | list[str] | None = None,
 ) -> str:
     """Generate image with Seedream, upload to COS, return permanent URL.
     
     Seedream URLs expire in 24h → we immediately re-upload to COS.
     """
+    reference_images = image
+    if isinstance(reference_images, list):
+        reference_images = [storage_service.presign_if_cos(url) for url in reference_images if url]
+    elif reference_images:
+        reference_images = storage_service.presign_if_cos(reference_images)
+
+    ref_count = len(reference_images) if isinstance(reference_images, list) else int(bool(reference_images))
     logger.info(
-        "[IMAGE PROMPT] model=%s size=%s watermark=%s\n--- PROMPT START ---\n%s\n--- PROMPT END ---",
-        settings.ark_image_model, size, watermark, prompt,
+        "[IMAGE PROMPT] model=%s size=%s watermark=%s reference_images=%d\n--- PROMPT START ---\n%s\n--- PROMPT END ---",
+        settings.ark_image_model, size, watermark, ref_count, prompt,
     )
     client = get_ark_client()
     result = client.images.generate(
         model=settings.ark_image_model,
         prompt=prompt,
+        image=reference_images or None,
         size=size,
         response_format="url",
         watermark=watermark,
+        sequential_image_generation="disabled",
     )
 
     if not result.data:

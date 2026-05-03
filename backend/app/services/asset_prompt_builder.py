@@ -21,15 +21,15 @@ ASSET_NEGATIVE_PROMPT = (
 CHARACTER_VIEW_SPECS = {
     "face": {
         "label": "面部特写",
-        "instruction": "本次只生成一张面部特写：胸口以上正面近景，五官、骨相、皮肤纹理和眼神清晰，背景简洁，不拼接其他视角。",
+        "instruction": "本次只生成一张面部特写：胸口以上正面近景，五官、骨相、皮肤纹理、胡须/无胡须状态、发型发际线和眼神清晰，服装领口与肩部沿用本阶段造型，不拼接其他视角。若请求包含参考图1，它是同一角色面部基准，必须保留脸型、骨相、五官比例、年龄感和肤色。",
     },
     "full_body": {
         "label": "全身正面",
-        "instruction": "本次只生成一张全身正面：从头到脚完整入画，服装、妆发、配饰、道具和身形比例清楚，脸部保持同一人物基准。",
+        "instruction": "本次只生成一张全身正面：从头到脚完整入画，发型、胡须/无胡须状态、服装、妆发、配饰、道具和身形比例清楚，脸部保持同一人物基准。请求参考图1为本阶段面部基准，必须沿用参考图1的同一张脸、发型发际线和胡须/无胡须状态。",
     },
     "side": {
         "label": "侧面视角",
-        "instruction": "本次只生成一张侧面或三分之二侧面：脸型轮廓、鼻梁、下颌线、发型和服装侧面结构清楚，脸部身份保持一致。",
+        "instruction": "本次只生成一张侧面或三分之二侧面：脸型轮廓、鼻梁、下颌线、发型、胡须/无胡须状态和服装侧面结构清楚，脸部身份和本阶段造型保持一致。请求参考图1为本阶段面部基准，参考图2为本阶段全身造型；侧面图必须沿用参考图1的脸和参考图2的服装、配饰、伤势、随身道具。",
     },
 }
 
@@ -108,6 +108,26 @@ def _character_difference_note(asset: Asset, all_assets: list[Asset], blocked_wo
     return f"与其他角色保持可辨差异：{'；'.join(notes)}。"
 
 
+def _character_stage_lock(asset: Asset, base: str, blocked_words: Iterable[str]) -> str:
+    face = _single_line(asset.face_identity, 150, blocked_words=blocked_words)
+    stage = _single_line(asset.appearance_stage, 80, blocked_words=blocked_words)
+    scene = _single_line(asset.scene_scope, 80, blocked_words=blocked_words)
+    styling = _single_line(base, 220, blocked_words=blocked_words)
+    lock_parts = _non_empty_parts(
+        f"面部基准={face}" if face else "",
+        f"阶段={stage}" if stage else "",
+        f"场景={scene}" if scene else "",
+        f"造型={styling}" if styling else "",
+    )
+    lock_text = "；".join(lock_parts) or "沿用当前阶段的同一张脸、同一发型、同一服装和同一随身道具。"
+    return (
+        f"三视图一致性锁定：{lock_text}。"
+        "面部特征、年龄感、脸型骨相、五官比例、眉眼鼻唇、皮肤质感、发型发际线、胡须/无胡须状态、"
+        "服装款式颜色材质、领口袖口腰带、配饰、伤势、随身道具在面部特写、全身正面、侧面视角三张图中必须完全一致；"
+        "只允许相机角度和景别变化，不允许换发型、增减胡须、换衣服、换配饰、换道具、改变伤势或换成另一位演员。"
+    )
+
+
 def build_asset_positive_prompt(
     asset: Asset,
     all_assets: list[Asset] | None = None,
@@ -129,12 +149,14 @@ def build_asset_positive_prompt(
         )
         scene = _single_line(asset.scene_scope or "按剧本主要场景", 90, blocked_words=blocked_words)
         stage = _single_line(asset.appearance_stage or "当前剧情阶段", 90, blocked_words=blocked_words)
+        stage_lock = _character_stage_lock(asset, base, blocked_words)
         difference = _character_difference_note(asset, all_assets, blocked_words)
         parts = [
             f"竖屏9:16，写实电影人物定妆参考照，{name}。",
             f"角色资产包：{package}；同组所有造型沿用同一面部基准：{face}。",
             f"当前阶段：{stage}；适用场景：{scene}。",
             f"造型重点：{base}。" if base else "",
+            stage_lock,
             "真实演员摄影，影视布光，真实皮肤纹理、自然毛孔和真实织物材质，克制电影色调。",
             difference,
         ]
