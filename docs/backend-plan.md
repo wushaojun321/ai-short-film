@@ -246,6 +246,7 @@ class AssetVersion(BaseModel):
     url: str
     prompt: str
     note: str = ""
+    view_type: str = ""                   # 人物视角：face / full_body / side
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class Asset(Document):
@@ -262,6 +263,7 @@ class Asset(Document):
     appearance_stage: str = ""            # 人物资产适用剧情/造型阶段
     view_requirements: str = ""           # 人物资产视角要求
     preview_url: str | None = None        # 当前预览图 URL
+    view_urls: dict[str, str] = {}         # 人物三视角图：face / full_body / side
     versions: list[AssetVersion] = []     # 历史版本
     generation_task_id: str | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)

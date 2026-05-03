@@ -140,11 +140,26 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
                     AssetType.prop: "道具",
                     AssetType.template: "模板",
                 }.get(asset.asset_type, "资产")
-                if asset.preview_url and len(reference_images) < 9:
-                    image_index = len(reference_images) + 1
-                    reference_images.append(presign_if_cos(asset.preview_url))
-                    reference_image_parts.append(f"[图{image_index}] {binding.asset_name}（{asset_type_label}）")
-                    asset_ref = f"[图{image_index}]{binding.asset_name}"
+                candidate_urls: list[tuple[str, str]] = []
+                if asset.asset_type == AssetType.character and getattr(asset, "view_urls", None):
+                    labels = {"face": "面部", "full_body": "全身", "side": "侧面"}
+                    for key in ("face", "full_body", "side"):
+                        if asset.view_urls.get(key):
+                            candidate_urls.append((labels[key], asset.view_urls[key]))
+                elif asset.preview_url:
+                    candidate_urls.append(("", asset.preview_url))
+
+                if candidate_urls and len(reference_images) < 9:
+                    ref_labels = []
+                    for view_label, url in candidate_urls:
+                        if len(reference_images) >= 9:
+                            break
+                        image_index = len(reference_images) + 1
+                        reference_images.append(presign_if_cos(url))
+                        label_suffix = f"-{view_label}" if view_label else ""
+                        reference_image_parts.append(f"[图{image_index}] {binding.asset_name}{label_suffix}（{asset_type_label}）")
+                        ref_labels.append(f"[图{image_index}]")
+                    asset_ref = f"{''.join(ref_labels)}{binding.asset_name}"
                 else:
                     asset_ref = binding.asset_name
                 if asset.asset_type == AssetType.character:

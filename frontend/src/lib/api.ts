@@ -163,6 +163,7 @@ export interface ApiAsset {
   appearance_stage?: string;
   view_requirements?: string;
   preview_url?: string;
+  view_urls?: Record<string, string>;
   versions: Array<{ version: number; preview_url?: string; prompt: string; created_at: string }>;
   generation_task_id?: string;
   created_at: string;

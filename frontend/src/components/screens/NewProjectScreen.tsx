@@ -849,6 +849,22 @@ const ASSET_STATUS_ZH: Record<string, AssetStatus> = {
   generating: "生成中", queued: "排队中",
 };
 
+const CHARACTER_VIEW_META = [
+  { key: "face", label: "面部" },
+  { key: "full_body", label: "全身" },
+  { key: "side", label: "侧面" },
+] as const;
+
+const isAssetImageReady = (asset: ApiAsset) => {
+  if (asset.asset_type !== "character") return Boolean(asset.preview_url);
+  return CHARACTER_VIEW_META.every((view) => Boolean(asset.view_urls?.[view.key]));
+};
+
+const getAssetPreviewUrl = (asset: ApiAsset) => {
+  if (asset.asset_type !== "character") return asset.preview_url;
+  return asset.view_urls?.full_body || asset.view_urls?.face || asset.view_urls?.side || asset.preview_url;
+};
+
 function AssetCard({
   asset,
   projectId,
@@ -861,17 +877,20 @@ function AssetCard({
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
-  const [lightbox, setLightbox] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const { cosUrl } = useCos();
 
   useEffect(() => {
-    if (!lightbox) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setLightbox(false); };
+    if (!lightboxUrl) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setLightboxUrl(null); };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [lightbox]);
+  }, [lightboxUrl]);
   const isQueued = asset.status === "queued";
   const isGenerating = asset.status === "generating" || isQueued;
+  const isReady = isAssetImageReady(asset);
+  const previewUrl = getAssetPreviewUrl(asset);
+  const hasCharacterViews = CHARACTER_VIEW_META.some((view) => Boolean(asset.view_urls?.[view.key]));
   const status: AssetStatus = ASSET_STATUS_ZH[asset.status] ?? "缺失";
 
   const statusConfig: Record<AssetStatus, { label: string; variant: "success" | "warning" | "destructive" | "secondary" }> = {
@@ -906,19 +925,19 @@ function AssetCard({
 
   return (
     <>
-      {lightbox && asset.preview_url && (
+      {lightboxUrl && (
         <div
           className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center"
-          onClick={() => setLightbox(false)}
+          onClick={() => setLightboxUrl(null)}
         >
           <button
             className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors"
-            onClick={() => setLightbox(false)}
+            onClick={() => setLightboxUrl(null)}
           >
             <X className="w-7 h-7" />
           </button>
           <img
-            src={cosUrl(asset.preview_url)}
+            src={cosUrl(lightboxUrl)}
             alt={asset.name}
             className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
             onClick={(e) => e.stopPropagation()}
@@ -932,17 +951,47 @@ function AssetCard({
               <Loader2 className="w-6 h-6 animate-spin text-brand" />
               <span className="text-xs text-muted">{isQueued ? "排队等待…" : "生成中…"}</span>
             </div>
-          ) : asset.preview_url ? (
+          ) : asset.asset_type === "character" && hasCharacterViews ? (
+            <div className="grid grid-cols-3 h-full gap-px bg-line">
+              {CHARACTER_VIEW_META.map((view) => {
+                const url = asset.view_urls?.[view.key];
+                return (
+                  <button
+                    key={view.key}
+                    type="button"
+                    className="relative bg-soft overflow-hidden group/view"
+                    onClick={() => url ? setLightboxUrl(url) : handleGenerate()}
+                    title={url ? `查看${view.label}图` : `生成${view.label}图`}
+                  >
+                    {url ? (
+                      <img src={cosUrl(url)} alt={`${asset.name}-${view.label}`} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-muted">
+                        <Play className="w-4 h-4" />
+                        <span className="text-[11px]">生成</span>
+                      </div>
+                    )}
+                    <span className="absolute left-1 bottom-1 rounded bg-black/55 px-1.5 py-0.5 text-[11px] text-white">
+                      {view.label}
+                    </span>
+                    {url && (
+                      <ZoomIn className="absolute right-1 bottom-1 w-3.5 h-3.5 text-white opacity-0 group-hover/view:opacity-100 transition-opacity" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ) : previewUrl ? (
             <>
               <img
-                src={cosUrl(asset.preview_url)}
+                src={cosUrl(previewUrl)}
                 alt={asset.name}
                 className="w-full h-full object-cover cursor-zoom-in"
-                onClick={() => setLightbox(true)}
+                onClick={() => setLightboxUrl(previewUrl)}
               />
               <div
                 className="absolute bottom-2 right-2 bg-black/50 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-zoom-in"
-                onClick={() => setLightbox(true)}
+                onClick={() => setLightboxUrl(previewUrl)}
               >
                 <ZoomIn className="w-3.5 h-3.5 text-white" />
               </div>
@@ -992,7 +1041,7 @@ function AssetCard({
               size="sm" variant="outline" className="w-8 h-8 p-0"
               onClick={handleGenerate}
               disabled={isGenerating || generating}
-              title={asset.preview_url ? "重新生成资产图" : "生成资产图"}
+              title={isReady ? "重新生成资产图" : "生成资产图"}
             >
               {generating || isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
             </Button>
@@ -1006,7 +1055,7 @@ function AssetCard({
               {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
             </Button>
             {/* 确认 */}
-            {asset.status !== "approved" && !isGenerating && (
+            {asset.status !== "approved" && !isGenerating && isReady && (
               <Button
                 size="sm" variant="secondary" className="w-8 h-8 p-0"
                 onClick={handleConfirm} disabled={loading}
@@ -1039,6 +1088,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
   const [submitting, setSubmitting] = useState(false);
   const [batchGenerating, setBatchGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandedPackages, setExpandedPackages] = useState<Record<string, boolean>>({});
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pollKey, setPollKey] = useState(0);
 
@@ -1078,12 +1128,22 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
   const pendingCount = assets.filter((a) => a.status !== "approved").length;
   const generatingCount = assets.filter((a) => a.status === "generating" || a.status === "queued").length;
   const needGenerateCount = assets.filter((a) =>
-    !a.preview_url && a.status !== "generating" && a.status !== "queued"
+    !isAssetImageReady(a) && a.status !== "generating" && a.status !== "queued"
   ).length;
+  const characterGroups = Object.values(
+    assets
+      .filter((a) => a.asset_type === "character")
+      .reduce<Record<string, { key: string; label: string; assets: ApiAsset[] }>>((acc, asset) => {
+        const key = asset.asset_package || asset.character_name || asset.name;
+        if (!acc[key]) acc[key] = { key, label: key, assets: [] };
+        acc[key].assets.push(asset);
+        return acc;
+      }, {})
+  );
 
   const handleGenerateAll = async () => {
     const needGen = assets.filter((a) =>
-      !a.preview_url && a.status !== "generating" && a.status !== "queued"
+      !isAssetImageReady(a) && a.status !== "generating" && a.status !== "queued"
     );
     if (needGen.length === 0) return;
 
@@ -1102,7 +1162,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
     if (!manageMode) {
       // 拦截：有资产仍在生成中或尚未生成图片
       const notReady = assets.filter(
-        (a) => a.status === "generating" || a.status === "queued" || !a.preview_url
+        (a) => a.status === "generating" || a.status === "queued" || !isAssetImageReady(a)
       );
       if (notReady.length > 0) {
         setError(`还有 ${notReady.length} 个资产尚未生成完毕，请等待生成完成后再确认。`);
@@ -1160,11 +1220,55 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
             ))}
           </TabsList>
           <TabsContent value={tab}>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-              {currentAssets.map((a) => (
-                <AssetCard key={a.id} asset={a} projectId={projectId} onUpdate={() => setPollKey((k) => k + 1)} />
-              ))}
-            </div>
+            {tab === "character" ? (
+              <div className="space-y-3">
+                {characterGroups.map((group) => {
+                  const expanded = expandedPackages[group.key] ?? false;
+                  const generated = group.assets.filter(isAssetImageReady).length;
+                  const running = group.assets.filter((a) => a.status === "generating" || a.status === "queued").length;
+                  const approved = group.assets.filter((a) => a.status === "approved").length;
+                  return (
+                    <div key={group.key} className="border border-line rounded-xl bg-white overflow-hidden">
+                      <button
+                        type="button"
+                        className="w-full px-4 py-3 flex items-center justify-between hover:bg-soft transition-colors"
+                        onClick={() => setExpandedPackages((prev) => ({ ...prev, [group.key]: !expanded }))}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <ChevronRight className={cn("w-4 h-4 text-muted transition-transform", expanded && "rotate-90")} />
+                          <div className="text-left min-w-0">
+                            <p className="text-sm font-semibold text-text truncate">{group.label}</p>
+                            <p className="text-xs text-sub mt-0.5">
+                              {group.assets.length} 个阶段造型 · {generated}/{group.assets.length} 已生成三视角
+                              {running > 0 ? ` · ${running} 个生成中` : ""}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge variant="secondary">{approved} 已确认</Badge>
+                          {generated < group.assets.length && <Badge variant="warning">{group.assets.length - generated} 待生成</Badge>}
+                        </div>
+                      </button>
+                      {expanded && (
+                        <div className="border-t border-line bg-soft/35 p-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                            {group.assets.map((asset) => (
+                              <AssetCard key={asset.id} asset={asset} projectId={projectId} onUpdate={() => setPollKey((k) => k + 1)} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {currentAssets.map((a) => (
+                  <AssetCard key={a.id} asset={a} projectId={projectId} onUpdate={() => setPollKey((k) => k + 1)} />
+                ))}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       ) : (

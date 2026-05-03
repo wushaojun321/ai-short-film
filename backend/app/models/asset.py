@@ -26,6 +26,7 @@ class AssetVersion(BaseModel):
     url: str
     prompt: str
     note: str = ""
+    view_type: str = ""
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -43,7 +44,8 @@ class Asset(Document):
     appearance_stage: str = ""
     view_requirements: str = ""
     preview_url: Optional[str] = None
-    versions: list[AssetVersion] = []
+    view_urls: dict[str, str] = Field(default_factory=dict)
+    versions: list[AssetVersion] = Field(default_factory=list)
     generation_task_id: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

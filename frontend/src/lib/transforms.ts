@@ -144,6 +144,7 @@ export function transformAsset(a: ApiAsset): Asset {
     sceneScope: a.scene_scope,
     appearanceStage: a.appearance_stage,
     viewRequirements: a.view_requirements,
+    viewUrls: a.view_urls,
     history: a.versions.map((v, i) => `v${i + 1}`),
   };
 }

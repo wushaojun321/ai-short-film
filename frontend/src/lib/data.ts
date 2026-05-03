@@ -150,5 +150,6 @@ export interface Asset {
   sceneScope?: string;
   appearanceStage?: string;
   viewRequirements?: string;
+  viewUrls?: Record<string, string>;
   history: string[];
 }

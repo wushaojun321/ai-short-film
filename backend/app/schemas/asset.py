@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from app.models.asset import AssetType, AssetStatus
 
 
@@ -14,6 +14,7 @@ class AssetCreate(BaseModel):
     scene_scope: str = ""
     appearance_stage: str = ""
     view_requirements: str = ""
+    view_urls: dict[str, str] = Field(default_factory=dict)
     status: AssetStatus = AssetStatus.pending
 
 
@@ -29,6 +30,7 @@ class AssetUpdate(BaseModel):
     view_requirements: Optional[str] = None
     status: Optional[AssetStatus] = None
     preview_url: Optional[str] = None
+    view_urls: Optional[dict[str, str]] = None
 
 
 class AssetConfirmRequest(BaseModel):
