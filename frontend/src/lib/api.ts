@@ -420,13 +420,16 @@ export function pollTask(
   recordId: string,
   onProgress: (task: ApiTaskRecord) => void,
   intervalMs = 2000,
-  timeoutMs = 300000
+  timeoutMs = 300000,
+  maxConsecutiveErrors = 15
 ): Promise<ApiTaskRecord> {
   return new Promise((resolve, reject) => {
     const start = Date.now();
+    let consecutiveErrors = 0;
     const timer = setInterval(async () => {
       try {
         const task = await generateAPI.getTask(recordId);
+        consecutiveErrors = 0;
         onProgress(task);
         if (task.status === "success") {
           clearInterval(timer);
@@ -439,8 +442,12 @@ export function pollTask(
           reject(new Error("任务超时"));
         }
       } catch (err) {
-        clearInterval(timer);
-        reject(err);
+        consecutiveErrors += 1;
+        if (consecutiveErrors >= maxConsecutiveErrors) {
+          clearInterval(timer);
+          const message = err instanceof Error ? err.message : "网络请求失败";
+          reject(new Error(`${message}（已连续重试 ${consecutiveErrors} 次）`));
+        }
       }
     }, intervalMs);
   });
