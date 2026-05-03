@@ -37,6 +37,8 @@ class Asset(Document):
     prompt: str = ""
     voice_profile: str = ""
     character_name: str = ""
+    asset_package: str = ""
+    face_identity: str = ""
     scene_scope: str = ""
     appearance_stage: str = ""
     view_requirements: str = ""

@@ -9,6 +9,8 @@ class AssetCreate(BaseModel):
     prompt: str = ""
     voice_profile: str = ""
     character_name: str = ""
+    asset_package: str = ""
+    face_identity: str = ""
     scene_scope: str = ""
     appearance_stage: str = ""
     view_requirements: str = ""
@@ -20,6 +22,8 @@ class AssetUpdate(BaseModel):
     prompt: Optional[str] = None
     voice_profile: Optional[str] = None
     character_name: Optional[str] = None
+    asset_package: Optional[str] = None
+    face_identity: Optional[str] = None
     scene_scope: Optional[str] = None
     appearance_stage: Optional[str] = None
     view_requirements: Optional[str] = None

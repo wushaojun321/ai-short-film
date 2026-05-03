@@ -139,6 +139,8 @@ export function transformAsset(a: ApiAsset): Asset {
     prompt: a.prompt,
     voiceProfile: a.voice_profile,
     characterName: a.character_name,
+    assetPackage: a.asset_package,
+    faceIdentity: a.face_identity,
     sceneScope: a.scene_scope,
     appearanceStage: a.appearance_stage,
     viewRequirements: a.view_requirements,

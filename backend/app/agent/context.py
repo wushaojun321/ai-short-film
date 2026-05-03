@@ -51,6 +51,8 @@ async def _build_snapshot(target_type: str, target_id: str) -> str:
                 f"当前提示词：{asset.prompt}\n"
                 f"固定音色：{asset.voice_profile or '无'}\n"
                 f"角色本名：{asset.character_name or '无'}\n"
+                f"人物资产包：{asset.asset_package or asset.character_name or '无'}\n"
+                f"共享面部基准：{asset.face_identity or '无'}\n"
                 f"适用场景：{asset.scene_scope or '无'}\n"
                 f"造型阶段：{asset.appearance_stage or '无'}\n"
                 f"视角要求：{asset.view_requirements or '无'}\n"
@@ -122,6 +124,8 @@ async def _build_snapshot(target_type: str, target_id: str) -> str:
                         voice_text = f" | voice: {a.voice_profile}" if getattr(a, "voice_profile", "") else ""
                         meta_parts = [
                             f"角色:{a.character_name}" if getattr(a, "character_name", "") else "",
+                            f"资产包:{a.asset_package}" if getattr(a, "asset_package", "") else "",
+                            f"面部:{a.face_identity}" if getattr(a, "face_identity", "") else "",
                             f"场景:{a.scene_scope}" if getattr(a, "scene_scope", "") else "",
                             f"阶段:{a.appearance_stage}" if getattr(a, "appearance_stage", "") else "",
                         ]

@@ -31,6 +31,19 @@ CREATE_ASSET_SCHEMA = {
                     "type": "string",
                     "description": "Seedream 图像生成提示词，按规范详细描述外貌/场景/道具",
                 },
+                "character_name": {"type": "string", "description": "人物角色本名，仅人物资产需要"},
+                "asset_package": {
+                    "type": "string",
+                    "description": "人物资产包，同一角色不同状态/造型使用同一资产包，仅人物资产需要",
+                },
+                "face_identity": {
+                    "type": "string",
+                    "description": "共享面部基准，同一人物资产包内保持一致，仅人物资产需要",
+                },
+                "scene_scope": {"type": "string", "description": "人物资产适用场景，仅人物资产需要"},
+                "appearance_stage": {"type": "string", "description": "人物资产适用剧情阶段/造型状态，仅人物资产需要"},
+                "view_requirements": {"type": "string", "description": "视角要求，人物资产固定包含面部特写、全身形象、侧面视角"},
+                "voice_profile": {"type": "string", "description": "角色固定音色与说话基调，仅人物资产需要"},
             },
             "required": ["project_id", "name", "asset_type", "prompt"],
         },
@@ -66,6 +79,13 @@ UPDATE_ASSET_SCHEMA = {
                 "asset_id": {"type": "string", "description": "资产的 MongoDB ID"},
                 "name": {"type": "string", "description": "新的资产名称（可选）"},
                 "prompt": {"type": "string", "description": "新的 Seedream 图像提示词（可选）"},
+                "character_name": {"type": "string", "description": "人物角色本名（可选）"},
+                "asset_package": {"type": "string", "description": "人物资产包（可选）"},
+                "face_identity": {"type": "string", "description": "共享面部基准（可选）"},
+                "scene_scope": {"type": "string", "description": "适用场景（可选）"},
+                "appearance_stage": {"type": "string", "description": "剧情阶段/造型状态（可选）"},
+                "view_requirements": {"type": "string", "description": "视角要求（可选）"},
+                "voice_profile": {"type": "string", "description": "固定音色与说话基调（可选）"},
             },
             "required": ["asset_id"],
         },
@@ -100,7 +120,19 @@ PROJECT_INIT_TOOLS = [
 
 # ── Tool implementations ───────────────────────────────────────────────────────
 
-async def create_asset(project_id: str, name: str, asset_type: str, prompt: str) -> dict:
+async def create_asset(
+    project_id: str,
+    name: str,
+    asset_type: str,
+    prompt: str,
+    character_name: str | None = None,
+    asset_package: str | None = None,
+    face_identity: str | None = None,
+    scene_scope: str | None = None,
+    appearance_stage: str | None = None,
+    view_requirements: str | None = None,
+    voice_profile: str | None = None,
+) -> dict:
     """Create a new asset record (no image generation)."""
     from beanie import PydanticObjectId
     from app.models.asset import Asset, AssetType, AssetStatus
@@ -120,6 +152,13 @@ async def create_asset(project_id: str, name: str, asset_type: str, prompt: str)
         name=name,
         asset_type=at,
         prompt=prompt,
+        character_name=(character_name or "") if at == AssetType.character else "",
+        asset_package=(asset_package or character_name or name) if at == AssetType.character else "",
+        face_identity=(face_identity or "") if at == AssetType.character else "",
+        scene_scope=(scene_scope or "") if at == AssetType.character else "",
+        appearance_stage=(appearance_stage or "") if at == AssetType.character else "",
+        view_requirements=(view_requirements or "面部特写、全身形象、侧面视角") if at == AssetType.character else "",
+        voice_profile=(voice_profile or "") if at == AssetType.character else "",
         status=AssetStatus.pending,
     )
     await asset.insert()
@@ -147,7 +186,18 @@ async def delete_asset(asset_id: str) -> dict:
     return {"asset_id": asset_id, "message": f"资产「{name}」已删除。"}
 
 
-async def update_asset(asset_id: str, name: str | None = None, prompt: str | None = None) -> dict:
+async def update_asset(
+    asset_id: str,
+    name: str | None = None,
+    prompt: str | None = None,
+    character_name: str | None = None,
+    asset_package: str | None = None,
+    face_identity: str | None = None,
+    scene_scope: str | None = None,
+    appearance_stage: str | None = None,
+    view_requirements: str | None = None,
+    voice_profile: str | None = None,
+) -> dict:
     """Update asset name and/or prompt without triggering image generation."""
     from beanie import PydanticObjectId
     from app.models.asset import Asset
@@ -161,6 +211,20 @@ async def update_asset(asset_id: str, name: str | None = None, prompt: str | Non
         updates["name"] = name
     if prompt is not None:
         updates["prompt"] = prompt
+    if character_name is not None:
+        updates["character_name"] = character_name
+    if asset_package is not None:
+        updates["asset_package"] = asset_package
+    if face_identity is not None:
+        updates["face_identity"] = face_identity
+    if scene_scope is not None:
+        updates["scene_scope"] = scene_scope
+    if appearance_stage is not None:
+        updates["appearance_stage"] = appearance_stage
+    if view_requirements is not None:
+        updates["view_requirements"] = view_requirements
+    if voice_profile is not None:
+        updates["voice_profile"] = voice_profile
 
     if len(updates) > 1:  # more than just updated_at
         await asset.set(updates)

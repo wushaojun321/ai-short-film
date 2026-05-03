@@ -157,6 +157,8 @@ export interface ApiAsset {
   prompt: string;
   voice_profile?: string;
   character_name?: string;
+  asset_package?: string;
+  face_identity?: string;
   scene_scope?: string;
   appearance_stage?: string;
   view_requirements?: string;

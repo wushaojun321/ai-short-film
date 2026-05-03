@@ -280,6 +280,10 @@ async def _parse_script_async(celery_id: str, project_id: str):
                         prompt=asset_prompt,
                         voice_profile=a.get("voice_profile", "") if asset_type == AssetType.character else "",
                         character_name=a.get("character_name", "") if asset_type == AssetType.character else "",
+                        asset_package=(
+                            a.get("asset_package") or a.get("character_name") or a.get("name", "")
+                        ) if asset_type == AssetType.character else "",
+                        face_identity=a.get("face_identity", "") if asset_type == AssetType.character else "",
                         scene_scope=a.get("scene_scope", "") if asset_type == AssetType.character else "",
                         appearance_stage=a.get("appearance_stage", "") if asset_type == AssetType.character else "",
                         view_requirements=a.get("view_requirements", "面部特写、全身形象、侧面视角") if asset_type == AssetType.character else "",
@@ -408,6 +412,8 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
                 "name": a.name,
                 "type": a.asset_type,
                 "character_name": a.character_name,
+                "asset_package": a.asset_package,
+                "face_identity": a.face_identity,
                 "scene_scope": a.scene_scope,
                 "appearance_stage": a.appearance_stage,
                 "view_requirements": a.view_requirements,

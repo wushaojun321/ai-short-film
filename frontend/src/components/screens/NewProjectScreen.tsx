@@ -436,6 +436,8 @@ function Phase2({
     prompt: string;
     voice_profile: string;
     character_name: string;
+    asset_package: string;
+    face_identity: string;
     scene_scope: string;
     appearance_stage: string;
     view_requirements: string;
@@ -622,6 +624,8 @@ function Phase2({
                       prompt: a.prompt ?? "",
                       voice_profile: a.voice_profile ?? "",
                       character_name: a.character_name ?? "",
+                      asset_package: a.asset_package ?? a.character_name ?? "",
+                      face_identity: a.face_identity ?? "",
                       scene_scope: a.scene_scope ?? "",
                       appearance_stage: a.appearance_stage ?? "",
                       view_requirements: a.view_requirements ?? "",
@@ -654,18 +658,33 @@ function Phase2({
                                     placeholder="角色本名"
                                   />
                                   <Input
+                                    value={draft.asset_package}
+                                    onChange={(e) => setAssetEdits((prev) => ({ ...prev, [a.id]: { ...draft, asset_package: e.target.value } }))}
+                                    className="text-xs"
+                                    placeholder="人物资产包"
+                                  />
+                                </div>
+                                <Textarea
+                                  value={draft.face_identity}
+                                  onChange={(e) => setAssetEdits((prev) => ({ ...prev, [a.id]: { ...draft, face_identity: e.target.value } }))}
+                                  rows={2}
+                                  className="text-xs"
+                                  placeholder="共享面部基准：同一人物资产包内保持同一脸型、骨相、五官比例"
+                                />
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Input
                                     value={draft.appearance_stage}
                                     onChange={(e) => setAssetEdits((prev) => ({ ...prev, [a.id]: { ...draft, appearance_stage: e.target.value } }))}
                                     className="text-xs"
                                     placeholder="剧情/造型阶段"
                                   />
+                                  <Input
+                                    value={draft.scene_scope}
+                                    onChange={(e) => setAssetEdits((prev) => ({ ...prev, [a.id]: { ...draft, scene_scope: e.target.value } }))}
+                                    className="text-xs"
+                                    placeholder="适用场景"
+                                  />
                                 </div>
-                                <Input
-                                  value={draft.scene_scope}
-                                  onChange={(e) => setAssetEdits((prev) => ({ ...prev, [a.id]: { ...draft, scene_scope: e.target.value } }))}
-                                  className="text-xs"
-                                  placeholder="适用场景"
-                                />
                                 <Input
                                   value={draft.view_requirements}
                                   onChange={(e) => setAssetEdits((prev) => ({ ...prev, [a.id]: { ...draft, view_requirements: e.target.value } }))}
@@ -690,6 +709,8 @@ function Phase2({
                                     prompt: draft.prompt,
                                     voice_profile: draft.voice_profile,
                                     character_name: draft.character_name,
+                                    asset_package: draft.asset_package,
+                                    face_identity: draft.face_identity,
                                     scene_scope: draft.scene_scope,
                                     appearance_stage: draft.appearance_stage,
                                     view_requirements: draft.view_requirements,
@@ -726,6 +747,8 @@ function Phase2({
                                       prompt: a.prompt ?? "",
                                       voice_profile: a.voice_profile ?? "",
                                       character_name: a.character_name ?? "",
+                                      asset_package: a.asset_package ?? a.character_name ?? "",
+                                      face_identity: a.face_identity ?? "",
                                       scene_scope: a.scene_scope ?? "",
                                       appearance_stage: a.appearance_stage ?? "",
                                       view_requirements: a.view_requirements ?? "",
@@ -751,6 +774,7 @@ function Phase2({
                             {a.asset_type === "character" && (
                               <div className="mt-1 flex flex-wrap gap-1">
                                 {a.character_name && <span className="text-xs text-sub bg-soft px-1.5 py-0.5 rounded">角色：{a.character_name}</span>}
+                                {(a.asset_package || a.character_name) && <span className="text-xs text-sub bg-soft px-1.5 py-0.5 rounded">资产包：{a.asset_package || a.character_name}</span>}
                                 {a.scene_scope && <span className="text-xs text-sub bg-soft px-1.5 py-0.5 rounded">场景：{a.scene_scope}</span>}
                                 {a.appearance_stage && <span className="text-xs text-sub bg-soft px-1.5 py-0.5 rounded">阶段：{a.appearance_stage}</span>}
                                 {(a.view_requirements || "面部特写、全身形象、侧面视角") && (
@@ -759,6 +783,9 @@ function Phase2({
                                   </span>
                                 )}
                               </div>
+                            )}
+                            {a.asset_type === "character" && a.face_identity && (
+                              <p className="text-xs text-sub mt-1 line-clamp-2 leading-relaxed">面部基准：{a.face_identity}</p>
                             )}
                             {a.asset_type === "character" && a.voice_profile && (
                               <p className="text-xs text-sub mt-1 line-clamp-2 leading-relaxed">音色：{a.voice_profile}</p>
@@ -923,9 +950,13 @@ function AssetCard({
           <p className="text-xs text-muted mt-0.5 line-clamp-2">{asset.prompt}</p>
           {asset.asset_type === "character" && (
             <div className="mt-1 flex flex-wrap gap-1">
+              {(asset.asset_package || asset.character_name) && <span className="text-xs text-sub bg-soft px-1.5 py-0.5 rounded">资产包：{asset.asset_package || asset.character_name}</span>}
               {asset.scene_scope && <span className="text-xs text-sub bg-soft px-1.5 py-0.5 rounded">场景：{asset.scene_scope}</span>}
               {asset.appearance_stage && <span className="text-xs text-sub bg-soft px-1.5 py-0.5 rounded">阶段：{asset.appearance_stage}</span>}
             </div>
+          )}
+          {asset.asset_type === "character" && asset.face_identity && (
+            <p className="text-xs text-sub mt-1 line-clamp-2">面部基准：{asset.face_identity}</p>
           )}
           {asset.asset_type === "character" && asset.voice_profile && (
             <p className="text-xs text-sub mt-1 line-clamp-2">音色：{asset.voice_profile}</p>

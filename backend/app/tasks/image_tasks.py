@@ -68,6 +68,8 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
                     f"名称：{asset.name}\n"
                     f"类型：{asset_type_str}\n"
                     f"角色本名：{asset.character_name or '无'}\n"
+                    f"人物资产包：{asset.asset_package or asset.character_name or '无'}\n"
+                    f"共享面部基准：{asset.face_identity or '无'}\n"
                     f"适用场景：{asset.scene_scope or '无'}\n"
                     f"剧情/造型阶段：{asset.appearance_stage or '无'}\n"
                     f"视角要求：{asset.view_requirements or '面部特写、全身形象、侧面视角'}\n"
@@ -116,7 +118,11 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
                     full_prompt = (
                         f"竖屏9:16，真人演员古装定妆参考三视图，名称：{asset.name}，"
                         f"角色本名：{asset.character_name or asset.name}，适用场景：{asset.scene_scope or '按剧本场景'}，"
+                        f"人物资产包：{asset.asset_package or asset.character_name or asset.name}，"
+                        f"共享面部基准：{asset.face_identity or '保持同一脸型、骨相、五官比例和皮肤质感'}，"
                         f"剧情/造型阶段：{asset.appearance_stage or '按剧本阶段'}，同一位演员同一套造型，"
+                        "与同一人物资产包内其他造型保持同一张脸、同一骨相、同一五官比例；"
+                        "除非剧本明确面部受伤、毁容、年龄变化或伪装改变，否则不得改变面部身份，"
                         "画面必须同时包含面部特写、全身正面形象、侧面视角，真实摄影质感，"
                         "真实皮肤纹理，自然毛孔，真实织物，电影级写实光影，高清"
                     )

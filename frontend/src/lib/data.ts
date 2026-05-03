@@ -145,6 +145,8 @@ export interface Asset {
   prompt: string;
   voiceProfile?: string;
   characterName?: string;
+  assetPackage?: string;
+  faceIdentity?: string;
   sceneScope?: string;
   appearanceStage?: string;
   viewRequirements?: string;

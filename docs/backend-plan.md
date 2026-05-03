@@ -256,6 +256,8 @@ class Asset(Document):
     prompt: str = ""                      # 当前采用的生成提示词
     voice_profile: str = ""               # 人物资产的固定音色
     character_name: str = ""              # 人物资产对应的角色本名
+    asset_package: str = ""               # 人物资产包；同一角色不同造型共用
+    face_identity: str = ""               # 共享面部基准；同一资产包保持同一张脸
     scene_scope: str = ""                 # 人物资产适用场景
     appearance_stage: str = ""            # 人物资产适用剧情/造型阶段
     view_requirements: str = ""           # 人物资产视角要求

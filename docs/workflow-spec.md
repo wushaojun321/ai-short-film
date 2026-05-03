@@ -721,6 +721,12 @@
 2. `SeriesPlannerAgent` 只生成全剧世界观、主线和连续性基调。
 3. `EpisodeSplitterAgent` 只规划每集对应的原文块范围，不生成 `script_excerpt` 正文。
 4. `EpisodeMaterialBuilder` 用原文块回填 `Episode.script_excerpt`，保证对白不会在摘要阶段丢失。
-5. `AssetExtractorAgent` 独立解析人物、场景、道具资产，人物继续按角色、场景和剧情阶段拆分。
+5. `AssetExtractorAgent` 独立解析人物、场景、道具资产；人物继续按角色、场景和剧情阶段拆分，但同一角色的不同状态会归入同一个 `asset_package`，并共享 `face_identity` 作为全局人脸一致性基准。
+
+人物资产一致性规则：
+
+- 同一人物的不同状态、不同场景造型视为同一人物资产包，而不是互不相关的独立角色。
+- 同一 `asset_package` 内所有造型共享同一 `face_identity`，不同场景造型使用同一面部形象参考生成，只改变服装、妆发、伤势、道具和场景状态。
+- 除非剧本明确出现面部受伤、毁容、年龄跨度或易容伪装，否则不得改变同一人物的脸型、骨相、五官比例、肤色和标志性面部特征。
 
 这个改动保留现有 `/generate/projects/{project_id}/parse-script` 入口和前端流程，只改变后端任务内部的数据来源与落库方式。
