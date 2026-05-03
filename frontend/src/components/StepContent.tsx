@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import {
   CheckCircle2, RefreshCw, Loader2, Play, Volume2,
-  Film, Layers, Clock, Tag, Edit3, Check, FileText, MessageCircle,
+  Film, Layers, Clock, Tag, Edit3, Check, FileText, MessageCircle, History, RotateCcw,
 } from "lucide-react";
 import AgentDialog from "@/components/AgentDialog";
 import { Sheet } from "@/components/ui/sheet";
@@ -520,8 +520,10 @@ function StepVideos({
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
   const [agentTarget, setAgentTarget] = useState<string | null>(null);
   const [promptSheetOpen, setPromptSheetOpen] = useState(false);
+  const [historySheetOpen, setHistorySheetOpen] = useState(false);
   const [videoPromptDraft, setVideoPromptDraft] = useState("");
   const [savingVideoPrompt, setSavingVideoPrompt] = useState(false);
+  const [restoringVersion, setRestoringVersion] = useState<string | null>(null);
   const [approving, setApproving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -546,6 +548,7 @@ function StepVideos({
   const submittedPrompt = shot?.submittedPrompt;
   const shotBusy = !!shot && (loadingIds.has(shot.id) || shot.state === "rendering");
   const shotApproved = !!shot && (isPast || (!!shot.videoUrl && shot.state === "approved"));
+  const shotVersions = shot?.versions ?? [];
 
   useEffect(() => {
     if (!promptSheetOpen) return;
@@ -616,6 +619,19 @@ function StepVideos({
       setError(e instanceof Error ? e.message : "保存提示词失败");
     } finally {
       setSavingVideoPrompt(false);
+    }
+  };
+
+  const handleRestoreShotVersion = async (version: string) => {
+    if (!shot) return;
+    setRestoringVersion(version);
+    setError(null);
+    try {
+      await shotAPI.restoreVersion(projectId, episode.id, shot.id, version);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "回选历史版本失败");
+    } finally {
+      setRestoringVersion(null);
     }
   };
 
@@ -727,6 +743,9 @@ function StepVideos({
                   <Button variant="outline" onClick={() => setAgentTarget(shot.id)}>
                     <MessageCircle className="w-4 h-4" />AI 修改
                   </Button>
+                  <Button variant="outline" onClick={() => setHistorySheetOpen(true)} disabled={shotVersions.length === 0}>
+                    <History className="w-4 h-4" />历史版本
+                  </Button>
                   <Button onClick={() => handleApprove(shot.id)} disabled={!shot.videoUrl || shotApproved}>
                     <Check className="w-4 h-4" />{shotApproved ? "已审批" : "审批通过"}
                   </Button>
@@ -809,6 +828,69 @@ function StepVideos({
               {savingVideoPrompt ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />保存中…</> : <><Check className="w-3.5 h-3.5" />保存提示词</>}
             </Button>
           </div>
+        </div>
+      </Sheet>
+
+      <Sheet
+        open={historySheetOpen}
+        onClose={() => setHistorySheetOpen(false)}
+        title={`镜头 ${shot?.shotCode ?? ""} · 历史版本回选`}
+        width="w-[720px]"
+      >
+        <div className="space-y-4">
+          {shot?.videoUrl && (
+            <div className="rounded-xl border border-line bg-elev p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-medium text-sub">当前使用版本</span>
+                <Badge variant="success">{shot.version}</Badge>
+              </div>
+              <div className="mx-auto h-72 aspect-[9/16] max-w-full overflow-hidden rounded-xl bg-black">
+                <LazyVideo src={cosUrl(shot.videoUrl)} className="w-full h-full object-contain" />
+              </div>
+            </div>
+          )}
+
+          {shotVersions.length > 0 ? (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {shotVersions.slice().reverse().map((item) => {
+                const isCurrent = item.videoUrl === shot?.videoUrl || item.version === shot?.version;
+                return (
+                  <div key={item.version} className="rounded-xl border border-line bg-panel p-3">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-text">{item.version}</p>
+                        <p className="text-xs text-muted">
+                          {item.createdAt ? new Date(item.createdAt).toLocaleString() : "未知时间"}
+                        </p>
+                      </div>
+                      {isCurrent && <Badge variant="success">当前</Badge>}
+                    </div>
+                    <div className="mx-auto h-64 aspect-[9/16] max-w-full overflow-hidden rounded-lg bg-black">
+                      <LazyVideo src={cosUrl(item.videoUrl)} className="w-full h-full object-contain" />
+                    </div>
+                    {item.description && (
+                      <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-sub">{item.description}</p>
+                    )}
+                    <div className="mt-3 flex justify-end">
+                      <Button
+                        size="sm"
+                        variant={isCurrent ? "secondary" : "outline"}
+                        onClick={() => handleRestoreShotVersion(item.version)}
+                        disabled={isCurrent || restoringVersion === item.version}
+                      >
+                        {restoringVersion === item.version
+                          ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />回选中…</>
+                          : <><RotateCcw className="w-3.5 h-3.5" />回选此版本</>
+                        }
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="empty-state-panel">暂无历史版本。重新生成后会自动记录。</div>
+          )}
         </div>
       </Sheet>
 

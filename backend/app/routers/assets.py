@@ -53,6 +53,17 @@ async def confirm_asset(asset_id: PydanticObjectId, project: Project = Depends(g
     return await asset_service.confirm_asset(asset)
 
 
+@router.post("/{asset_id}/versions/{version}/restore")
+async def restore_asset_version(asset_id: PydanticObjectId, version: str, project: Project = Depends(get_owned_project)):
+    asset = await asset_service.get_asset(asset_id)
+    if not asset or asset.project_id != project.id:
+        raise HTTPException(404, "Asset not found")
+    try:
+        return await asset_service.restore_asset_version(asset, version)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc))
+
+
 @router.post("/{asset_id}/regen")
 async def request_regen(asset_id: PydanticObjectId, project: Project = Depends(get_owned_project)):
     asset = await asset_service.get_asset(asset_id)

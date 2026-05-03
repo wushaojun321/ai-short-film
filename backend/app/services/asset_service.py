@@ -30,6 +30,28 @@ async def confirm_asset(asset: Asset) -> Asset:
     return asset
 
 
+async def restore_asset_version(asset: Asset, version: str) -> Asset:
+    selected = next((item for item in asset.versions if item.version == version), None)
+    if not selected:
+        raise ValueError("Asset version not found")
+
+    updates: dict = {
+        "prompt": selected.prompt or asset.prompt,
+        "status": AssetStatus.pending,
+    }
+    if selected.view_type:
+        view_urls = dict(asset.view_urls or {})
+        view_urls[selected.view_type] = selected.url
+        updates["view_urls"] = view_urls
+        if selected.view_type == "face" or not asset.preview_url:
+            updates["preview_url"] = selected.url
+    else:
+        updates["preview_url"] = selected.url
+
+    await asset.set(updates)
+    return asset
+
+
 async def mark_regen(asset: Asset) -> Asset:
     await asset.set({"status": AssetStatus.need_regen})
     return asset

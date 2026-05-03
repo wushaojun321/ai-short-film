@@ -1,7 +1,7 @@
 from .project import Project, ProjectInitStatus
 from .episode import Episode, EpisodeStatus, EpisodeStep
 from .script_block import ScriptBlock, ScriptBlockType
-from .shot import Shot, ShotState, ShotAssetBinding
+from .shot import Shot, ShotState, ShotAssetBinding, ShotVersion
 from .asset import Asset, AssetType, AssetStatus, AssetVersion
 from .conversation import Conversation, Message, ConversationTarget, ConversationRole
 from .prompt_config import PromptConfig, PromptConfigScope
@@ -13,7 +13,7 @@ __all__ = [
     "Project", "ProjectInitStatus",
     "Episode", "EpisodeStatus", "EpisodeStep",
     "ScriptBlock", "ScriptBlockType",
-    "Shot", "ShotState", "ShotAssetBinding",
+    "Shot", "ShotState", "ShotAssetBinding", "ShotVersion",
     "Asset", "AssetType", "AssetStatus", "AssetVersion",
     "Conversation", "Message", "ConversationTarget", "ConversationRole",
     "PromptConfig", "PromptConfigScope",

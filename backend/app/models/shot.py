@@ -30,6 +30,15 @@ class ShotDialogueLine(BaseModel):
     expression: str = ""
 
 
+class ShotVersion(BaseModel):
+    version: str
+    video_url: str
+    last_frame_url: Optional[str] = None
+    prompt: str = ""
+    description: str = ""
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class Shot(Document):
     project_id: PydanticObjectId
     episode_id: PydanticObjectId
@@ -62,6 +71,7 @@ class Shot(Document):
     video_url: Optional[str] = None
     audio_url: Optional[str] = None
     last_frame_url: Optional[str] = None
+    versions: list[ShotVersion] = Field(default_factory=list)
     review_comment: str = ""
     generation_task_id: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)

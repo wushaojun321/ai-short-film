@@ -89,6 +89,14 @@ export interface Shot {
   version: string;
   prompt?: string;
   submittedPrompt?: string;
+  versions?: Array<{
+    version: string;
+    videoUrl: string;
+    lastFrameUrl?: string;
+    prompt: string;
+    description?: string;
+    createdAt: string;
+  }>;
 }
 
 // ─── 分集数据 ────────────────────────────────────────────────

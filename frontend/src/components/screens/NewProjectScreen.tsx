@@ -4,7 +4,7 @@ import {
   Upload, FileText, ChevronRight, Check, Loader2,
   Edit2, Clock, Hash, Sparkles, Terminal, RefreshCw,
   AlertTriangle, Activity, X, ZoomIn, Trash2, Play, CheckCircle2,
-  MessageCircle, ImagePlus,
+  MessageCircle, ImagePlus, History, RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -954,6 +954,8 @@ function AssetCard({
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [restoringVersion, setRestoringVersion] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const { cosUrl } = useCos();
 
@@ -970,6 +972,7 @@ function AssetCard({
   const hasCharacterViews = CHARACTER_VIEW_META.some((view) => Boolean(asset.view_urls?.[view.key]));
   const status: AssetStatus = ASSET_STATUS_ZH[asset.status] ?? "缺失";
   const promptPreview = asset.prompt || "（暂无提示词）";
+  const assetVersions = asset.versions ?? [];
 
   const statusConfig: Record<AssetStatus, { label: string; variant: "success" | "warning" | "destructive" | "secondary" }> = {
     "已生成": { label: "已生成", variant: "success" },
@@ -998,6 +1001,16 @@ function AssetCard({
       onUpdate();
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleRestoreVersion = async (version: string) => {
+    setRestoringVersion(version);
+    try {
+      await assetAPI.restoreVersion(projectId, asset.id, version);
+      onUpdate();
+    } finally {
+      setRestoringVersion(null);
     }
   };
 
@@ -1100,6 +1113,14 @@ function AssetCard({
       >
         {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />}
       </Button>
+      <Button
+        size="sm" variant="outline" className="w-8 h-8 p-0"
+        onClick={() => setHistoryOpen(true)}
+        disabled={assetVersions.length === 0}
+        title={assetVersions.length === 0 ? "暂无历史版本" : "历史版本"}
+      >
+        <History className="w-3.5 h-3.5" />
+      </Button>
       {asset.status !== "approved" && !isGenerating && isReady && (
         <Button
           size="sm" variant="secondary" className="w-8 h-8 p-0"
@@ -1110,6 +1131,64 @@ function AssetCard({
         </Button>
       )}
     </div>
+  );
+
+  const historyDialog = (
+    <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+      <DialogContent className="max-w-5xl">
+        <DialogHeader>
+          <DialogTitle>{asset.name} · 历史版本回选</DialogTitle>
+          <DialogDescription>对比多次生成结果，选择一个历史版本回写到当前资产。</DialogDescription>
+        </DialogHeader>
+        {assetVersions.length > 0 ? (
+          <div className="grid max-h-[70vh] grid-cols-1 gap-3 overflow-y-auto pr-1 md:grid-cols-2 lg:grid-cols-3">
+            {assetVersions.slice().reverse().map((item) => {
+              const isCurrent = item.url === asset.preview_url || Object.values(asset.view_urls ?? {}).includes(item.url);
+              return (
+                <div key={item.version} className="rounded-xl border border-line bg-panel p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold text-text">{item.version}</p>
+                      <p className="text-xs text-muted">
+                        {item.note || item.view_type || "资产图"} · {item.created_at ? new Date(item.created_at).toLocaleString() : "未知时间"}
+                      </p>
+                    </div>
+                    {isCurrent && <Badge variant="success">当前</Badge>}
+                  </div>
+                  <button
+                    type="button"
+                    className="h-44 w-full overflow-hidden rounded-lg border border-line bg-soft"
+                    onClick={() => setLightboxUrl(item.url)}
+                    title="点击放大预览"
+                  >
+                    <img src={cosUrl(item.url)} alt={`${asset.name}-${item.version}`} className="h-full w-full object-contain" />
+                  </button>
+                  <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-sub">{item.prompt || "（暂无提示词）"}</p>
+                  <div className="mt-3 flex justify-end">
+                    <Button
+                      size="sm"
+                      variant={isCurrent ? "secondary" : "outline"}
+                      onClick={() => handleRestoreVersion(item.version)}
+                      disabled={isCurrent || restoringVersion === item.version}
+                    >
+                      {restoringVersion === item.version
+                        ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />回选中…</>
+                        : <><RotateCcw className="w-3.5 h-3.5" />回选此版本</>
+                      }
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="empty-state-panel">暂无历史版本。重新生成后会自动记录。</div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setHistoryOpen(false)}>关闭</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 
   if (layout === "stage") {
@@ -1172,6 +1251,7 @@ function AssetCard({
           onTaskStarted={onUpdate}
           initialPrompt={asset.prompt}
         />
+        {historyDialog}
       </>
     );
   }
@@ -1239,6 +1319,7 @@ function AssetCard({
         onTaskStarted={onUpdate}
         initialPrompt={asset.prompt}
       />
+      {historyDialog}
     </>
   );
 }
@@ -1578,14 +1659,29 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
           <TabsContent value={tab}>
             {currentGroups.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
-                {currentGroups.map((group) => (
-                  <AssetGroupCard
-                    key={group.key}
-                    group={group}
-                    type={tab}
-                    onOpen={() => setSelectedAssetGroup({ key: group.key, type: tab })}
-                  />
-                ))}
+                {currentGroups.map((group) => {
+                  if (group.assets.length === 1) {
+                    const [asset] = group.assets;
+                    return (
+                      <AssetCard
+                        key={group.key}
+                        asset={asset}
+                        projectId={projectId}
+                        onViewPrompt={setPromptAsset}
+                        onUpdate={() => setPollKey((k) => k + 1)}
+                      />
+                    );
+                  }
+
+                  return (
+                    <AssetGroupCard
+                      key={group.key}
+                      group={group}
+                      type={tab}
+                      onOpen={() => setSelectedAssetGroup({ key: group.key, type: tab })}
+                    />
+                  );
+                })}
               </div>
             ) : (
               <div className="empty-state-panel">

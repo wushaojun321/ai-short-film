@@ -61,6 +61,17 @@ async def review_shot(shot_id: PydanticObjectId, data: ShotReviewRequest, episod
     return await shot_service.review_shot(shot, data.approved, data.comment)
 
 
+@router.post("/{shot_id}/versions/{version}/restore")
+async def restore_shot_version(shot_id: PydanticObjectId, version: str, episode: Episode = Depends(_get_owned_episode)):
+    shot = await shot_service.get_shot(shot_id)
+    if not shot or shot.episode_id != episode.id:
+        raise HTTPException(404, "Shot not found")
+    try:
+        return await shot_service.restore_shot_version(shot, version)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc))
+
+
 @router.post("/batch-review")
 async def batch_review(data: BatchReviewRequest, episode: Episode = Depends(_get_owned_episode)):
     results = []

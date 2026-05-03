@@ -113,6 +113,14 @@ export function transformShot(s: ApiShot): Shot {
     version: s.version,
     prompt: s.prompt,
     submittedPrompt: s.submitted_prompt || (s.prompt?.includes("【引用资产】") ? s.prompt : undefined),
+    versions: (s.versions ?? []).map((v) => ({
+      version: v.version,
+      videoUrl: v.video_url,
+      lastFrameUrl: v.last_frame_url,
+      prompt: v.prompt,
+      description: v.description,
+      createdAt: v.created_at,
+    })),
   };
 }
 

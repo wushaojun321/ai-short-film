@@ -1,6 +1,7 @@
 """Video generation Celery tasks using Seedance."""
 from __future__ import annotations
 import logging
+from datetime import datetime
 from app.celery_app import celery_app
 from app.tasks.base import run_async, finish_task_record
 
@@ -457,6 +458,18 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
             if raw_last_frame_url else None
         )
 
+        from app.models.shot import ShotVersion
+
+        version_label = f"v{len(shot.versions) + 1}"
+        new_version = ShotVersion(
+            version=version_label,
+            video_url=video_url,
+            last_frame_url=last_frame_url,
+            prompt=submitted_prompt,
+            description=shot.description,
+            created_at=datetime.utcnow(),
+        )
+
         updates: dict = {
             "video_url": video_url,
             "state": ShotState.rendered,
@@ -464,6 +477,8 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
             "submitted_prompt": submitted_prompt,
             "continuity_dirty": False,
             "continuity_dirty_reason": "",
+            "version": version_label,
+            "versions": shot.versions + [new_version],
         }
         if last_frame_url:
             updates["last_frame_url"] = last_frame_url

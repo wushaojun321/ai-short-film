@@ -41,5 +41,31 @@ async def review_shot(shot: Shot, approved: bool, comment: str | None = None) ->
     return shot
 
 
+async def restore_shot_version(shot: Shot, version: str) -> Shot:
+    selected = next((item for item in shot.versions if item.version == version), None)
+    if not selected:
+        raise ValueError("Shot version not found")
+
+    await shot.set({
+        "video_url": selected.video_url,
+        "last_frame_url": selected.last_frame_url,
+        "prompt": selected.prompt or shot.prompt,
+        "submitted_prompt": selected.prompt or shot.submitted_prompt,
+        "description": selected.description or shot.description,
+        "version": selected.version,
+        "state": ShotState.rendered,
+        "continuity_dirty": False,
+        "continuity_dirty_reason": "",
+    })
+    dependent_shots = await Shot.find(Shot.depends_on_last_frame_shot_id == shot.id).to_list()
+    for dependent in dependent_shots:
+        if dependent.video_url:
+            await dependent.set({
+                "continuity_dirty": True,
+                "continuity_dirty_reason": f"依赖镜头 {shot.shot_code} 已回选历史版本，上一镜尾帧发生变化，建议刷新本镜视频。",
+            })
+    return shot
+
+
 async def delete_shot(shot: Shot) -> None:
     await shot.delete()

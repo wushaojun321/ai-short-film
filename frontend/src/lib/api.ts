@@ -112,6 +112,15 @@ export interface ApiShotDialogueLine {
   expression?: string;
 }
 
+export interface ApiShotVersion {
+  version: string;
+  video_url: string;
+  last_frame_url?: string;
+  prompt: string;
+  description?: string;
+  created_at: string;
+}
+
 export interface ApiShot {
   id: string;
   project_id: string;
@@ -148,8 +157,18 @@ export interface ApiShot {
   video_url?: string;
   audio_url?: string;
   last_frame_url?: string;
+  versions?: ApiShotVersion[];
   review_comment: string;
   generation_task_id?: string;
+}
+
+export interface ApiAssetVersion {
+  version: string;
+  url: string;
+  prompt: string;
+  note?: string;
+  view_type?: string;
+  created_at: string;
 }
 
 export interface ApiAsset {
@@ -168,7 +187,7 @@ export interface ApiAsset {
   view_requirements?: string;
   preview_url?: string;
   view_urls?: Record<string, string>;
-  versions: Array<{ version: number; preview_url?: string; prompt: string; created_at: string }>;
+  versions: ApiAssetVersion[];
   generation_task_id?: string;
   created_at: string;
   updated_at: string;
@@ -275,6 +294,9 @@ export const shotAPI = {
     reviews: Array<{ shot_id: string; approved: boolean; comment?: string }>
   ): Promise<ApiShot[]> =>
     client.post(`/projects/${projectId}/episodes/${episodeId}/shots/batch-review`, { reviews }),
+
+  restoreVersion: (projectId: string, episodeId: string, shotId: string, version: string): Promise<ApiShot> =>
+    client.post(`/projects/${projectId}/episodes/${episodeId}/shots/${shotId}/versions/${encodeURIComponent(version)}/restore`),
 };
 
 // ─── Asset API ────────────────────────────────────────────────
@@ -291,6 +313,9 @@ export const assetAPI = {
 
   confirm: (projectId: string, assetId: string): Promise<ApiAsset> =>
     client.post(`/projects/${projectId}/assets/${assetId}/confirm`),
+
+  restoreVersion: (projectId: string, assetId: string, version: string): Promise<ApiAsset> =>
+    client.post(`/projects/${projectId}/assets/${assetId}/versions/${encodeURIComponent(version)}/restore`),
 
   regen: (projectId: string, assetId: string): Promise<ApiAsset> =>
     client.post(`/projects/${projectId}/assets/${assetId}/regen`),
