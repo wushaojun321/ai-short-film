@@ -17,6 +17,8 @@ class PromptConfigScope(str, Enum):
     blueprint_validate   = "blueprint_validate"
     continuity_extract   = "continuity_extract"
     shot_continuity_repair = "shot_continuity_repair"
+    shot_segment_plan    = "shot_segment_plan"
+    shot_segment_detail  = "shot_segment_detail"
     shot_script_gen      = "shot_script_gen"
     shot_script_edit     = "shot_script_edit"
     asset_prompt_gen     = "asset_prompt_gen"

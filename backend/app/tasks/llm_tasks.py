@@ -1570,15 +1570,52 @@ def _as_str_list(value) -> list[str]:
     return []
 
 
+def _asset_type_value(asset) -> str:
+    raw = getattr(asset, "asset_type", "")
+    return getattr(raw, "value", str(raw))
+
+
+def _build_shot_asset_index(assets) -> list[dict]:
+    """Build a compact asset index for storyboard LLM calls.
+
+    The model only needs a stable id plus short disambiguation fields. Full
+    prompts, image urls and long descriptions are resolved server-side later.
+    """
+    return [
+        {
+            "id": str(asset.id),
+            "name": asset.name,
+            "type": _asset_type_value(asset),
+            "character": asset.character_name or "",
+            "package": asset.asset_package or asset.character_name or "",
+            "stage": asset.appearance_stage or "",
+            "scope": asset.scene_scope or "",
+            "views": asset.view_requirements or "",
+        }
+        for asset in assets
+    ]
+
+
+def _asset_binding_id(raw) -> str:
+    if isinstance(raw, dict):
+        return str(raw.get("asset_id") or raw.get("id") or "").strip()
+    return str(raw or "").strip()
+
+
 def _asset_binding_name(raw) -> str:
     if isinstance(raw, dict):
         return str(raw.get("name") or raw.get("asset_name") or raw.get("asset") or "").strip()
     return str(raw or "").strip()
 
 
-def _resolve_asset_for_binding(raw, asset_map: dict, asset_alias_map: dict):
+def _resolve_asset_for_binding(raw, asset_map: dict, asset_alias_map: dict, asset_id_map: dict):
     """Resolve structured or legacy asset binding to an Asset document."""
+    asset_id = _asset_binding_id(raw)
+    if asset_id in asset_id_map:
+        return asset_id_map[asset_id]
     name = _asset_binding_name(raw)
+    if name in asset_id_map:
+        return asset_id_map[name]
     if name in asset_map:
         return asset_map[name]
     if name in asset_alias_map:
@@ -1589,6 +1626,64 @@ def _resolve_asset_for_binding(raw, asset_map: dict, asset_alias_map: dict):
             if alias in asset_alias_map:
                 return asset_alias_map[alias]
     return None
+
+
+def _extract_segment_plan_list(plan: dict) -> list[dict]:
+    if not isinstance(plan, dict):
+        return []
+    segments = plan.get("segments")
+    if isinstance(segments, dict):
+        segments = [segments]
+    if isinstance(segments, list):
+        return [segment for segment in segments if isinstance(segment, dict)]
+    if "segment_code" in plan or "shots" in plan:
+        return [plan]
+    return []
+
+
+def _segment_code(segment: dict, index: int = 0) -> str:
+    return str(segment.get("segment_code") or segment.get("code") or f"SEG{index + 1:02d}")
+
+
+def _normalize_segment_detail(detail: dict, plan_segment: dict, index: int) -> dict:
+    """Return a single segment dict from a per-segment LLM response."""
+    if not isinstance(detail, dict):
+        detail = {}
+
+    segment: dict | None = None
+    if isinstance(detail.get("segment"), dict):
+        segment = detail["segment"]
+    else:
+        segments = detail.get("segments")
+        if isinstance(segments, dict):
+            segment = segments
+        elif isinstance(segments, list) and segments:
+            target_code = _segment_code(plan_segment, index)
+            segment = next(
+                (
+                    item for item in segments
+                    if isinstance(item, dict) and _segment_code(item, index) == target_code
+                ),
+                next((item for item in segments if isinstance(item, dict)), None),
+            )
+        elif "shots" in detail or "shot_code" in detail:
+            segment = detail
+
+    if not isinstance(segment, dict):
+        segment = {"shots": []}
+
+    merged = dict(plan_segment)
+    merged.update(segment)
+    merged.setdefault("segment_code", _segment_code(plan_segment, index))
+    merged.setdefault("segment_name", plan_segment.get("segment_name") or plan_segment.get("name") or "")
+    merged.setdefault("segment_function", plan_segment.get("segment_function") or plan_segment.get("function") or "")
+    if isinstance(merged.get("shots"), dict):
+        merged["shots"] = [merged["shots"]]
+    if "shot_code" in merged and not merged.get("shots"):
+        merged["shots"] = [merged]
+    if not isinstance(merged.get("shots"), list):
+        merged["shots"] = []
+    return merged
 
 
 async def _repair_storyboard_continuity(
@@ -1650,6 +1745,8 @@ def gen_shot_script_task(self, episode_id: str, max_shot_duration: int = 8, feed
 
 
 async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_duration: int = 8, feedback: str | None = None):
+    import json
+
     from app.database import init_db
     await init_db()
 
@@ -1670,44 +1767,97 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
 
         project = await Project.get(episode.project_id)
         assets = await Asset.find(Asset.project_id == episode.project_id).to_list()
-        asset_list = [
-            {
-                "name": a.name,
-                "type": a.asset_type,
-                "character_name": a.character_name,
-                "asset_package": a.asset_package,
-                "face_identity": a.face_identity,
-                "scene_scope": a.scene_scope,
-                "appearance_stage": a.appearance_stage,
-                "view_requirements": a.view_requirements,
-                "preview_url": a.preview_url,
-            }
-            for a in assets
-        ]
+        asset_index = _build_shot_asset_index(assets)
+        asset_index_json = json.dumps(asset_index, ensure_ascii=False)
 
         record = await TaskRecord.find_one(TaskRecord.celery_task_id == celery_id)
         if record:
-            await record.set({"progress": 10})
+            await record.set({
+                "progress": 10,
+                "logs": (record.logs or []) + [
+                    f"[plan] 使用精简资产索引：{len(asset_index)} 个资产，约 {len(asset_index_json)} 字"
+                ],
+            })
 
         system_prompt, user_prompt, _ = await render(
-            PromptConfigScope.shot_script_gen,
+            PromptConfigScope.shot_segment_plan,
             {
                 "series_prompt": project.series_prompt or "",
                 "episode_number": episode.number,
                 "episode_title": episode.title,
                 "script_excerpt": episode.script_excerpt or episode.summary or "",
                 "continuity_notes": episode.continuity_notes or "无",
-                "asset_list": str(asset_list),
+                "asset_index": asset_index_json,
                 "max_shot_duration": max_shot_duration,
-                "max_dialogue_chars": max_shot_duration * 6,
                 "feedback_section": f"\n\n修改意见：\n{feedback}" if feedback else "",
             },
         )
 
         if record:
-            await record.set({"progress": 30})
+            await record.set({"progress": 20})
 
-        result = await llm_service.chat_json(system_prompt, user_prompt)
+        plan_result = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=32000)
+        plan_segments = _extract_segment_plan_list(plan_result)
+        if not plan_segments:
+            raise ValueError("分镜片段规划为空，无法继续生成详细分镜")
+
+        if record:
+            await record.set({
+                "progress": 30,
+                "logs": (record.logs or []) + [f"[plan] 片段规划完成：{len(plan_segments)} 个片段"],
+            })
+
+        detailed_segments: list[dict] = []
+        previous_context = "无"
+        total_segments = len(plan_segments)
+        for segment_idx, segment_plan in enumerate(plan_segments):
+            segment_code = _segment_code(segment_plan, segment_idx)
+            detail_system_prompt, detail_user_prompt, _ = await render(
+                PromptConfigScope.shot_segment_detail,
+                {
+                    "series_prompt": project.series_prompt or "",
+                    "episode_number": episode.number,
+                    "episode_title": episode.title,
+                    "segment_plan": json.dumps(segment_plan, ensure_ascii=False),
+                    "script_excerpt": episode.script_excerpt or episode.summary or "",
+                    "continuity_notes": episode.continuity_notes or "无",
+                    "previous_context": previous_context,
+                    "asset_index": asset_index_json,
+                    "max_shot_duration": max_shot_duration,
+                    "feedback_section": f"\n\n修改意见：\n{feedback}" if feedback else "",
+                },
+            )
+            detail_result = await llm_service.chat_json(
+                detail_system_prompt,
+                detail_user_prompt,
+                max_tokens=32000,
+            )
+            normalized_segment = _normalize_segment_detail(detail_result, segment_plan, segment_idx)
+            detailed_segments.append(normalized_segment)
+
+            shots = normalized_segment.get("shots") or []
+            if shots and isinstance(shots[-1], dict):
+                last_shot = shots[-1]
+                previous_context = (
+                    f"{segment_code} 末镜 {last_shot.get('shot_code', '')}："
+                    f"{last_shot.get('end_state') or last_shot.get('description') or ''}；"
+                    f"转出：{last_shot.get('transition_out', '')}"
+                )
+            else:
+                previous_context = (
+                    f"{segment_code}：{normalized_segment.get('transition_out') or normalized_segment.get('source_excerpt') or ''}"
+                )
+
+            if record:
+                progress = 30 + int((segment_idx + 1) / max(total_segments, 1) * 35)
+                await record.set({
+                    "progress": progress,
+                    "logs": (record.logs or []) + [
+                        f"[detail] {segment_code} 细化完成：{len(shots)} 个镜头"
+                    ],
+                })
+
+        result = {"segments": detailed_segments}
         result = await _repair_storyboard_continuity(
             result=result,
             llm_service=llm_service,
@@ -1716,7 +1866,7 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
             series_prompt=project.series_prompt or "",
             script_excerpt=episode.script_excerpt or episode.summary or "",
             continuity_notes=episode.continuity_notes or "无",
-            asset_list=asset_list,
+            asset_list=asset_index,
             record=record,
         )
 
@@ -1734,6 +1884,7 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
         flattened_shots = _extract_shot_list(result)
         # Build asset name/alias → document map once for efficiency.
         asset_map = {a.name: a for a in assets}
+        asset_id_map = {str(a.id): a for a in assets}
         asset_alias_map = {}
         for asset in assets:
             for alias in (
@@ -1754,12 +1905,14 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
             # Resolve asset bindings from LLM output
             required_assets: list[ShotAssetBinding] = []
             raw_required_assets = s.get("required_assets", [])
+            if not raw_required_assets and isinstance(s.get("asset_ids"), list):
+                raw_required_assets = s.get("asset_ids", [])
             if isinstance(raw_required_assets, (str, dict)):
                 raw_required_assets = [raw_required_assets]
             if not isinstance(raw_required_assets, list):
                 raw_required_assets = []
             for ra in raw_required_assets:
-                matched = _resolve_asset_for_binding(ra, asset_map, asset_alias_map)
+                matched = _resolve_asset_for_binding(ra, asset_map, asset_alias_map, asset_id_map)
                 if matched:
                     ra_dict = ra if isinstance(ra, dict) else {}
                     role_in_shot = str(ra_dict.get("role_in_shot") or "")

@@ -45,11 +45,6 @@ def _needs_side_reference(shot_description: str, transition_text: str = "") -> b
     return any(word in text for word in ("侧面", "侧脸", "侧身", "三分之二侧", "回头", "转身", "背身"))
 
 
-def _prompt_excerpt(prompt: str, max_len: int = 120) -> str:
-    prompt = (prompt or "").strip().replace("\n", " ")
-    return prompt if len(prompt) <= max_len else f"{prompt[:max_len]}..."
-
-
 def _append_reference_image(
     *,
     reference_images: list[str],
@@ -194,7 +189,7 @@ class ShotReferenceBuilder:
                     f"镜头职责：{binding.role_in_shot or '画面人物'}；位置：{binding.screen_position or '按分镜'}；"
                     f"动作：{binding.action_requirement or '按分镜描述'}；"
                     f"表情：{binding.expression_requirement or '按分镜描述'}；"
-                    f"一致性：{binding.continuity_requirement or asset.face_identity or '保持同一张脸和当前造型'}）"
+                    f"一致性：{binding.continuity_requirement or '按参考图保持同一张脸和当前造型'}）"
                 )
                 asset_contract_parts.append(
                     f"- 人物 {character_name}：参考 {refs}；资产 {asset.name}；角色职责 {binding.role_in_shot or '画面人物'}；"
@@ -202,8 +197,7 @@ class ShotReferenceBuilder:
                     f"{'本镜开口说话' if binding.speaking else '本镜不得开口，保持无声反应' if binding.muted else '按 dialogues 判断是否开口'}；"
                     f"动作 {binding.action_requirement or '按分镜描述'}；"
                     f"表情 {binding.expression_requirement or '按分镜描述'}；"
-                    f"连续性 {binding.continuity_requirement or asset.face_identity or '保持人脸、服装、伤势、道具状态一致'}；"
-                    f"资产提示摘要：{_prompt_excerpt(asset.prompt)}"
+                    f"连续性 {binding.continuity_requirement or '按参考图保持人脸、服装、伤势、道具状态一致'}"
                 )
 
             elif asset.asset_type == AssetType.scene:
@@ -220,13 +214,11 @@ class ShotReferenceBuilder:
                 scene_parts.append(
                     f"{ref_text}{asset.name}（场景；用途：{binding.reference_purpose or 'scene_space'}；"
                     f"位置：{binding.screen_position or '画面空间'}；"
-                    f"连续性：{binding.continuity_requirement or '保持空间结构、光线和时代质感'}；"
-                    f"提示摘要：{_prompt_excerpt(asset.prompt)}）"
+                    f"连续性：{binding.continuity_requirement or '保持空间结构、光线和时代质感'}）"
                 )
                 asset_contract_parts.append(
                     f"- 场景 {asset.name}：参考 {ref_text}；作为空间锚点；"
-                    f"连续性 {binding.continuity_requirement or '保持空间结构、光线、材质和时代质感'}；"
-                    f"资产提示摘要：{_prompt_excerpt(asset.prompt)}"
+                    f"连续性 {binding.continuity_requirement or '保持空间结构、光线、材质和时代质感'}"
                 )
 
             elif asset.asset_type == AssetType.prop:
@@ -242,14 +234,12 @@ class ShotReferenceBuilder:
                 prop_parts.append(
                     f"{ref_text}{asset.name}（道具；用途：{binding.reference_purpose or 'prop_detail'}；"
                     f"动作：{binding.action_requirement or '按分镜'}；"
-                    f"连续性：{binding.continuity_requirement or '保持道具外观和持有关系'}；"
-                    f"提示摘要：{_prompt_excerpt(asset.prompt)}）"
+                    f"连续性：{binding.continuity_requirement or '保持道具外观和持有关系'}）"
                 )
                 asset_contract_parts.append(
                     f"- 道具 {asset.name}：参考 {ref_text}；"
                     f"动作/位置 {binding.action_requirement or binding.screen_position or '按分镜'}；"
-                    f"连续性 {binding.continuity_requirement or '保持外观、材质、尺寸和持有关系'}；"
-                    f"资产提示摘要：{_prompt_excerpt(asset.prompt)}"
+                    f"连续性 {binding.continuity_requirement or '保持外观、材质、尺寸和持有关系'}"
                 )
 
         dependency_shot = None

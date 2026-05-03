@@ -57,7 +57,8 @@ class ShotPromptAgent:
 
     fallback_prompt = (
         "竖屏9:16，写实电影风格，根据分镜脚本和资产设定生成短视频，"
-        "镜头运动稳定，人物动作自然，表情清晰，场景连续，光线有层次，高清质感"
+        "镜头运动稳定，人物动作自然，表情清晰，场景连续，光线有层次，高清质感；"
+        "如本镜包含台词，必须按台词原文同步口型和配音，保持角色固定音色"
     )
 
     async def generate(
@@ -120,6 +121,15 @@ class ShotPromptAgent:
             video_prompt = self.fallback_prompt
             used_fallback = True
 
+        dialogue_section = (
+            "【台词与配音】\n"
+            f"台词原文：{data.dialogue_text}\n"
+            f"角色音色设定：\n{data.voice_profiles}\n"
+            f"配音/表演要求：\n{data.dialogue_performance}\n"
+            "执行要求：有台词时必须同步口型和配音；只有台词中的 speaker 可以开口，其他人物必须闭嘴做无声反应；"
+            "无台词时不得生成画外人声或错误口型。"
+        )
+
         submitted_prompt = "\n\n".join([
             video_prompt,
             (
@@ -127,11 +137,9 @@ class ShotPromptAgent:
                 f"镜头编号：{data.shot_code}\n"
                 f"视频时长：{data.duration}秒\n"
                 f"分镜描述：{data.shot_description}\n"
-                f"台词：{data.dialogue_text}\n"
-                f"角色音色设定：\n{data.voice_profiles}\n"
-                f"台词与表演：\n{data.dialogue_performance}\n"
                 f"连续性上下文：\n{data.continuity_context}"
             ),
+            dialogue_section,
             f"【镜头资产契约】\n{data.asset_contract or '无'}",
             data.direct_reference_section,
         ])
