@@ -19,6 +19,22 @@ class ShotState(str, Enum):
 class ShotAssetBinding(BaseModel):
     asset_id: PydanticObjectId
     asset_name: str
+    asset_type: str = ""
+    role_in_shot: str = ""          # main_actor / speaker / listener / background / scene / prop
+    character_name: str = ""
+    asset_package: str = ""
+    appearance_stage: str = ""
+    reference_purpose: str = ""     # identity / costume / scene_space / prop_detail / continuity
+    required_views: list[str] = Field(default_factory=list)  # face / full_body / side / preview
+    screen_position: str = ""
+    action_requirement: str = ""
+    expression_requirement: str = ""
+    continuity_requirement: str = ""
+    voice_required: bool = False
+    speaking: bool = False
+    muted: bool = False
+    binding_source: str = "llm"     # llm / auto / manual
+    confidence: float = 1.0
 
 
 class ShotDialogueLine(BaseModel):

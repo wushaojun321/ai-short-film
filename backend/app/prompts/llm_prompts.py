@@ -529,7 +529,7 @@ SHOT_CONTINUITY_REPAIR = {
 必须检查并修复：
 1. 相邻镜头：上一镜 end_state 必须能自然承接下一镜 start_state。
 2. 同一片段内：人物左右位置、视线方向、手中道具、服装、伤势、光线必须连续；除非 transition_type 明确换场。
-3. 人物资产：required_assets 必须选择与当前场景、剧情阶段、服装/伤势/道具状态匹配的资产名；同一 asset_package 保持同一张脸。
+3. 人物资产：required_assets 必须选择与当前场景、剧情阶段、服装/伤势/道具状态匹配的资产，并补全结构化绑定字段；同一 asset_package 保持同一张脸。
 4. use_prev_last_frame：同一片段内连续动作、同场对话、视线/动作承接镜头应为 true；片段首镜、明显换场、时间跳跃应为 false。
 5. transition_type 必须从以下枚举选择：
    - hard_cut：动作点或视线点硬切，适合同场连续镜头
@@ -618,6 +618,7 @@ SHOT_SCRIPT_GEN = {
 7. 同一角色不同造型资产属于同一人物资产包，分镜描述中必须保持同一张脸、同一骨相、同一五官比例；除非剧本明确面部变化，不能把同一角色写成不同面孔
 8. 每个镜头必须写清与前后镜的衔接、起始状态、结束状态、画面方向和连续性约束
 9. 每句台词必须写清人物台词、表情、动作、情绪和语气
+10. required_assets 必须输出结构化对象数组，不能只输出资产名字符串；name 必须完整匹配“可用资产列表”里的资产 name
 
 时长规则：
 - {max_shot_duration} 秒只是单镜头上限，不是固定时长；严禁所有镜头都写成 {max_shot_duration} 秒
@@ -658,6 +659,22 @@ description 字段必须包含以下信息（不得省略）：
 - expression：说话时的面部表情和眼神
 - 同一镜头只有一个角色说话时，必须明确其他角色不得张嘴；如果多人连续说话，必须按 dialogues 顺序列出
 
+资产绑定字段规则：
+- name：资产名称，必须完整匹配可用资产列表中的 name
+- type：character / scene / prop
+- role_in_shot：speaker / listener / main_actor / background / scene / prop；说话人必须填 speaker，听者或反应人物填 listener
+- character_name：人物本名，非人物资产留空
+- asset_package：同一人物资产包名称，非人物资产留空
+- appearance_stage：当前造型/剧情阶段，必须与资产列表匹配
+- reference_purpose：identity / costume / scene_space / prop_detail / continuity
+- required_views：人物通常为 ["face","full_body"]；侧脸、转身、侧身镜头增加 "side"；场景/道具填 ["preview"]
+- screen_position：left / right / center / background 或中文位置描述
+- action_requirement：该资产在本镜头中的动作要求
+- expression_requirement：该人物在本镜头中的表情眼神要求，非人物可留空
+- continuity_requirement：必须延续的服装、伤势、道具、站位、光线、空间关系
+- speaking：该角色本镜是否开口
+- muted：本镜中出现但不得开口的人物必须填 true
+
 请输出 JSON 格式，不要包含额外解释：
 {
   "segments": [
@@ -686,7 +703,40 @@ description 字段必须包含以下信息（不得省略）：
         "continuity_notes": "本镜必须保持的连续性硬规则",
         "use_prev_last_frame": false,
         "description": "景别+机位+运镜+动作+表情+画面内容（服装有变化时加注）",
-        "required_assets": ["资产名称1", "资产名称2"],
+        "required_assets": [
+          {
+            "name": "资产名称1",
+            "type": "scene",
+            "role_in_shot": "scene",
+            "character_name": "",
+            "asset_package": "",
+            "appearance_stage": "当前阶段",
+            "reference_purpose": "scene_space",
+            "required_views": ["preview"],
+            "screen_position": "background",
+            "action_requirement": "作为本镜主要空间锚点",
+            "expression_requirement": "",
+            "continuity_requirement": "保持场景光线、空间结构和时代质感",
+            "speaking": false,
+            "muted": false
+          },
+          {
+            "name": "资产名称2",
+            "type": "character",
+            "role_in_shot": "main_actor",
+            "character_name": "角色名",
+            "asset_package": "角色名",
+            "appearance_stage": "当前造型阶段",
+            "reference_purpose": "identity",
+            "required_views": ["face", "full_body"],
+            "screen_position": "center",
+            "action_requirement": "按分镜执行动作",
+            "expression_requirement": "按剧情情绪保持表情",
+            "continuity_requirement": "保持同一张脸、同一服装、同一伤势/道具状态",
+            "speaking": false,
+            "muted": true
+          }
+        ],
         "dialogues": []
       },
       {
@@ -703,7 +753,40 @@ description 字段必须包含以下信息（不得省略）：
         "continuity_notes": "连续性硬规则",
         "use_prev_last_frame": true,
         "description": "景别+机位+运镜+动作+表情+画面内容（服装有变化时加注）",
-        "required_assets": ["资产名称1", "资产名称2"],
+        "required_assets": [
+          {
+            "name": "资产名称1",
+            "type": "character",
+            "role_in_shot": "speaker",
+            "character_name": "角色名",
+            "asset_package": "角色名",
+            "appearance_stage": "当前造型阶段",
+            "reference_purpose": "identity",
+            "required_views": ["face", "full_body"],
+            "screen_position": "left",
+            "action_requirement": "说话时同步发生的动作",
+            "expression_requirement": "说话时的面部表情和眼神",
+            "continuity_requirement": "保持同一张脸、当前服装和上一镜承接状态",
+            "speaking": true,
+            "muted": false
+          },
+          {
+            "name": "资产名称2",
+            "type": "character",
+            "role_in_shot": "listener",
+            "character_name": "角色名",
+            "asset_package": "角色名",
+            "appearance_stage": "当前造型阶段",
+            "reference_purpose": "identity",
+            "required_views": ["face", "full_body"],
+            "screen_position": "right",
+            "action_requirement": "听者无声反应",
+            "expression_requirement": "根据台词产生表情反应",
+            "continuity_requirement": "保持同一张脸、当前服装和站位",
+            "speaking": false,
+            "muted": true
+          }
+        ],
         "dialogues": [
           {
             "speaker": "角色名",
@@ -729,7 +812,24 @@ description 字段必须包含以下信息（不得省略）：
         "continuity_notes": "连续性硬规则",
         "use_prev_last_frame": true,
         "description": "特写+机位+运镜+表情反应+情绪落点",
-        "required_assets": ["资产名称1"],
+        "required_assets": [
+          {
+            "name": "资产名称1",
+            "type": "character",
+            "role_in_shot": "listener",
+            "character_name": "角色名",
+            "asset_package": "角色名",
+            "appearance_stage": "当前造型阶段",
+            "reference_purpose": "identity",
+            "required_views": ["face", "full_body"],
+            "screen_position": "center",
+            "action_requirement": "保持无声反应动作",
+            "expression_requirement": "特写表情反应",
+            "continuity_requirement": "承接上一镜台词尾音和情绪落点",
+            "speaking": false,
+            "muted": true
+          }
+        ],
         "dialogues": []
       }
     ]
@@ -792,26 +892,29 @@ SHOT_VIDEO_GEN = {
     "scope": PromptConfigScope.shot_video_gen,
     "name": "分镜视频生成-提示词构建",
     "description": "构建发给 Seedance 的视频生成提示词",
-    "system_prompt": """你是专业 AI 视频导演，负责构建 Seedance 2.0 视频生成提示词。
+    "system_prompt": """你是一个专业的 AI 短剧镜头提示词工程师，负责根据当前分镜镜头要求，编写可直接提交给视频生成模型的高质量视频生成提示词。
+
+当前默认目标模型是 {target_model}。当前项目优先适配 Seedance 2.0，后续需要兼容其他视频生成模型；你需要按目标模型能力组织提示词，但始终保证镜头信息、资产引用、台词表演和连续性约束清晰可执行。
 
 语言要求：最终 `prompt` 必须使用中文，不要翻译成英文，不要输出英文版提示词；保留中文角色名、场景名、台词和剧本风格词。
 
 提示词结构（必须包含）：
 1. 全局视觉风格：写实电影质感，真实摄影基础，真实影视布光，真实材质，真实空间透视，电影级调色，克制真实氛围；不得写成超现实、梦境、动漫、插画、游戏CG
 2. 直接参考图片说明：如果存在 [图1]、[图2] 等参考图片，必须在提示词中使用这些图号指代对应资产
-3. 场景参考
-4. 人物参考（每个角色明确身份、服装、性别，加排斥项）
-5. 镜头功能
-6. 转场类型：{transition_type}，按该类型描述本镜开头如何自然接入
-7. 固定站位
-8. 景别与机位
-9. 运镜
-10. 时间分段动作（视频时长 {duration} 秒，均匀分为三段：0-{seg1}s / {seg1}-{seg2}s / {seg2}-{duration}s，每段写明对应动作，覆盖完整时长）
-11. 台词与说话人（明确唯一发声人，其他人不得张嘴）
-12. 台词表演：必须写清每句台词对应的表情、动作、情绪和语气
-13. 音色一致性：必须按角色音色设定保持同一角色跨镜头声音一致
-14. 连续性约束：必须严格承接上一镜结尾状态、本镜起始状态和本镜结束状态
-15. 反向约束
+3. 镜头资产契约：优先读取 asset_contract 中的角色职责、站位、说话/闭嘴、动作、表情、连续性和参考图用途
+4. 场景参考
+5. 人物参考（每个角色明确身份、服装、性别，加排斥项）
+6. 镜头功能
+7. 转场类型：{transition_type}，按该类型描述本镜开头如何自然接入
+8. 固定站位
+9. 景别与机位
+10. 运镜
+11. 时间分段动作（视频时长 {duration} 秒，均匀分为三段：0-{seg1}s / {seg1}-{seg2}s / {seg2}-{duration}s，每段写明对应动作，覆盖完整时长）
+12. 台词与说话人（明确唯一发声人，其他人不得张嘴）
+13. 台词表演：必须写清每句台词对应的表情、动作、情绪和语气
+14. 音色一致性：必须按角色音色设定保持同一角色跨镜头声音一致
+15. 连续性约束：必须严格承接上一镜结尾状态、本镜起始状态和本镜结束状态
+16. 反向约束
 
 视觉风格硬规则：
 - 所有镜头必须是写实电影短剧质感，像真实摄影机拍摄的真人、真实空间和真实道具
@@ -828,10 +931,10 @@ SHOT_VIDEO_GEN = {
 - 只有 dialogues 中的 speaker 可以张嘴发声，其他角色必须保持闭嘴，只能做表情和动作反应
 - 台词必须与口型同步，不要出现画外错误人声，不要出现字幕
 
-以 JSON 格式输出：{"prompt": "完整提示词文本"}
+以 JSON 格式输出：{{"prompt": "完整提示词文本"}}
 注意：提示词用中文撰写，台词原文保留。""",
-    "user_prompt_template": "镜头编号：{shot_code}\n所属片段：{segment_code} {segment_name}（{segment_function}）\n镜头功能：{shot_function}\n转场类型：{transition_type}\n视频时长：{duration}秒\n分镜描述：{shot_description}\n\n连续性上下文：\n{continuity_context}\n\n角色音色设定：\n{voice_profiles}\n\n台词与表演：\n{dialogue_performance}\n\n直接参考图片：\n{reference_images}\n角色参考：\n{character_prompts}\n场景参考：\n{scene_prompt}\n道具参考：\n{prop_prompts}\n\n当前提示词（若有）：{shot_prompt}",
-    "variables": ["shot_code", "segment_code", "segment_name", "segment_function", "shot_function", "transition_type", "duration", "seg1", "seg2", "shot_description", "continuity_context", "voice_profiles", "dialogue_performance", "reference_images", "character_prompts", "scene_prompt", "prop_prompts", "shot_prompt"],
+    "user_prompt_template": "镜头编号：{shot_code}\n所属片段：{segment_code} {segment_name}（{segment_function}）\n镜头功能：{shot_function}\n转场类型：{transition_type}\n视频时长：{duration}秒\n分镜描述：{shot_description}\n\n连续性上下文：\n{continuity_context}\n\n角色音色设定：\n{voice_profiles}\n\n台词与表演：\n{dialogue_performance}\n\n直接参考图片：\n{reference_images}\n\n镜头资产契约：\n{asset_contract}\n\n角色参考：\n{character_prompts}\n场景参考：\n{scene_prompt}\n道具参考：\n{prop_prompts}\n\n当前提示词（若有）：{shot_prompt}",
+    "variables": ["target_model", "shot_code", "segment_code", "segment_name", "segment_function", "shot_function", "transition_type", "duration", "seg1", "seg2", "shot_description", "continuity_context", "voice_profiles", "dialogue_performance", "reference_images", "asset_contract", "character_prompts", "scene_prompt", "prop_prompts", "shot_prompt"],
 }
 
 # =============================================================================

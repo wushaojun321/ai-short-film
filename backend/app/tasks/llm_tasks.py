@@ -806,6 +806,43 @@ def _infer_transition_type(transition_in: str, transition_out: str, segment: dic
     return "hard_cut"
 
 
+def _as_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"true", "1", "yes", "y", "是", "会", "开口"}
+    return bool(value)
+
+
+def _as_str_list(value) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        return [part.strip() for part in value.replace("，", ",").split(",") if part.strip()]
+    return []
+
+
+def _asset_binding_name(raw) -> str:
+    if isinstance(raw, dict):
+        return str(raw.get("name") or raw.get("asset_name") or raw.get("asset") or "").strip()
+    return str(raw or "").strip()
+
+
+def _resolve_asset_for_binding(raw, asset_map: dict, asset_alias_map: dict):
+    """Resolve structured or legacy asset binding to an Asset document."""
+    name = _asset_binding_name(raw)
+    if name in asset_map:
+        return asset_map[name]
+    if name in asset_alias_map:
+        return asset_alias_map[name]
+    if isinstance(raw, dict):
+        for key in ("character_name", "asset_package"):
+            alias = str(raw.get(key) or "").strip()
+            if alias in asset_alias_map:
+                return asset_alias_map[alias]
+    return None
+
+
 async def _repair_storyboard_continuity(
     *,
     result: dict,
@@ -947,8 +984,18 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
 
         # Create shots — supports the new segments[].shots structure and the old flat formats.
         flattened_shots = _extract_shot_list(result)
-        # Build asset name→id map once for efficiency
+        # Build asset name/alias → document map once for efficiency.
         asset_map = {a.name: a for a in assets}
+        asset_alias_map = {}
+        for asset in assets:
+            for alias in (
+                asset.name,
+                asset.character_name,
+                asset.asset_package,
+                f"{asset.character_name}-{asset.appearance_stage}" if asset.character_name and asset.appearance_stage else "",
+            ):
+                if alias and alias not in asset_alias_map:
+                    asset_alias_map[alias] = asset
         previous_created_shot: Shot | None = None
         for idx, (segment, s) in enumerate(flattened_shots):
             segment_code = str(segment.get("segment_code") or segment.get("code") or "")
@@ -958,13 +1005,36 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
 
             # Resolve asset bindings from LLM output
             required_assets: list[ShotAssetBinding] = []
-            for ra in s.get("required_assets", []):
-                name = ra.get("name", "") if isinstance(ra, dict) else str(ra)
-                matched = asset_map.get(name)
+            raw_required_assets = s.get("required_assets", [])
+            if isinstance(raw_required_assets, (str, dict)):
+                raw_required_assets = [raw_required_assets]
+            if not isinstance(raw_required_assets, list):
+                raw_required_assets = []
+            for ra in raw_required_assets:
+                matched = _resolve_asset_for_binding(ra, asset_map, asset_alias_map)
                 if matched:
+                    ra_dict = ra if isinstance(ra, dict) else {}
+                    role_in_shot = str(ra_dict.get("role_in_shot") or "")
+                    speaking = _as_bool(ra_dict.get("speaking")) or role_in_shot == "speaker"
+                    muted = _as_bool(ra_dict.get("muted")) or role_in_shot in {"listener", "background"}
                     required_assets.append(ShotAssetBinding(
                         asset_id=matched.id,
                         asset_name=matched.name,
+                        asset_type=str(ra_dict.get("type") or matched.asset_type.value),
+                        role_in_shot=role_in_shot,
+                        character_name=str(ra_dict.get("character_name") or matched.character_name or ""),
+                        asset_package=str(ra_dict.get("asset_package") or matched.asset_package or matched.character_name or ""),
+                        appearance_stage=str(ra_dict.get("appearance_stage") or matched.appearance_stage or ""),
+                        reference_purpose=str(ra_dict.get("reference_purpose") or ""),
+                        required_views=_as_str_list(ra_dict.get("required_views")),
+                        screen_position=str(ra_dict.get("screen_position") or ""),
+                        action_requirement=str(ra_dict.get("action_requirement") or ""),
+                        expression_requirement=str(ra_dict.get("expression_requirement") or ""),
+                        continuity_requirement=str(ra_dict.get("continuity_requirement") or ""),
+                        voice_required=_as_bool(ra_dict.get("voice_required")) or speaking,
+                        speaking=speaking,
+                        muted=muted,
+                        binding_source="llm" if isinstance(ra, dict) else "legacy",
                     ))
 
             raw_code = s.get("shot_code")

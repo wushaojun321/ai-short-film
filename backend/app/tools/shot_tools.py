@@ -190,7 +190,7 @@ async def bind_assets_to_shot(shot_id: str, asset_ids: list[str]) -> dict:
     """Bind assets to a shot for reference image injection during video generation."""
     from beanie import PydanticObjectId
     from app.models.shot import Shot, ShotAssetBinding
-    from app.models.asset import Asset
+    from app.models.asset import Asset, AssetType
 
     shot = await Shot.get(PydanticObjectId(shot_id))
     if not shot:
@@ -201,7 +201,28 @@ async def bind_assets_to_shot(shot_id: str, asset_ids: list[str]) -> dict:
     for aid in asset_ids:
         asset = await Asset.get(PydanticObjectId(aid))
         if asset:
-            bindings.append(ShotAssetBinding(asset_id=asset.id, asset_name=asset.name))
+            bindings.append(ShotAssetBinding(
+                asset_id=asset.id,
+                asset_name=asset.name,
+                asset_type=asset.asset_type.value,
+                role_in_shot={
+                    AssetType.character: "main_actor",
+                    AssetType.scene: "scene",
+                    AssetType.prop: "prop",
+                    AssetType.template: "template",
+                }.get(asset.asset_type, ""),
+                character_name=asset.character_name,
+                asset_package=asset.asset_package or asset.character_name,
+                appearance_stage=asset.appearance_stage,
+                reference_purpose={
+                    AssetType.character: "identity",
+                    AssetType.scene: "scene_space",
+                    AssetType.prop: "prop_detail",
+                    AssetType.template: "reference",
+                }.get(asset.asset_type, ""),
+                required_views=["face", "full_body"] if asset.asset_type == AssetType.character else ["preview"],
+                binding_source="manual",
+            ))
             bound_names.append(asset.name)
 
     await shot.set({"required_assets": bindings, "updated_at": datetime.utcnow()})
