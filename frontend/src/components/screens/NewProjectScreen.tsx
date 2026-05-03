@@ -1662,8 +1662,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="section-title mb-2">Asset Review</p>
-            <h2 className="text-3xl font-black text-text mb-2">图片确认</h2>
-            <p className="text-base text-sub">先检查资产包一致性，再生成图片并确认。人物、场景、道具如有不同阶段资产，均按资产组卡片预览。</p>
+            <h2 className="text-3xl font-black text-text">图片确认</h2>
           </div>
           <div className="flex flex-wrap gap-2 items-center shrink-0">
             <Button

@@ -50,7 +50,6 @@ export default function LoginPage() {
           </div>
           <div className="text-center">
             <h1 className="text-xl font-bold text-text">短剧制作</h1>
-            <p className="text-xs text-muted mt-0.5">企业级 AI 短剧生产工作台</p>
           </div>
         </div>
 

@@ -13,7 +13,7 @@
   *, *::before, *::after { box-sizing: border-box; }
 
   html {
-    font-size: 17px;
+    font-size: 16px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -22,10 +22,10 @@
   body {
     min-width: 320px;
     background:
-      radial-gradient(circle at 12% -10%, rgba(239,35,60,0.18), transparent 34rem),
-      radial-gradient(circle at 86% 8%, rgba(255,77,94,0.12), transparent 30rem),
-      linear-gradient(180deg, #121214 0%, #09090B 42%, #070708 100%);
-    color: #F8FAFC;
+      radial-gradient(circle at 12% -10%, rgba(52,211,153,0.10), transparent 34rem),
+      radial-gradient(circle at 86% 8%, rgba(110,231,183,0.06), transparent 30rem),
+      linear-gradient(180deg, #1B1D20 0%, #141618 46%, #111315 100%);
+    color: #F4F7F5;
     font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
     line-height: 1.6;
   }
@@ -34,11 +34,11 @@
     font-weight: 700;
     letter-spacing: 0;
     line-height: 1.25;
-    color: #F8FAFC;
+    color: #F4F7F5;
   }
 
   ::selection {
-    background: rgba(239, 35, 60, 0.34);
+    background: rgba(52, 211, 153, 0.26);
     color: #FFFFFF;
   }
 
@@ -46,7 +46,7 @@
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 99px; }
-  ::-webkit-scrollbar-thumb:hover { background: rgba(239,35,60,0.62); }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(52,211,153,0.56); }
 }
 
 /* ── Utility Classes ───────────────────────────────────────── */
@@ -54,8 +54,8 @@
   .app-workspace {
     @apply min-h-screen bg-bg text-text;
     background-image:
-      linear-gradient(180deg, rgba(20,20,22,0.88) 0%, rgba(9,9,11,0.96) 520px, #070708 100%),
-      radial-gradient(circle at 9% 7%, rgba(239,35,60,0.18), transparent 26rem),
+      linear-gradient(180deg, rgba(27,29,32,0.90) 0%, rgba(20,22,24,0.95) 520px, #111315 100%),
+      radial-gradient(circle at 9% 7%, rgba(52,211,153,0.10), transparent 26rem),
       radial-gradient(circle at 92% 0%, rgba(255,255,255,0.07), transparent 22rem),
       linear-gradient(rgba(255,255,255,0.045) 1px, transparent 1px),
       linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
@@ -69,16 +69,16 @@
   .page-panel {
     @apply rounded-2xl border border-line bg-panel/90 shadow-card backdrop-blur-xl;
     background-image:
-      linear-gradient(145deg, rgba(255,255,255,0.075), rgba(255,255,255,0.015) 42%, rgba(239,35,60,0.045));
-    box-shadow: 0 22px 54px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.08);
+      linear-gradient(145deg, rgba(255,255,255,0.060), rgba(255,255,255,0.014) 42%, rgba(52,211,153,0.026));
+    box-shadow: 0 16px 38px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.08);
   }
 
   .page-header {
-    @apply rounded-2xl border border-line bg-panel/90 px-7 py-7 shadow-card backdrop-blur-xl;
+    @apply rounded-2xl border border-line bg-panel/90 px-6 py-6 shadow-card backdrop-blur-xl;
     background-image:
-      linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.02) 40%, rgba(239,35,60,0.10)),
-      linear-gradient(90deg, rgba(239,35,60,0.20), transparent 36%);
-    box-shadow: 0 24px 64px rgba(0,0,0,0.36), inset 0 1px 0 rgba(255,255,255,0.10);
+      linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02) 40%, rgba(52,211,153,0.055)),
+      linear-gradient(90deg, rgba(52,211,153,0.10), transparent 36%);
+    box-shadow: 0 18px 46px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.09);
   }
 
   .toolbar {
@@ -112,7 +112,7 @@
 
   .sticky-action-bar {
     @apply sticky bottom-4 z-20 mt-6 flex flex-col gap-3 rounded-2xl border border-line bg-panel/90 px-5 py-4 shadow-lg backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between;
-    box-shadow: 0 24px 64px rgba(0,0,0,0.46), inset 0 1px 0 rgba(255,255,255,0.09);
+    box-shadow: 0 18px 48px rgba(0,0,0,0.36), inset 0 1px 0 rgba(255,255,255,0.09);
   }
 
   .prompt-block {
@@ -132,7 +132,7 @@
     inset: 0;
     pointer-events: none;
     border-radius: inherit;
-    border: 1px solid rgba(239,35,60,0.28);
+    border: 1px solid rgba(52,211,153,0.20);
     mask-image: linear-gradient(135deg, #000, transparent 38%, transparent 62%, #000);
   }
 
@@ -173,7 +173,7 @@
 
   /* 骨架屏 */
   .skeleton {
-    background: linear-gradient(90deg, #18181B 25%, #27272A 50%, #18181B 75%);
+    background: linear-gradient(90deg, #222529 25%, #30363A 50%, #222529 75%);
     background-size: 200% 100%;
     @apply rounded animate-shimmer;
   }
@@ -200,7 +200,7 @@
 
 /* ── Focus Ring ────────────────────────────────────────────── */
 :focus-visible {
-  outline: 2px solid #EF233C;
+  outline: 2px solid #34D399;
   outline-offset: 2px;
   border-radius: 4px;
 }
