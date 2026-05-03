@@ -8,6 +8,7 @@ class PromptConfigScope(str, Enum):
     script_parse         = "script_parse"
     episode_split        = "episode_split"
     series_plan          = "series_plan"
+    script_production_plan = "script_production_plan"
     asset_extract        = "asset_extract"
     character_bible      = "character_bible"
     character_variant_plan = "character_variant_plan"

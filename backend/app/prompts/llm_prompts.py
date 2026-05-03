@@ -295,6 +295,139 @@ SERIES_PLAN = {
 }
 
 
+SCRIPT_PRODUCTION_PLAN = {
+    "scope": PromptConfigScope.script_production_plan,
+    "name": "剧本制作规划-单次综合解析",
+    "description": "一次完成全剧规划、分集蓝图、资产注册表和重要性分层，正文由后端原文块回填",
+    "system_prompt": """你是专业短剧总编剧、制作统筹和 AI 资产规划师。你的任务是对剧本做一次综合制作规划，输出给后端执行的结构化 JSON。
+
+核心原则：
+1. 只做一次综合规划，不要把同一信息在多个部分重复展开。
+2. 分集正文不要改写、压缩或重写，只输出 source_block_ranges；后端会按 block_index 回填原文。
+3. 如果原文索引已有 episode_header 或建议分集边界，优先沿用原始集边界。
+4. 资产不是越多越好。不要按数量硬裁剪，而是按“剧情必要性、复用价值、镜头识别度、状态变化原因”分层。
+5. 只把主要角色、重要配角、反复出现或剧情功能明确的场景、关键道具列为 must_build/recommended；路人、泛背景、一次性无剧情功能物件放入 ignored_assets 并说明原因。
+6. 同一人物的不同阶段造型必须归入同一个 asset_package，共享 face_identity 和 voice_profile；除非剧本明确面部受伤、毁容、年龄跨度或伪装改变，否则不得改变面部基准。
+7. 人物 variant 只在服装、妆发、伤势、随身道具、身份状态、关键场景发生实质变化时创建；轻微情绪变化不要拆成资产。
+8. 场景/道具 variant 只在剧情状态发生实质变化时创建，例如战损、雨夜、废墟、修复、归属变化。
+9. 不生成最终图片提示词，只写 prompt_seed：中文、写实电影质感、真实摄影基础、真实影视布光、真实材质、克制真实氛围；禁止超现实、梦境、动漫、卡通、插画、游戏CG、3D建模。
+10. 输出必须是 JSON 对象，不要包含额外解释。
+
+输出格式：
+{
+  "series": {
+    "series_prompt": "全剧世界观、时代/空间、视觉风格和影像质感。必须是写实电影质感，不得出现超现实/梦境/动漫/卡通等风格",
+    "main_storyline": "主线推进摘要",
+    "continuity_notes": "人物关系、服装阶段、关键伤势/道具/地点变化等连续性约束"
+  },
+  "episodes": [
+    {
+      "number": 1,
+      "title": "集标题",
+      "summary": "50字以内本集概要",
+      "source_block_ranges": [{"start_block": 0, "end_block": 12}],
+      "word_count": 1200,
+      "estimated_duration": 120,
+      "beats": ["关键情节点"],
+      "emotion_curve": "情绪变化",
+      "ending_hook": "结尾钩子",
+      "asset_requirements": {
+        "characters": [
+          {
+            "name": "角色名",
+            "role_in_episode": "本集剧情功能",
+            "state": "本集状态/阶段",
+            "scene_scope": "适用场景",
+            "appearance_hint": "服装/妆发/伤势/随身道具线索",
+            "voice_hint": "音色和说话基调线索"
+          }
+        ],
+        "scenes": [{"name": "场景名", "state": "本集状态", "episode_usage": "剧情用途"}],
+        "props": [{"name": "道具名", "usage": "剧情用途", "owner": "相关角色或无"}]
+      }
+    }
+  ],
+  "asset_registry": {
+    "characters": [
+      {
+        "character_name": "角色本名",
+        "asset_package": "人物资产包名，通常等于角色名",
+        "role": "身份和剧情功能",
+        "importance": "lead|supporting|functional|background",
+        "reuse_scope": "全剧/第1-3集/单集等",
+        "face_identity": "共享面部基准，描述脸型、骨相、五官比例、肤色、皮肤质感和标志性特征",
+        "voice_profile": "固定音色、语速、语气基线和禁止变化项",
+        "locked_traits": ["不得变化的人脸/音色特征"],
+        "allowed_changes": ["允许变化项"],
+        "variants": [
+          {
+            "name": "角色名-阶段/场景/造型资产名",
+            "asset_level": "must_build|recommended|optional|background",
+            "merge_key": "同一资产包内用于合并的稳定键",
+            "episode_range": "使用集数",
+            "scene_scope": "适用场景",
+            "appearance_stage": "剧情阶段/造型状态",
+            "stage_change_reason": "为什么需要独立阶段资产",
+            "description": "剧情层面描述",
+            "prompt_seed": "中文写实电影质感定妆参考提示词种子"
+          }
+        ]
+      }
+    ],
+    "scenes": [
+      {
+        "name": "场景名",
+        "scene_package": "场景资产包",
+        "importance": "core|recurring|functional|background",
+        "reuse_scope": "使用范围",
+        "variants": [
+          {
+            "name": "场景阶段资产名",
+            "asset_level": "must_build|recommended|optional|background",
+            "merge_key": "合并键",
+            "state": "阶段/状态",
+            "episode_range": "使用集数",
+            "description": "剧情层面描述",
+            "prompt_seed": "中文写实影视场景参考提示词种子"
+          }
+        ]
+      }
+    ],
+    "props": [
+      {
+        "name": "道具名",
+        "prop_package": "道具资产包",
+        "importance": "key|recurring|functional|background",
+        "reuse_scope": "使用范围",
+        "variants": [
+          {
+            "name": "道具阶段资产名",
+            "asset_level": "must_build|recommended|optional|background",
+            "merge_key": "合并键",
+            "state": "阶段/状态",
+            "owner": "所属角色或无",
+            "episode_range": "使用集数",
+            "description": "剧情层面描述",
+            "prompt_seed": "中文写实道具摄影参考提示词种子"
+          }
+        ]
+      }
+    ]
+  },
+  "ignored_assets": [
+    {"type": "character|scene|prop", "name": "名称", "reason": "为什么不需要建资产"}
+  ],
+  "continuity_report": {
+    "status": "needs_review",
+    "warnings": ["需要人工注意的连续性点"],
+    "issues": []
+  }
+}""",
+    "user_prompt_template": "目标集数：{target_episodes}\n每集最短时长（秒）：{min_duration}\n补充说明：{parse_notes}\n\n建议分集边界（如有，优先遵守）：\n{suggested_ranges}\n\n原文块索引：\n{script_index}",
+    "variables": ["script_index", "target_episodes", "min_duration", "parse_notes", "suggested_ranges"],
+}
+
+
 ASSET_EXTRACT = {
     "scope": PromptConfigScope.asset_extract,
     "name": "资产解析-系统提示",
@@ -1041,6 +1174,7 @@ DEFAULT_PROMPTS = [
     SCRIPT_PARSE,
     SCRIPT_MAP,
     SERIES_PLAN,
+    SCRIPT_PRODUCTION_PLAN,
     EPISODE_SPLIT,
     ASSET_EXTRACT,
     CHARACTER_BIBLE,

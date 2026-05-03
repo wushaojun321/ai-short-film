@@ -165,6 +165,244 @@ def _as_list(value) -> list:
     return value if isinstance(value, list) else []
 
 
+def _as_dict(value) -> dict:
+    return value if isinstance(value, dict) else {}
+
+
+def _text_value(*values, default: str = "") -> str:
+    for value in values:
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return default
+
+
+def _norm_token(value) -> str:
+    return str(value or "").strip().lower().replace(" ", "_").replace("-", "_")
+
+
+def _should_materialize_asset(item: dict, parent: dict | None = None) -> bool:
+    """Qualitative asset gate: skip background/reference-only entries without a hard count cap."""
+    parent = parent or {}
+    level = _norm_token(item.get("asset_level") or item.get("build_level") or parent.get("asset_level"))
+    importance = _norm_token(item.get("importance") or parent.get("importance"))
+    text = f"{level} {importance} {item.get('reason', '')} {item.get('description', '')}"
+    blocked = (
+        "background",
+        "ignored",
+        "ignore",
+        "reference_only",
+        "no_asset",
+        "not_required",
+        "optional",
+        "不建模",
+        "不需要",
+        "忽略",
+        "背景",
+        "路人",
+        "群众",
+    )
+    return not any(token in text for token in blocked)
+
+
+def _merge_key(*parts: str) -> str:
+    raw = "|".join(str(part or "").strip() for part in parts if str(part or "").strip())
+    return raw.lower() or "unnamed"
+
+
+def _append_unique(target: list[dict], seen: set[str], key: str, item: dict):
+    if key in seen:
+        return
+    seen.add(key)
+    target.append(item)
+
+
+def _registry_from_plan(plan_result: dict) -> dict:
+    registry = _as_dict(plan_result.get("asset_registry"))
+    if registry:
+        return registry
+    assets = _as_dict(plan_result.get("assets"))
+    if assets:
+        return assets
+    return {"characters": [], "scenes": [], "props": []}
+
+
+def _character_bible_from_registry(characters: list[dict]) -> list[dict]:
+    bible: list[dict] = []
+    seen: set[str] = set()
+    for item in characters:
+        if not isinstance(item, dict):
+            continue
+        character_name = _text_value(item.get("character_name"), item.get("name"))
+        if not character_name:
+            continue
+        asset_package = _text_value(item.get("asset_package"), character_name)
+        key = _merge_key(asset_package)
+        if key in seen:
+            continue
+        seen.add(key)
+        bible.append({
+            "character_id": item.get("character_id") or asset_package,
+            "character_name": character_name,
+            "asset_package": asset_package,
+            "role": _text_value(item.get("role"), item.get("description")),
+            "arc": item.get("arc", ""),
+            "importance": item.get("importance", ""),
+            "reuse_scope": item.get("reuse_scope", ""),
+            "face_identity": _text_value(
+                item.get("face_identity"),
+                "写实电影人物面部基准，真实五官比例和自然皮肤质感，全剧保持一致",
+            ),
+            "voice_profile": _text_value(
+                item.get("voice_profile"),
+                item.get("voice_hint"),
+                "自然真实人声，语气随剧情变化但音色保持一致",
+            ),
+            "allowed_changes": item.get("allowed_changes", ["服装", "妆发", "伤势", "随身道具", "场景状态"]),
+            "locked_traits": item.get("locked_traits", ["面部基准", "五官比例", "音色基准"]),
+            "face_change_rules": item.get("face_change_rules", "全剧不改变面部基准，除非剧本明确说明"),
+        })
+    return bible
+
+
+def _character_variants_from_registry(characters: list[dict]) -> list[dict]:
+    variants: list[dict] = []
+    seen: set[str] = set()
+    for item in characters:
+        if not isinstance(item, dict):
+            continue
+        character_name = _text_value(item.get("character_name"), item.get("name"))
+        if not character_name:
+            continue
+        asset_package = _text_value(item.get("asset_package"), character_name)
+        face_identity = _text_value(
+            item.get("face_identity"),
+            "写实电影人物面部基准，真实五官比例和自然皮肤质感，全剧保持一致",
+        )
+        voice_profile = _text_value(
+            item.get("voice_profile"),
+            item.get("voice_hint"),
+            "自然真实人声，语气随剧情变化但音色保持一致",
+        )
+        raw_variants = _as_list(item.get("variants"))
+        if not raw_variants:
+            raw_variants = [item]
+        for variant in raw_variants:
+            if not isinstance(variant, dict) or not _should_materialize_asset(variant, item):
+                continue
+            scene_scope = _text_value(variant.get("scene_scope"), item.get("scene_scope"), "按剧本主要场景")
+            appearance_stage = _text_value(
+                variant.get("appearance_stage"),
+                variant.get("state"),
+                item.get("appearance_stage"),
+                item.get("state"),
+                "常规状态",
+            )
+            name = _text_value(
+                variant.get("name"),
+                item.get("asset_name"),
+                item.get("name"),
+                f"{character_name}-{appearance_stage}",
+            )
+            key = _merge_key(variant.get("merge_key") or f"{asset_package}|{appearance_stage}|{scene_scope}|{name}")
+            prompt_seed = _text_value(
+                variant.get("prompt_seed"),
+                variant.get("prompt"),
+                item.get("prompt_seed"),
+                item.get("prompt"),
+                f"{name}，沿用{asset_package}人物资产包共享面部基准，写实电影质感定妆参考照，真实摄影基础，真实影视布光。",
+            )
+            _append_unique(variants, seen, key, {
+                "name": name,
+                "character_name": character_name,
+                "asset_package": asset_package,
+                "face_identity": face_identity,
+                "voice_profile": voice_profile,
+                "scene_scope": scene_scope,
+                "appearance_stage": appearance_stage,
+                "episode_range": _text_value(variant.get("episode_range"), item.get("reuse_scope"), item.get("episode_range")),
+                "view_requirements": _text_value(variant.get("view_requirements"), item.get("view_requirements"), "面部特写、全身形象、侧面视角"),
+                "description": _text_value(variant.get("description"), item.get("description"), item.get("role")),
+                "prompt": prompt_seed,
+                "importance": variant.get("importance", item.get("importance", "")),
+                "asset_level": variant.get("asset_level", item.get("asset_level", "")),
+                "reuse_scope": variant.get("reuse_scope", item.get("reuse_scope", "")),
+                "stage_change_reason": variant.get("stage_change_reason", ""),
+                "merge_key": variant.get("merge_key", key),
+            })
+    return variants
+
+
+def _bucket_variants_from_registry(items: list[dict], bucket: str) -> list[dict]:
+    result: list[dict] = []
+    seen: set[str] = set()
+    package_key = "scene_package" if bucket == "scenes" else "prop_package"
+    state_fallback = "常规状态"
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        package = _text_value(item.get(package_key), item.get("name"))
+        if not package:
+            continue
+        raw_variants = _as_list(item.get("variants"))
+        if not raw_variants:
+            raw_variants = [item]
+        for variant in raw_variants:
+            if not isinstance(variant, dict) or not _should_materialize_asset(variant, item):
+                continue
+            state = _text_value(variant.get("state"), item.get("state"), state_fallback)
+            name = _text_value(variant.get("name"), item.get("asset_name"), item.get("name"), f"{package}-{state}")
+            key = _merge_key(variant.get("merge_key") or f"{package}|{state}|{name}")
+            prompt_seed = _text_value(
+                variant.get("prompt_seed"),
+                variant.get("prompt"),
+                item.get("prompt_seed"),
+                item.get("prompt"),
+                f"{name}，写实电影质感参考，真实摄影基础，真实影视布光，真实材质，克制真实氛围。",
+            )
+            payload = {
+                "name": name,
+                package_key: package,
+                "state": state,
+                "episode_range": _text_value(variant.get("episode_range"), item.get("reuse_scope"), item.get("episode_range")),
+                "description": _text_value(variant.get("description"), item.get("description")),
+                "prompt": prompt_seed,
+                "importance": variant.get("importance", item.get("importance", "")),
+                "asset_level": variant.get("asset_level", item.get("asset_level", "")),
+                "reuse_scope": variant.get("reuse_scope", item.get("reuse_scope", "")),
+                "stage_change_reason": variant.get("stage_change_reason", ""),
+                "merge_key": variant.get("merge_key", key),
+            }
+            if bucket == "props":
+                payload["owner"] = _text_value(variant.get("owner"), item.get("owner"))
+            _append_unique(result, seen, key, payload)
+    return result
+
+
+def _assets_from_production_plan(asset_registry: dict, blueprint_episodes: list[dict]) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
+    characters = _as_list(asset_registry.get("characters"))
+    scenes = _as_list(asset_registry.get("scenes"))
+    props = _as_list(asset_registry.get("props"))
+
+    character_bible = _character_bible_from_registry(characters)
+    character_variants = _character_variants_from_registry(characters)
+    scene_variants = _bucket_variants_from_registry(scenes, "scenes")
+    prop_variants = _bucket_variants_from_registry(props, "props")
+
+    if not character_bible:
+        character_bible = _fallback_character_bible_from_requirements(blueprint_episodes)
+    if not character_variants:
+        character_variants = _fallback_character_variants(character_bible)
+    if not scene_variants:
+        scene_variants = _fallback_assets_from_requirements(blueprint_episodes, "scenes")
+    if not prop_variants:
+        prop_variants = _fallback_assets_from_requirements(blueprint_episodes, "props")
+
+    return character_bible, character_variants, scene_variants, prop_variants
+
+
 def _asset_inventory_from_blueprint(
     character_variants: list[dict],
     scenes: list[dict],
@@ -307,7 +545,9 @@ async def _parse_script_async(celery_id: str, project_id: str):
     from app.database import init_db
     await init_db()
 
+    import asyncio
     import json
+    import time
     from datetime import datetime
     from beanie import PydanticObjectId
     from app.models.project import Project
@@ -333,6 +573,36 @@ async def _parse_script_async(celery_id: str, project_id: str):
         if record:
             current = record.logs or []
             await record.set({"logs": current + msgs, "progress": progress})
+
+    async def chat_json_step(
+        system_prompt: str,
+        user_prompt: str,
+        *,
+        max_tokens: int,
+        timeout_seconds: int = 240,
+        label: str = "",
+        progress: int = 25,
+    ) -> dict:
+        """Bound non-critical planning calls so parse jobs can fall back instead of hanging."""
+        started = time.perf_counter()
+        try:
+            result = await asyncio.wait_for(
+                llm_service.chat_json(system_prompt, user_prompt, max_tokens=max_tokens),
+                timeout=timeout_seconds,
+            )
+        except Exception as exc:
+            if label:
+                elapsed = time.perf_counter() - started
+                await log([
+                    f"[timing] {label} 失败：{elapsed:.1f}s，输入约 {len(system_prompt) + len(user_prompt)} 字，输出上限 {max_tokens}"
+                ], progress)
+            raise
+        if label:
+            elapsed = time.perf_counter() - started
+            await log([
+                f"[timing] {label} 完成：{elapsed:.1f}s，输入约 {len(system_prompt) + len(user_prompt)} 字，输出上限 {max_tokens}"
+            ], progress)
+        return result
 
     record = None
     try:
@@ -362,40 +632,19 @@ async def _parse_script_async(celery_id: str, project_id: str):
         })
         explicit_ranges = explicit_episode_ranges(blocks)
         target_count = project.target_episode_count or len(explicit_ranges) or 1
-        digest_limit = 22000 if script_len <= DIRECT_INDEX_THRESHOLD else 18000
+        # 5 万字以内尽量把完整索引交给单次综合规划；索引会比原文略长，按原文长度放大预留。
+        digest_limit = min(max(script_len * 3, 22000), 140000) if script_len <= DIRECT_INDEX_THRESHOLD else 90000
         script_index = build_index_digest(blocks, max_chars=digest_limit)
         await log([
             f"[index] 原文索引完成：{len(blocks)} 个块，显式分集边界 {len(explicit_ranges)} 个",
         ], 25)
 
-        # SeriesPlannerAgent：只生成全剧规划，不承载分集正文。
-        system_prompt, user_prompt, _ = await render(
-            PromptConfigScope.series_plan,
-            {
-                "script_index": script_index,
-                "target_episodes": target_count,
-                "min_duration": project.min_episode_duration,
-                "parse_notes": project.parse_notes or "",
-            },
-        )
-        series_result = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=8192)
-        if not isinstance(series_result, dict):
-            series_result = {}
-        await log([
-            "[series] 全剧规划完成",
-        ], 40)
-
-        series_prompt = series_result.get("series_prompt") or project.series_prompt or ""
-        continuity_notes = series_result.get("continuity_notes", "")
-        await project.set({"series_prompt": series_prompt})
-
-        # EpisodePlannerAgent：输出分集蓝图和每集资产需求，正文仍由后端原文块回填。
+        # ScriptProductionPlanAgent：一次完成全剧、分集、资产注册表规划；正文仍由后端原文块回填。
         suggested_ranges = explicit_ranges if explicit_ranges else []
         system_prompt, user_prompt, _ = await render(
-            PromptConfigScope.episode_split,
+            PromptConfigScope.script_production_plan,
             {
                 "script_index": script_index,
-                "series_context": json.dumps(series_result, ensure_ascii=False),
                 "target_episodes": target_count,
                 "min_duration": project.min_episode_duration,
                 "parse_notes": project.parse_notes or "",
@@ -403,22 +652,50 @@ async def _parse_script_async(celery_id: str, project_id: str):
             },
         )
         try:
-            split_result = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=24000)
-            episodes_data = split_result.get("episodes", []) if isinstance(split_result, dict) else []
+            production_result = await chat_json_step(
+                system_prompt,
+                user_prompt,
+                max_tokens=22000,
+                timeout_seconds=420,
+                label="script_production_plan",
+                progress=45,
+            )
         except Exception as exc:
-            episodes_data = []
-            await log([f"[warn] 分集蓝图生成失败，使用后端原文边界兜底：{exc}"], 52)
+            production_result = {}
+            await log([f"[warn] 综合制作规划失败，使用后端原文边界兜底：{exc}"], 45)
+        if not isinstance(production_result, dict):
+            production_result = {}
 
-        source_ranges = _extract_ranges_from_episode_plan(episodes_data, blocks, target_count)
-        if not source_ranges:
+        series_result = _as_dict(production_result.get("series"))
+        if not series_result:
+            series_result = {
+                "series_prompt": production_result.get("series_prompt") or "",
+                "main_storyline": production_result.get("main_storyline") or "",
+                "continuity_notes": production_result.get("continuity_notes") or "",
+            }
+        series_prompt = series_result.get("series_prompt") or project.series_prompt or (
+            "写实电影质感，真实摄影基础，真实影视布光，真实材质，电影级调色，克制真实氛围"
+        )
+        series_result["series_prompt"] = series_prompt
+        continuity_notes = series_result.get("continuity_notes") or production_result.get("continuity_notes", "")
+        await project.set({"series_prompt": series_prompt})
+        await log(["[plan] 综合制作规划完成，开始按原文块回填分集"], 50)
+
+        episodes_data = _as_list(production_result.get("episodes"))
+        planned_ranges = _extract_ranges_from_episode_plan(episodes_data, blocks, target_count)
+        if explicit_ranges and len(explicit_ranges) == target_count:
+            source_ranges = explicit_ranges
+            await log(["[episodes] 使用剧本显式第X集边界，LLM 仅补充标题、概要和资产需求"], 55)
+        elif planned_ranges:
+            source_ranges = planned_ranges
+            await log(["[episodes] 使用综合规划返回的 block 范围"], 55)
+        else:
             grouped = _group_ranges(explicit_ranges, target_count)
             source_ranges = grouped or explicit_ranges or fallback_even_ranges(blocks, target_count)
             if explicit_ranges:
-                await log(["[episodes] 使用剧本显式第X集边界，资产需求按后续蓝图补充"], 55)
+                await log(["[episodes] 综合规划范围不完整，已按剧本显式第X集边界兜底"], 55)
             else:
                 await log(["[warn] 分集范围不完整，已使用后端原文块兜底切分"], 55)
-        else:
-            await log(["[episodes] 分集蓝图与 block 范围规划完成"], 55)
 
         def calc_duration(word_count: int, llm_duration: int, min_dur: int) -> int:
             """字数推算兜底：word_count ÷ 3.5 × 1.4，与 min_dur 取较大值，向上取整到 5 的倍数。
@@ -477,7 +754,7 @@ async def _parse_script_async(celery_id: str, project_id: str):
             })
         await log([f"[episodes] 已按原文创建 {created_eps} 集"], 75)
 
-        # ProductionBlueprint：解析阶段先产出制作蓝图，再由资产流水线消费蓝图创建资产卡片。
+        # ProductionBlueprint：解析阶段只使用综合规划结果和后端归并规则，不再串行调用人物/场景/道具圣经。
         blueprint_episodes = [
             {
                 "number": ep["number"],
@@ -497,133 +774,31 @@ async def _parse_script_async(celery_id: str, project_id: str):
             }
             for ep in final_episodes
         ]
-        await log(["[blueprint] 分集蓝图已生成，开始建立人物/场景/道具圣经"], 78)
+        await log(["[blueprint] 分集蓝图已生成，开始后端归并资产注册表"], 78)
 
-        episode_requirements_json = json.dumps(_compact_episode_requirements(blueprint_episodes), ensure_ascii=False)
-
-        try:
-            system_prompt, user_prompt, _ = await render(
-                PromptConfigScope.character_bible,
-                {
-                    "series_context": json.dumps(series_result, ensure_ascii=False),
-                    "episode_asset_requirements": episode_requirements_json,
-                },
-            )
-            character_bible_result = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=12000)
-            character_bible = _as_list(character_bible_result.get("characters")) if isinstance(character_bible_result, dict) else []
-            if not character_bible and isinstance(character_bible_result, dict):
-                legacy_assets = character_bible_result.get("assets", {})
-                character_bible = _as_list(legacy_assets.get("characters")) if isinstance(legacy_assets, dict) else []
-        except Exception as exc:
-            character_bible = _fallback_character_bible_from_requirements(blueprint_episodes)
-            await log([f"[warn] 人物圣经生成失败，已使用分集资产需求兜底：{exc}"], 82)
-        await log([f"[blueprint] 人物圣经完成：{len(character_bible)} 个角色"], 82)
-
-        character_variants: list[dict] = []
-
-        async def plan_character_variants(batch_start: int, batch_end: int, label: str, max_tokens: int = 16000):
-            batch_index = _build_range_index_digest(blocks, source_ranges[batch_start:batch_end], max_chars=9000)
-            batch_requirements = json.dumps(
-                _compact_episode_requirements(blueprint_episodes, batch_start, batch_end),
-                ensure_ascii=False,
-            )
-            system_prompt, user_prompt, _ = await render(
-                PromptConfigScope.character_variant_plan,
-                {
-                    "character_bible": json.dumps(character_bible, ensure_ascii=False),
-                    "episode_asset_requirements": batch_requirements,
-                    "script_index": batch_index,
-                },
-            )
-            result = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=max_tokens)
-            if not isinstance(result, dict):
-                return []
-            variants = _as_list(result.get("character_variants"))
-            if not variants:
-                legacy_assets = result.get("assets", {})
-                variants = _as_list(legacy_assets.get("characters")) if isinstance(legacy_assets, dict) else []
-            return variants
-
-        async def plan_character_variants_resilient(batch_start: int, batch_end: int, label: str):
-            try:
-                character_variants.extend(await plan_character_variants(batch_start, batch_end, label))
-                await log([f"[blueprint] 人物阶段规划完成：{label}"], min(90, 82 + len(character_variants)))
-            except ValueError as exc:
-                if "truncated" not in str(exc).lower():
-                    raise
-                if batch_end - batch_start <= 1:
-                    await log([f"[warn] {label} 人物阶段输出过长，提高输出上限后重试"], 86)
-                    character_variants.extend(await plan_character_variants(batch_start, batch_end, label, max_tokens=24000))
-                    return
-                mid = batch_start + (batch_end - batch_start) // 2
-                await log([f"[warn] {label} 人物阶段输出过长，自动拆分后重试"], 86)
-                await plan_character_variants_resilient(batch_start, mid, f"{label}-前半")
-                await plan_character_variants_resilient(mid, batch_end, f"{label}-后半")
-
-        batch_size = 3
-        for start in range(0, len(blueprint_episodes), batch_size):
-            end = min(start + batch_size, len(blueprint_episodes))
-            await plan_character_variants_resilient(start, end, f"第{start + 1}-{end}集")
-        if not character_variants:
-            character_variants = _fallback_character_variants(character_bible)
-
-        try:
-            system_prompt, user_prompt, _ = await render(
-                PromptConfigScope.scene_bible,
-                {
-                    "series_context": json.dumps(series_result, ensure_ascii=False),
-                    "episode_asset_requirements": episode_requirements_json,
-                },
-            )
-            scene_result = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=12000)
-            scene_bible = _as_list(scene_result.get("scenes")) if isinstance(scene_result, dict) else []
-            if not scene_bible and isinstance(scene_result, dict):
-                legacy_assets = scene_result.get("assets", {})
-                scene_bible = _as_list(legacy_assets.get("scenes")) if isinstance(legacy_assets, dict) else []
-        except Exception as exc:
-            scene_bible = _fallback_assets_from_requirements(blueprint_episodes, "scenes")
-            await log([f"[warn] 场景圣经生成失败，已使用分集场景需求兜底：{exc}"], 90)
-        await log([f"[blueprint] 场景圣经完成：{len(scene_bible)} 个阶段场景"], 90)
-
-        try:
-            system_prompt, user_prompt, _ = await render(
-                PromptConfigScope.prop_bible,
-                {
-                    "series_context": json.dumps(series_result, ensure_ascii=False),
-                    "episode_asset_requirements": episode_requirements_json,
-                },
-            )
-            prop_result = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=10000)
-            prop_bible = _as_list(prop_result.get("props")) if isinstance(prop_result, dict) else []
-            if not prop_bible and isinstance(prop_result, dict):
-                legacy_assets = prop_result.get("assets", {})
-                prop_bible = _as_list(legacy_assets.get("props")) if isinstance(legacy_assets, dict) else []
-        except Exception as exc:
-            prop_bible = _fallback_assets_from_requirements(blueprint_episodes, "props")
-            await log([f"[warn] 道具圣经生成失败，已使用分集道具需求兜底：{exc}"], 91)
-
+        asset_registry = _registry_from_plan(production_result)
+        character_bible, character_variants, scene_bible, prop_bible = _assets_from_production_plan(
+            asset_registry,
+            blueprint_episodes,
+        )
         assets_data = _asset_inventory_from_blueprint(character_variants, scene_bible, prop_bible)
-        blueprint_payload = {
-            "series": series_result,
-            "episodes": blueprint_episodes,
-            "character_bible": character_bible,
-            "scene_bible": scene_bible,
-            "prop_bible": prop_bible,
-            "character_variants": character_variants,
-            "scene_variants": scene_bible,
-            "prop_variants": prop_bible,
-            "asset_inventory": assets_data,
-        }
-        try:
-            system_prompt, user_prompt, _ = await render(
-                PromptConfigScope.blueprint_validate,
-                {"blueprint": json.dumps(blueprint_payload, ensure_ascii=False)},
+        continuity_report = _as_dict(production_result.get("continuity_report"))
+        if not continuity_report:
+            continuity_report = {"issues": [], "warnings": [], "status": "needs_review"}
+        continuity_report.setdefault("status", "needs_review")
+        continuity_report.setdefault("issues", [])
+        continuity_report.setdefault("warnings", [])
+        ignored_assets = _as_list(production_result.get("ignored_assets"))
+        if ignored_assets:
+            continuity_report["ignored_assets"] = ignored_assets
+
+        await log([
+            (
+                "[blueprint] 资产注册表归并完成："
+                f"{len(character_bible)} 个角色包、{len(character_variants)} 个人物阶段、"
+                f"{len(scene_bible)} 个场景阶段、{len(prop_bible)} 个道具阶段"
             )
-            continuity_report = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=12000)
-            if not isinstance(continuity_report, dict):
-                continuity_report = {"issues": [], "warnings": [], "status": "validated"}
-        except Exception as exc:
-            continuity_report = {"issues": [], "warnings": [f"蓝图校验跳过：{exc}"], "status": "needs_review"}
+        ], 90)
 
         blueprint = ProductionBlueprint(
             project_id=project.id,
