@@ -174,7 +174,7 @@ function Phase1({
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>配置解析参数</DialogTitle>
             <DialogDescription>AI 将根据以下参数拆解剧本，通常需要 10–30 秒。</DialogDescription>
@@ -185,7 +185,7 @@ function Phase1({
                 <AlertTriangle className="w-4 h-4 shrink-0" />{error}
               </div>
             )}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
               <div>
                 <label className="text-xs font-medium text-sub mb-1.5 block">目标集数</label>
                 <Input type="number" value={form.episodeCount}
@@ -519,14 +519,14 @@ function Phase2({
   };
 
   return (
-    <div className="page-panel tech-border max-w-7xl mx-auto p-6 sm:p-8">
+    <div className="page-panel tech-border max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
       <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between mb-7">
         <div>
           <p className="section-title mb-2">Plan Review</p>
           <h2 className="text-3xl font-black text-text mb-2">分集与资产确认</h2>
           <p className="text-base text-sub">确认 AI 生成的分集规划和资产清单。可 inline 编辑，或点击右下角「AI 助手」通过对话调整。</p>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 xl:w-[520px]">
+        <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-5 xl:w-[520px]">
           <div className="mini-stat"><div className="text-xl font-black text-text">{episodes.length}</div><div className="text-xs text-muted">总集数</div></div>
           <div className="mini-stat"><div className="text-xl font-black text-text">{fmt(totalDuration)}</div><div className="text-xs text-muted">预估时长</div></div>
           <div className="mini-stat"><div className="text-xl font-black text-text">{totalDialogues}</div><div className="text-xs text-muted">对白行</div></div>
@@ -541,14 +541,14 @@ function Phase2({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
+      <div className="grid grid-cols-1 gap-4 lg:gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
         {/* 左侧：分集列表 */}
         <div className="rounded-2xl border border-line bg-elev p-3">
           <div className="mb-3 flex items-center justify-between px-1">
             <h3 className="text-sm font-semibold text-text">分集规划</h3>
             <span className="text-xs text-muted">{episodes.length} 集</span>
           </div>
-          <div className="max-h-[620px] space-y-2 overflow-y-auto pr-1">
+          <div className="max-h-[70dvh] space-y-2 overflow-y-auto pr-1 lg:max-h-[620px]">
             {episodes.map((ep, idx) => (
               <div key={idx} className="group media-card p-3 hover:border-brand/30">
                 <div className="flex items-start gap-3">
@@ -657,7 +657,7 @@ function Phase2({
                             />
                             {a.asset_type === "character" && (
                               <>
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                   <Input
                                     value={draft.character_name}
                                     onChange={(e) => setAssetEdits((prev) => ({ ...prev, [a.id]: { ...draft, character_name: e.target.value } }))}
@@ -678,7 +678,7 @@ function Phase2({
                                   className="text-xs"
                                   placeholder="共享面部基准：同一人物资产包内保持同一脸型、骨相、五官比例"
                                 />
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                   <Input
                                     value={draft.appearance_stage}
                                     onChange={(e) => setAssetEdits((prev) => ({ ...prev, [a.id]: { ...draft, appearance_stage: e.target.value } }))}
@@ -836,7 +836,7 @@ function Phase2({
         open={sheetEp !== null}
         onClose={() => setSheetEp(null)}
         title={sheetEp ? `第 ${sheetEp.number} 集《${sheetEp.title}》· 原始剧本` : ""}
-        width="w-[560px]"
+        width="sm:w-[560px]"
       >
         {sheetEp && (
           <pre className="text-xs text-text leading-relaxed whitespace-pre-wrap font-sans">
@@ -1220,7 +1220,7 @@ function AssetCard({
 
   const historyDialog = (
     <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
-      <DialogContent className="max-w-5xl">
+      <DialogContent className="sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle>{asset.name} · 历史版本回选</DialogTitle>
           <DialogDescription>对比多次生成结果，选择一个历史版本回写到当前资产。</DialogDescription>
@@ -1693,15 +1693,16 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
 
   return (
     <div className="mx-auto max-w-7xl">
-      <div className="page-panel tech-border mb-6 p-6">
+      <div className="page-panel tech-border mb-5 p-4 sm:mb-6 sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="section-title mb-2">Asset Review</p>
-            <h2 className="text-3xl font-black text-text">图片确认</h2>
+            <h2 className="text-2xl font-black text-text sm:text-3xl">图片确认</h2>
           </div>
-          <div className="flex flex-wrap gap-2 items-center shrink-0">
+          <div className="flex flex-col gap-2 shrink-0 sm:flex-row sm:flex-wrap sm:items-center">
             <Button
               size="default"
+              className="w-full sm:w-auto"
               onClick={handleGenerateAll}
               disabled={batchGenerating || needGenerateCount === 0}
               variant="outline"
@@ -1712,6 +1713,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
             </Button>
             <Button
               size="default"
+              className="w-full sm:w-auto"
               onClick={handleConfirmReady}
               disabled={submitting || readyToConfirmCount === 0}
               variant="outline"
@@ -1724,7 +1726,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-5">
+      <div className="grid grid-cols-2 gap-2 mb-5 sm:gap-3 md:grid-cols-4 lg:grid-cols-7">
         {[
           ["人物包", characterGroupCount],
           ["阶段造型", characterAssetCount],
@@ -1741,14 +1743,14 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-5">
+      <div className="flex gap-2 mb-5 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
         {ASSET_FILTERS.map((filter) => (
           <button
             key={filter.key}
             type="button"
             onClick={() => setAssetFilter(filter.key)}
             className={cn(
-              "h-8 rounded-full border px-3 text-xs font-medium transition-colors",
+              "h-8 shrink-0 rounded-full border px-3 text-xs font-medium transition-colors",
               assetFilter === filter.key
                 ? "border-brand bg-brand text-white"
                 : "border-line bg-panel text-sub hover:border-brand/40 hover:text-text"
@@ -1820,7 +1822,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
       )}
 
       <Dialog open={Boolean(selectedAssetGroup && selectedGroup)} onOpenChange={(open) => !open && setSelectedAssetGroup(null)}>
-        <DialogContent className="max-w-5xl">
+        <DialogContent className="sm:max-w-5xl">
           <DialogHeader>
             <DialogTitle>{selectedGroup?.label || "资产包预览"}</DialogTitle>
             <DialogDescription>
@@ -1851,7 +1853,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
       </Dialog>
 
       <Dialog open={promptAsset !== null} onOpenChange={(open) => !open && setPromptAsset(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{promptAsset?.name || "资产提示词"}</DialogTitle>
             <DialogDescription>

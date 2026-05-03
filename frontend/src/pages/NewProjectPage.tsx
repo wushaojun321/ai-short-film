@@ -28,15 +28,15 @@ export default function NewProjectPage() {
   };
 
   return (
-    <div className="page-shell flex min-h-[calc(100vh-64px)] items-center justify-center py-12">
-      <div className="w-full max-w-xl page-panel tech-border p-8">
-        <div className="mb-8 flex items-start gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-brand ring-1 ring-white/10">
+    <div className="page-shell flex min-h-[calc(100dvh-64px)] items-center justify-center py-6 sm:py-12">
+      <div className="w-full max-w-xl page-panel tech-border p-5 sm:p-8">
+        <div className="mb-6 flex items-start gap-3 sm:mb-8 sm:gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-brand ring-1 ring-white/10 sm:h-14 sm:w-14">
             <Clapperboard className="h-6 w-6" />
           </div>
           <div>
             <p className="section-title mb-2">New Production</p>
-            <h1 className="text-3xl font-black text-text">新建项目</h1>
+            <h1 className="text-2xl font-black text-text sm:text-3xl">新建项目</h1>
             <p className="text-base text-sub mt-2">填写基本信息，后续通过上传剧本完成初始化。</p>
           </div>
         </div>
@@ -54,11 +54,11 @@ export default function NewProjectPage() {
 
         {error && <p className="status-banner status-banner-danger">{error}</p>}
 
-        <div className="flex gap-3 pt-3">
-          <Button variant="outline" onClick={() => navigate("/projects")} disabled={creating}>
+        <div className="flex flex-col gap-3 pt-3 sm:flex-row">
+          <Button variant="outline" className="w-full sm:w-auto" onClick={() => navigate("/projects")} disabled={creating}>
             取消
           </Button>
-          <Button onClick={handleCreate} disabled={creating || !title.trim()}>
+          <Button className="w-full sm:w-auto" onClick={handleCreate} disabled={creating || !title.trim()}>
             {creating
               ? <><Loader2 className="w-4 h-4 animate-spin mr-1" />创建中…</>
               : "创建项目"}

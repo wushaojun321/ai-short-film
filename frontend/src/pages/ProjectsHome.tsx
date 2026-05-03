@@ -53,7 +53,7 @@ function ProjectCard({ project }: { project: Project }) {
       <div
         onClick={() => navigate(`/projects/${project.id}`)}
         className={cn(
-          "group media-card tech-border relative flex h-full min-h-[328px] cursor-pointer flex-col overflow-hidden p-4",
+          "group media-card tech-border relative flex h-full min-h-[300px] cursor-pointer flex-col overflow-hidden p-4 sm:min-h-[328px]",
           "animate-fade-in"
         )}
       >
@@ -70,7 +70,7 @@ function ProjectCard({ project }: { project: Project }) {
               <Play className="w-4 h-4" />
             </div>
 
-            <div className="flex min-w-0 shrink-0 items-center gap-1.5">
+            <div className="flex min-w-0 shrink-0 items-center gap-1">
               <div className={cn("w-1.5 h-1.5 rounded-full", cfg.dot)} />
               <Badge variant={cfg.variant} className="max-w-[84px] shrink-0 whitespace-nowrap">
                 {cfg.label}
@@ -97,7 +97,7 @@ function ProjectCard({ project }: { project: Project }) {
 
           <h3
             title={project.title}
-            className="min-h-[3.25rem] break-words pr-1 text-xl font-black leading-tight text-text transition-colors line-clamp-2 group-hover:text-brand"
+            className="min-h-[3rem] break-words pr-1 text-lg font-black leading-tight text-text transition-colors line-clamp-2 group-hover:text-brand sm:min-h-[3.25rem] sm:text-xl"
           >
             {project.title}
           </h3>
@@ -175,7 +175,7 @@ function ProjectCard({ project }: { project: Project }) {
       </div>
 
       <Dialog open={deleteOpen} onOpenChange={(open) => !deleting && setDeleteOpen(open)}>
-        <DialogContent className="max-w-md" onClick={(e) => e.stopPropagation()}>
+        <DialogContent className="sm:max-w-md" onClick={(e) => e.stopPropagation()}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-danger" />
@@ -242,13 +242,13 @@ export default function ProjectsHome() {
 
   return (
     <div className="min-h-screen">
-      <div className="page-shell py-7">
+      <div className="page-shell py-5 sm:py-7">
         <div className="page-header">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="section-title mb-2">Production Workspace</p>
-              <h1 className="text-3xl font-black text-text tracking-tight">我的项目</h1>
-              <div className="flex items-center gap-4 mt-2">
+              <h1 className="text-2xl font-black text-text tracking-tight sm:text-3xl">我的项目</h1>
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
                 {initialized > 0 && (
                   <div className="flex items-center gap-1.5 text-sm text-sub">
                     <CheckCircle2 className="w-4 h-4 text-brand" />
@@ -266,7 +266,7 @@ export default function ProjectsHome() {
                 )}
               </div>
             </div>
-            <Button size="lg" onClick={() => navigate("/projects/new")}>
+            <Button size="lg" className="w-full sm:w-auto" onClick={() => navigate("/projects/new")}>
               <Plus className="w-4 h-4" />
               新建项目
             </Button>

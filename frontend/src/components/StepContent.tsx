@@ -709,11 +709,11 @@ function StepVideos({
       )}
 
       {hasUngenerated && (
-        <div className="status-banner status-banner-info flex items-center justify-between gap-3">
+        <div className="status-banner status-banner-info flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-xs text-sub">
             {missingVideoCount} 个分镜尚未生成视频
           </span>
-          <Button size="sm" onClick={handleBatchGenerate} disabled={batchGenerating}>
+          <Button size="sm" className="w-full sm:w-auto" onClick={handleBatchGenerate} disabled={batchGenerating}>
             {batchGenerating ? (
               <><Loader2 className="w-3.5 h-3.5 animate-spin" />生成中… {episode.taskProgress["gen_shot_video"] ? `${episode.taskProgress["gen_shot_video"]}%` : ""}</>
             ) : (
@@ -740,7 +740,7 @@ function StepVideos({
       <div className="space-y-3">
         {/* 中央预览 */}
         {shot && (
-          <div className="page-panel tech-border p-4">
+          <div className="page-panel tech-border p-3 sm:p-4">
             <div className="grid items-start gap-4 lg:grid-cols-[minmax(180px,1fr)_minmax(260px,420px)_minmax(190px,240px)]">
               <div className="hidden lg:block" />
 
@@ -754,7 +754,7 @@ function StepVideos({
                     {shotBusy ? "生成中" : shotApproved ? "已通过" : shot.videoUrl ? "已生成" : "待生成"}
                   </Badge>
                 </div>
-                <div className="mx-auto h-[clamp(320px,46vh,560px)] aspect-[9/16] max-w-full bg-black rounded-2xl border border-line flex items-center justify-center mb-3 relative overflow-hidden shadow-lg">
+                <div className="mx-auto aspect-[9/16] w-full max-w-[320px] bg-black rounded-2xl border border-line flex items-center justify-center mb-3 relative overflow-hidden shadow-lg sm:max-w-[360px] lg:h-[clamp(320px,46vh,560px)] lg:w-auto lg:max-w-full">
                   {(loadingIds.has(shot.id) || shot.state === "rendering") ? (
                     <div className="flex flex-col items-center gap-2">
                       <Loader2 className="w-8 h-8 text-warn animate-spin" />
@@ -856,7 +856,7 @@ function StepVideos({
               {selected + 1} / {shots.length}
             </span>
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="flex snap-x gap-2 overflow-x-auto pb-1">
             {shots.map((s, idx) => {
               const isApproved = isPast || (!!s.videoUrl && s.state === "approved");
               const isComplete = !!s.videoUrl;
@@ -866,7 +866,7 @@ function StepVideos({
                   key={s.id}
                   onClick={() => setSelected(idx)}
                   className={cn(
-                    "min-w-[150px] max-w-[150px] rounded-xl border p-2 text-left transition-all",
+                    "min-w-[136px] max-w-[136px] snap-start rounded-xl border p-2 text-left transition-all sm:min-w-[150px] sm:max-w-[150px]",
                     selected === idx ? "border-brand bg-brand-soft shadow-sm" : "border-line bg-panel hover:bg-soft"
                   )}
                 >
@@ -929,7 +929,7 @@ function StepVideos({
         open={historySheetOpen}
         onClose={() => setHistorySheetOpen(false)}
         title={`镜头 ${shot?.shotCode ?? ""} · 历史版本回选`}
-        width="w-[720px]"
+        width="sm:w-[720px]"
       >
         <div className="space-y-4">
           {shot?.videoUrl && (

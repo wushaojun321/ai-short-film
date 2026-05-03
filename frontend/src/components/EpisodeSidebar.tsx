@@ -1,6 +1,5 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle2, Circle, Film } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { EpisodeDetail, EpisodeStatus } from "@/lib/data";
 import { cn } from "@/lib/utils";
 
@@ -50,14 +49,14 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
   };
 
   return (
-    <aside className="w-72 shrink-0 border-r border-line bg-panel/90 flex flex-col h-[calc(100vh-64px)] sticky top-16 shadow-card backdrop-blur-xl">
+    <aside className="sticky top-16 z-30 flex w-full shrink-0 flex-col border-b border-line bg-panel/95 shadow-card backdrop-blur-xl lg:z-auto lg:h-[calc(100vh-64px)] lg:w-72 lg:border-b-0 lg:border-r">
       {/* 顶部标题 */}
-      <div className="px-5 py-5 border-b border-line bg-elev/70">
+      <div className="flex items-center justify-between gap-3 border-b border-line bg-elev/70 px-3 py-3 lg:block lg:px-5 lg:py-5">
         <div className="flex items-center gap-2.5">
-          <Film className="w-5 h-5 text-brand" />
+          <Film className="w-4 h-4 text-brand lg:w-5 lg:h-5" />
           <h3 className="text-sm font-black text-text uppercase tracking-widest">分集列表</h3>
         </div>
-        <div className="flex gap-4 mt-4">
+        <div className="flex shrink-0 gap-3 lg:mt-4 lg:gap-4">
           <div className="flex items-center gap-1 text-xs text-muted">
             <div className="w-1.5 h-1.5 rounded-full bg-success" />
             <span className="tabular-nums font-medium text-success">{counts.completed}</span>
@@ -74,8 +73,8 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
       </div>
 
       {/* 分集列表 */}
-      <ScrollArea className="flex-1">
-        <div className="py-3 px-3">
+      <div className="min-h-0 flex-1 overflow-x-auto lg:overflow-y-auto lg:overflow-x-hidden">
+        <div className="flex gap-2 px-3 py-3 lg:block">
           {episodes.map((ep) => {
             const isActive = ep.id === activeEpisodeId;
             const cfg = statusConfig[ep.status];
@@ -85,7 +84,7 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
                 key={ep.id}
                 onClick={() => handleSelect(ep.id)}
                 className={cn(
-                  "w-full text-left px-4 py-3.5 rounded-2xl mb-2 flex items-center gap-3 border",
+                  "min-w-[144px] text-left px-3 py-3 rounded-2xl flex items-center gap-2.5 border lg:mb-2 lg:w-full lg:min-w-0 lg:px-4 lg:py-3.5 lg:gap-3",
                   "transition-all duration-150 group",
                   isActive
                     ? "bg-brand-soft border-brand/35 shadow-brand"
@@ -98,13 +97,13 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
                 {/* 内容 */}
                 <div className="flex-1 min-w-0">
                   <div className={cn(
-                    "text-sm font-black leading-tight",
+                    "text-xs font-black leading-tight lg:text-sm",
                     isActive ? "text-text" : "text-sub"
                   )}>
                     第 {ep.number} 集
                   </div>
                   <div className={cn(
-                    "text-sm leading-tight mt-1 truncate",
+                    "text-xs leading-tight mt-1 truncate lg:text-sm",
                     isActive ? "text-sub" : "text-muted",
                     ep.status === "not_started" && "italic text-muted"
                   )}>
@@ -123,10 +122,10 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
             );
           })}
         </div>
-      </ScrollArea>
+      </div>
 
       {/* 底部汇总 */}
-      <div className="px-5 py-4 border-t border-line bg-elev/70">
+      <div className="hidden px-5 py-4 border-t border-line bg-elev/70 lg:block">
         <div className="text-sm text-muted text-center">
           共 <span className="font-bold text-text tabular-nums">{episodes.length}</span> 集
           · <span className="text-success font-bold tabular-nums">{counts.completed}</span> 完成

@@ -157,7 +157,7 @@ export default function AgentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl h-[min(720px,86vh)] flex flex-col p-0 gap-0 overflow-hidden [&>button:last-child]:hidden">
+      <DialogContent className="h-[min(720px,86dvh)] flex flex-col p-0 gap-0 overflow-hidden sm:max-w-2xl [&>button:last-child]:hidden">
         <DialogHeader className="px-5 py-4 border-b border-line shrink-0 bg-panel">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">

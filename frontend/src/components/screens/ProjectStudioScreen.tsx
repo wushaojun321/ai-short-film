@@ -116,7 +116,7 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
 
   if (loading) {
     return (
-      <div className="flex h-[calc(100vh-64px)] items-center justify-center">
+      <div className="flex h-[calc(100dvh-64px)] items-center justify-center">
         <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -131,14 +131,14 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
   const isVideoStep = activeStep === "storyboard_videos";
 
   return (
-    <div className="flex h-[calc(100vh-64px)]">
+    <div className="flex min-h-[calc(100dvh-64px)] flex-col lg:h-[calc(100vh-64px)] lg:flex-row">
       <EpisodeSidebar
         projectId={project.id}
         episodes={episodes}
         activeEpisodeId={activeEpisode.id}
       />
 
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-visible lg:overflow-hidden">
         <EpisodeStepBar
           projectId={project.id}
           episodeId={activeEpisode.id}
@@ -147,12 +147,12 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
         />
 
         <div className="flex-1 overflow-y-auto">
-          <div className={cn("mx-auto px-7", isVideoStep ? "max-w-7xl py-4" : "max-w-6xl py-7")}>
-            <div className={cn("page-panel tech-border", isVideoStep ? "mb-4 p-5" : "mb-7 p-6")}>
+          <div className={cn("mx-auto px-3 sm:px-5 lg:px-7", isVideoStep ? "max-w-7xl py-3 sm:py-4" : "max-w-6xl py-5 sm:py-7")}>
+            <div className={cn("page-panel tech-border", isVideoStep ? "mb-3 p-4 sm:mb-4 sm:p-5" : "mb-5 p-4 sm:mb-7 sm:p-6")}>
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0">
                   <p className="section-title mb-2">Episode Workspace</p>
-                  <h2 className="text-2xl font-black text-text">
+                  <h2 className="text-xl font-black text-text sm:text-2xl">
                     第 {activeEpisode.number} 集 · {activeEpisode.title}
                   </h2>
                   {activeEpisode.summary && (
@@ -182,12 +182,12 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
                     </p>
                   )}
                 </div>
-                <div className="flex flex-wrap items-center gap-2 shrink-0 xl:ml-4">
+                <div className="flex w-full flex-wrap items-center gap-2 shrink-0 xl:ml-4 xl:w-auto">
                   {activeEpisode.scriptExcerpt && (
                     <Button
                       size="default"
                       variant="outline"
-                      className="flex items-center gap-2"
+                      className="flex-1 items-center gap-2 sm:flex-none"
                       onClick={() => setScriptSheetOpen(true)}
                     >
                       <FileText className="w-3.5 h-3.5" />
@@ -197,13 +197,13 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
                   <Button
                       size="default"
                     variant="outline"
-                    className="flex items-center gap-2"
+                    className="flex-1 items-center gap-2 sm:flex-none"
                     onClick={() => navigate(`/projects/${project.id}?view=assets`)}
                   >
                     <Images className="w-3.5 h-3.5" />
                     资产库
                   </Button>
-                  <div className="toolbar gap-4 text-right">
+                  <div className="toolbar w-full justify-between gap-4 text-right sm:w-auto">
                     {displayDuration > 0 && (
                       <div>
                         <div className="text-lg font-black text-text">
@@ -236,7 +236,7 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
         open={scriptSheetOpen}
         onClose={() => setScriptSheetOpen(false)}
         title={activeEpisode ? `第 ${activeEpisode.number} 集《${activeEpisode.title}》· 原始剧本` : "原始剧本"}
-        width="w-[560px]"
+        width="sm:w-[560px]"
       >
         {activeEpisode?.scriptExcerpt && (
           <pre className="text-xs text-text leading-relaxed whitespace-pre-wrap font-sans">

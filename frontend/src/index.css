@@ -21,6 +21,7 @@
 
   body {
     min-width: 320px;
+    overflow-x: hidden;
     background:
       radial-gradient(circle at 12% -10%, rgba(52,211,153,0.10), transparent 34rem),
       radial-gradient(circle at 86% 8%, rgba(110,231,183,0.06), transparent 30rem),
@@ -63,7 +64,7 @@
   }
 
   .page-shell {
-    @apply mx-auto w-full max-w-7xl px-5 sm:px-8;
+    @apply mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8;
   }
 
   .page-panel {
@@ -74,7 +75,7 @@
   }
 
   .page-header {
-    @apply rounded-2xl border border-line bg-panel/90 px-6 py-6 shadow-card backdrop-blur-xl;
+    @apply rounded-2xl border border-line bg-panel/90 px-4 py-5 shadow-card backdrop-blur-xl sm:px-6 sm:py-6;
     background-image:
       linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02) 40%, rgba(52,211,153,0.055)),
       linear-gradient(90deg, rgba(52,211,153,0.10), transparent 36%);
@@ -111,7 +112,7 @@
   }
 
   .sticky-action-bar {
-    @apply sticky bottom-4 z-20 mt-6 flex flex-col gap-3 rounded-2xl border border-line bg-panel/90 px-5 py-4 shadow-lg backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between;
+    @apply sticky bottom-2 z-20 mt-6 flex flex-col gap-3 rounded-2xl border border-line bg-panel/90 px-4 py-3 shadow-lg backdrop-blur-xl sm:bottom-4 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4;
     box-shadow: 0 18px 48px rgba(0,0,0,0.36), inset 0 1px 0 rgba(255,255,255,0.09);
   }
 

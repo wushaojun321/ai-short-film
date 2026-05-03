@@ -32,15 +32,15 @@ export default function Nav() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-16 border-b border-line bg-panel/90 shadow-card backdrop-blur-2xl">
-      <div className="h-full flex items-center px-5 gap-4">
+      <div className="h-full flex items-center px-3 gap-2 sm:px-5 sm:gap-4">
 
         {/* Logo */}
         <button
           onClick={() => navigate("/projects")}
-          className="flex items-center gap-3 text-text hover:opacity-95 transition-opacity shrink-0 group"
+          className="flex items-center gap-2 text-text hover:opacity-95 transition-opacity shrink-0 group sm:gap-3"
           aria-label="首页"
         >
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-brand ring-1 ring-white/10 group-hover:shadow-card-hover transition-shadow">
+          <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-brand ring-1 ring-white/10 group-hover:shadow-card-hover transition-shadow sm:w-10 sm:h-10">
             <Clapperboard className="w-5 h-5 text-white" />
           </div>
           <span className="font-black text-base text-text hidden sm:block tracking-tight">
@@ -50,13 +50,13 @@ export default function Nav() {
 
         {/* 路径分隔 + 项目切换 */}
         {!isHome && (
-          <div className="flex items-center gap-1.5 min-w-0">
+          <div className="flex items-center gap-1 min-w-0">
             <span className="text-line text-lg font-light">/</span>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className={cn(
                   "flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold",
-                  "text-text hover:bg-soft transition-colors duration-150 min-w-0 max-w-[260px] group border border-transparent hover:border-line"
+                  "text-text hover:bg-soft transition-colors duration-150 min-w-0 max-w-[148px] group border border-transparent hover:border-line sm:max-w-[260px]"
                 )}>
                   <span className="truncate">{currentProject?.title ?? "项目"}</span>
                   <ChevronDown className="w-3.5 h-3.5 text-muted shrink-0 transition-transform group-data-[state=open]:rotate-180" />
