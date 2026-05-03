@@ -349,7 +349,7 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
                 "scene_prompt": "\n".join(scene_parts) if scene_parts else "无",
                 "prop_prompts": "\n".join(prop_parts) if prop_parts else "无",
                 "dialogue": dialogue_text,
-                "shot_prompt": "",
+                "shot_prompt": shot.prompt or "",
             },
         )
 

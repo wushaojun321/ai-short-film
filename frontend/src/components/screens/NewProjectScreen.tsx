@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import {
   Upload, FileText, ChevronRight, Check, Loader2,
   Edit2, Clock, Hash, Sparkles, Terminal, RefreshCw,
-  AlertTriangle, Activity, Bot, X, ZoomIn, Trash2, Play, CheckCircle2,
+  AlertTriangle, Activity, X, ZoomIn, Trash2, Play, CheckCircle2,
+  MessageCircle, ImagePlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -811,7 +812,7 @@ function Phase2({
       <div className="sticky-action-bar">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Button variant="outline" onClick={() => setAgentOpen(true)} className="flex items-center gap-1.5">
-            <Bot className="w-4 h-4" />返工修改
+            <MessageCircle className="w-4 h-4" />返工修改
           </Button>
           <p className="text-sm text-sub">确认后进入图片确认阶段，不会自动生成图片；需手动生成全部或单个资产。</p>
         </div>
@@ -1016,10 +1017,10 @@ function AssetCard({
             title={url ? `查看${view.label}图` : `生成${view.label}图`}
           >
             {url ? (
-              <img src={cosUrl(url)} alt={`${asset.name}-${view.label}`} className="w-full h-full object-cover" />
+              <img src={cosUrl(url)} alt={`${asset.name}-${view.label}`} className="w-full h-full object-contain" />
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-muted">
-                <Play className="w-4 h-4" />
+                <ImagePlus className="w-4 h-4" />
                 <span className="text-[11px]">生成</span>
               </div>
             )}
@@ -1042,7 +1043,7 @@ function AssetCard({
           <img
             src={cosUrl(previewUrl)}
             alt={asset.name}
-            className="w-full h-full object-cover cursor-zoom-in"
+            className="w-full h-full object-contain cursor-zoom-in"
             onClick={() => setLightboxUrl(previewUrl)}
           />
           <div
@@ -1065,7 +1066,7 @@ function AssetCard({
             </>
           ) : (
             <>
-              <Play className="w-5 h-5 text-muted" />
+              <ImagePlus className="w-5 h-5 text-muted" />
               <span className="text-muted text-xs">点击生成</span>
             </>
           )}
@@ -1082,7 +1083,7 @@ function AssetCard({
         disabled={isGenerating || generating}
         title={isReady ? "重新生成资产图" : "生成资产图"}
       >
-        {generating || isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+        {generating || isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
       </Button>
       <Button
         size="sm" variant="outline" className="w-8 h-8 p-0"
@@ -1097,7 +1098,7 @@ function AssetCard({
         disabled={isGenerating}
         title={isGenerating ? (isQueued ? "排队中" : "生成中") : "AI 修改"}
       >
-        {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+        {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />}
       </Button>
       {asset.status !== "approved" && !isGenerating && isReady && (
         <Button
@@ -1115,7 +1116,7 @@ function AssetCard({
     return (
       <>
         {lightboxUrl && (
-          <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center" onClick={() => setLightboxUrl(null)}>
+          <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-6" onClick={() => setLightboxUrl(null)}>
             <button className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors" onClick={() => setLightboxUrl(null)}>
               <X className="w-7 h-7" />
             </button>
@@ -1179,7 +1180,7 @@ function AssetCard({
     <>
       {lightboxUrl && (
         <div
-          className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center"
+          className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-6"
           onClick={() => setLightboxUrl(null)}
         >
           <button
@@ -1271,11 +1272,11 @@ function AssetGroupCard({
             <img
               src={cosUrl(previewUrl)}
               alt={previewAsset?.name || group.label}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
             />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted">
-              <Play className="w-7 h-7" />
+              <ImagePlus className="w-7 h-7" />
               <span className="text-sm">待生成主预览图</span>
             </div>
           )}
@@ -1291,7 +1292,7 @@ function AssetGroupCard({
                 return (
                   <div key={view.key} className="h-12 rounded-md overflow-hidden border border-white/70 bg-black/25">
                     {url ? (
-                      <img src={cosUrl(url)} alt={view.label} className="w-full h-full object-cover" />
+                      <img src={cosUrl(url)} alt={view.label} className="w-full h-full object-contain" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-[10px] text-white/70">{view.label}</div>
                     )}
@@ -1356,6 +1357,8 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
   const [selectedAssetGroup, setSelectedAssetGroup] = useState<{ key: string; type: string } | null>(null);
   const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
   const [promptAsset, setPromptAsset] = useState<ApiAsset | null>(null);
+  const [assetPromptDraft, setAssetPromptDraft] = useState("");
+  const [savingAssetPrompt, setSavingAssetPrompt] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pollKey, setPollKey] = useState(0);
 
@@ -1389,6 +1392,10 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
       if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
     };
   }, [projectId, pollKey]);
+
+  useEffect(() => {
+    setAssetPromptDraft(promptAsset?.prompt ?? "");
+  }, [promptAsset]);
 
   const tabs = [...new Set(assets.map((a) => a.asset_type))].filter((t) => ["character", "scene", "prop"].includes(t));
   const filteredAssets = assets.filter((a) => matchesAssetFilter(a, assetFilter));
@@ -1447,6 +1454,22 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
     }
   };
 
+  const handleSaveAssetPrompt = async () => {
+    if (!promptAsset) return;
+    setSavingAssetPrompt(true);
+    setError(null);
+    try {
+      const updated = await assetAPI.update(projectId, promptAsset.id, { prompt: assetPromptDraft });
+      setPromptAsset(updated);
+      setAssets((prev) => prev.map((asset) => asset.id === updated.id ? updated : asset));
+      setPollKey((k) => k + 1);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "保存资产提示词失败");
+    } finally {
+      setSavingAssetPrompt(false);
+    }
+  };
+
   const handleFinish = async () => {
     if (!manageMode) {
       // 拦截：有资产仍在生成中或尚未生成图片
@@ -1487,7 +1510,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
               variant="outline"
               title={needGenerateCount === 0 ? "没有待生成资产" : `生成 ${needGenerateCount} 个未生成资产`}
             >
-              {batchGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+              {batchGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
               生成全部资产
             </Button>
             <Button
@@ -1617,15 +1640,20 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{promptAsset?.name || "资产提示词"}</DialogTitle>
-            <DialogDescription>当前资产记录中保存的生成提示词，可用于核对或复制到 AI 修改。</DialogDescription>
+            <DialogDescription>当前资产记录中保存的生成提示词，可人工修改并保存，下一次生成资产图会使用保存后的内容。</DialogDescription>
           </DialogHeader>
-          <div className="max-h-[55vh] overflow-y-auto rounded-lg border border-line bg-soft p-3">
-            <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed text-text font-sans">
-              {promptAsset?.prompt || "（暂无提示词）"}
-            </pre>
-          </div>
+          <Textarea
+            value={assetPromptDraft}
+            onChange={(e) => setAssetPromptDraft(e.target.value)}
+            rows={16}
+            className="min-h-[45vh] text-xs leading-relaxed font-sans"
+            placeholder="可在这里人工修改资产生成提示词"
+          />
           <DialogFooter>
             <Button variant="outline" onClick={() => setPromptAsset(null)}>关闭</Button>
+            <Button onClick={handleSaveAssetPrompt} disabled={!promptAsset || savingAssetPrompt}>
+              {savingAssetPrompt ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />保存中…</> : <><Check className="w-3.5 h-3.5" />保存提示词</>}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

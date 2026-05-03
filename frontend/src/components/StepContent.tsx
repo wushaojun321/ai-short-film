@@ -1,16 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import {
   CheckCircle2, RefreshCw, Loader2, Play, Volume2,
-  Film, Layers, Clock, Tag, Edit3, Check, Bot, FileText,
+  Film, Layers, Clock, Tag, Edit3, Check, FileText, MessageCircle,
 } from "lucide-react";
 import AgentDialog from "@/components/AgentDialog";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
 import { EpisodeStep, EpisodeDetail, Shot, ShotState, getStepIndex } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { generateAPI, shotAPI, episodeAPI } from "@/lib/api";
@@ -171,6 +168,8 @@ function StepScript({
   const [error, setError] = useState<string | null>(null);
   const [agentTarget, setAgentTarget] = useState<string | null>(null);
   const [promptShot, setPromptShot] = useState<Shot | null>(null);
+  const [scriptPromptDraft, setScriptPromptDraft] = useState("");
+  const [savingScriptPrompt, setSavingScriptPrompt] = useState(false);
 
   // 由后端 running_tasks 派生，刷新后状态自动恢复
   const generating = episode.runningTasks.includes("gen_shot_script");
@@ -248,6 +247,32 @@ function StepScript({
       lines.push("", "原始提示词/提交内容：", shot.submittedPrompt || shot.prompt || "");
     }
     return lines.join("\n");
+  };
+
+  useEffect(() => {
+    setScriptPromptDraft(promptShot ? (promptShot.submittedPrompt || promptShot.prompt || buildShotScriptPrompt(promptShot)) : "");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [promptShot]);
+
+  const handleSaveScriptPrompt = async () => {
+    if (!promptShot) return;
+    setSavingScriptPrompt(true);
+    setError(null);
+    try {
+      await shotAPI.update(projectId, episode.id, promptShot.id, {
+        prompt: scriptPromptDraft,
+        submitted_prompt: scriptPromptDraft,
+      } as never);
+      setPromptShot({
+        ...promptShot,
+        prompt: scriptPromptDraft,
+        submittedPrompt: scriptPromptDraft,
+      });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "保存提示词失败");
+    } finally {
+      setSavingScriptPrompt(false);
+    }
   };
 
   if (!generated) {
@@ -389,7 +414,7 @@ function StepScript({
                         className="shrink-0 p-1.5 rounded-lg border border-line bg-panel text-muted transition-colors hover:bg-soft hover:text-brand"
                         title="AI 修改"
                       >
-                        <Bot className="w-3.5 h-3.5" />
+                        <MessageCircle className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   )}
@@ -444,9 +469,21 @@ function StepScript({
         onClose={() => setPromptShot(null)}
         title={`镜头 ${promptShot?.shotCode ?? ""} · 完整提交提示词`}
       >
-        <pre className="text-xs text-sub leading-relaxed whitespace-pre-wrap break-words font-sans">
-          {promptShot ? buildShotScriptPrompt(promptShot) : ""}
-        </pre>
+        <div className="space-y-3">
+          <Textarea
+            value={scriptPromptDraft}
+            onChange={(e) => setScriptPromptDraft(e.target.value)}
+            rows={22}
+            className="min-h-[60vh] text-xs leading-relaxed font-sans"
+            placeholder="可在这里人工修改分镜脚本阶段的完整提交提示词"
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setPromptShot(null)}>关闭</Button>
+            <Button onClick={handleSaveScriptPrompt} disabled={!promptShot || savingScriptPrompt}>
+              {savingScriptPrompt ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />保存中…</> : <><Check className="w-3.5 h-3.5" />保存提示词</>}
+            </Button>
+          </div>
+        </div>
       </Sheet>
 
       {/* 单镜 AI 修改对话 — 绑定 episode，让 AI 知道上下文 */}
@@ -483,6 +520,8 @@ function StepVideos({
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
   const [agentTarget, setAgentTarget] = useState<string | null>(null);
   const [promptSheetOpen, setPromptSheetOpen] = useState(false);
+  const [videoPromptDraft, setVideoPromptDraft] = useState("");
+  const [savingVideoPrompt, setSavingVideoPrompt] = useState(false);
   const [approving, setApproving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -507,6 +546,11 @@ function StepVideos({
   const submittedPrompt = shot?.submittedPrompt;
   const shotBusy = !!shot && (loadingIds.has(shot.id) || shot.state === "rendering");
   const shotApproved = !!shot && (isPast || (!!shot.videoUrl && shot.state === "approved"));
+
+  useEffect(() => {
+    if (!promptSheetOpen) return;
+    setVideoPromptDraft(submittedPrompt || shot?.prompt || "");
+  }, [promptSheetOpen, submittedPrompt, shot?.prompt, shot?.id]);
 
   const handleBatchGenerate = async () => {
     const targets = shots.filter((s) => !s.videoUrl && !loadingIds.has(s.id) && s.state !== "rendering");
@@ -556,6 +600,22 @@ function StepVideos({
       setError(e instanceof Error ? e.message : "批量审批失败");
     } finally {
       setApproving(false);
+    }
+  };
+
+  const handleSaveVideoPrompt = async () => {
+    if (!shot) return;
+    setSavingVideoPrompt(true);
+    setError(null);
+    try {
+      await shotAPI.update(projectId, episode.id, shot.id, {
+        prompt: videoPromptDraft,
+        submitted_prompt: videoPromptDraft,
+      } as never);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "保存提示词失败");
+    } finally {
+      setSavingVideoPrompt(false);
     }
   };
 
@@ -644,14 +704,12 @@ function StepVideos({
                 </p>
               )}
 
-              {submittedPrompt && (
-                <button
-                  onClick={() => setPromptSheetOpen(true)}
-                  className="w-full flex items-center justify-center gap-1.5 py-1 mb-2 rounded-lg text-xs text-muted hover:text-brand hover:bg-brand-soft transition-colors border border-dashed border-line hover:border-brand/30"
-                >
-                  <FileText className="w-3 h-3" />查看最终提交提示词
-                </button>
-              )}
+              <button
+                onClick={() => setPromptSheetOpen(true)}
+                className="w-full flex items-center justify-center gap-1.5 py-1 mb-2 rounded-lg text-xs text-muted hover:text-brand hover:bg-brand-soft transition-colors border border-dashed border-line hover:border-brand/30"
+              >
+                <FileText className="w-3 h-3" />编辑最终提交提示词
+              </button>
 
               {!shotBusy && (
                 <div className="grid grid-cols-2 gap-2 rounded-2xl border border-line bg-panel p-2 shadow-xs">
@@ -667,7 +725,7 @@ function StepVideos({
                     )}
                   </Button>
                   <Button variant="outline" onClick={() => setAgentTarget(shot.id)}>
-                    <Bot className="w-4 h-4" />AI 修改
+                    <MessageCircle className="w-4 h-4" />AI 修改
                   </Button>
                   <Button onClick={() => handleApprove(shot.id)} disabled={!shot.videoUrl || shotApproved}>
                     <Check className="w-4 h-4" />{shotApproved ? "已审批" : "审批通过"}
@@ -737,9 +795,21 @@ function StepVideos({
         onClose={() => setPromptSheetOpen(false)}
         title={`镜头 ${shot?.shotCode ?? ""} · 最终提交提示词`}
       >
-        <pre className="text-xs text-sub leading-relaxed whitespace-pre-wrap break-words font-sans">
-          {submittedPrompt || "暂无最终提交提示词"}
-        </pre>
+        <div className="space-y-3">
+          <Textarea
+            value={videoPromptDraft}
+            onChange={(e) => setVideoPromptDraft(e.target.value)}
+            rows={22}
+            className="min-h-[60vh] text-xs leading-relaxed font-sans"
+            placeholder="可在这里人工修改视频生成最终提交提示词；保存后重新生成会带入该提示词。"
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setPromptSheetOpen(false)}>关闭</Button>
+            <Button onClick={handleSaveVideoPrompt} disabled={!shot || savingVideoPrompt}>
+              {savingVideoPrompt ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />保存中…</> : <><Check className="w-3.5 h-3.5" />保存提示词</>}
+            </Button>
+          </div>
+        </div>
       </Sheet>
 
       {agentTarget && (
