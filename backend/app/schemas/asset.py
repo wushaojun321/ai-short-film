@@ -18,6 +18,8 @@ class AssetCreate(BaseModel):
     submitted_prompts: dict[str, str] = Field(default_factory=dict)
     view_urls: dict[str, str] = Field(default_factory=dict)
     status: AssetStatus = AssetStatus.pending
+    provider_preview_url: Optional[str] = None
+    provider_view_urls: dict[str, str] = Field(default_factory=dict)
 
 
 class AssetUpdate(BaseModel):
@@ -35,6 +37,8 @@ class AssetUpdate(BaseModel):
     status: Optional[AssetStatus] = None
     preview_url: Optional[str] = None
     view_urls: Optional[dict[str, str]] = None
+    provider_preview_url: Optional[str] = None
+    provider_view_urls: Optional[dict[str, str]] = None
 
 
 class AssetConfirmRequest(BaseModel):

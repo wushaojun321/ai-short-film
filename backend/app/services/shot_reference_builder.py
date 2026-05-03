@@ -53,7 +53,7 @@ def _append_reference_image(
     url: str | None,
     label: str,
     asset_type_label: str,
-    max_images: int = 10,
+    max_images: int = 9,
 ) -> str | None:
     if not url:
         return None
@@ -68,6 +68,14 @@ def _append_reference_image(
     reference_lookup[presigned_url] = image_label
     reference_image_parts.append(f"{image_label} {label}（{asset_type_label}）")
     return image_label
+
+
+def _provider_view_url(asset: Asset, view_type: str) -> str:
+    return (asset.provider_view_urls or {}).get(view_type) or ""
+
+
+def _provider_preview_url(asset: Asset) -> str:
+    return asset.provider_preview_url or ""
 
 
 class ShotReferenceBuilder:
@@ -102,7 +110,7 @@ class ShotReferenceBuilder:
             if asset.asset_type != AssetType.character:
                 continue
             package_key = asset.asset_package or asset.character_name or asset.name
-            face_url = (asset.view_urls or {}).get("face")
+            face_url = _provider_view_url(asset, "face") or (asset.view_urls or {}).get("face")
             if package_key and face_url and package_key not in package_face_refs:
                 package_face_refs[package_key] = face_url
 
@@ -129,14 +137,19 @@ class ShotReferenceBuilder:
 
             if asset.asset_type == AssetType.character:
                 package_key = asset.asset_package or asset.character_name or asset.name
-                identity_face_url = (asset.view_urls or {}).get("face") or package_face_refs.get(package_key)
-                current_look_url = (asset.view_urls or {}).get("full_body") or asset.preview_url
-                side_url = (asset.view_urls or {}).get("side")
+                provider_face_url = _provider_view_url(asset, "face")
+                provider_full_body_url = _provider_view_url(asset, "full_body") or _provider_preview_url(asset)
+                provider_side_url = _provider_view_url(asset, "side")
+                identity_face_url = provider_face_url or (asset.view_urls or {}).get("face") or package_face_refs.get(package_key)
+                current_look_url = provider_full_body_url or (asset.view_urls or {}).get("full_body") or asset.preview_url
+                side_url = provider_side_url or (asset.view_urls or {}).get("side")
 
                 if not identity_face_url:
                     warnings.append(f"人物资产缺少面部锚点：{asset.name}")
                 if not current_look_url:
                     warnings.append(f"人物资产缺少当前造型参考图：{asset.name}")
+                if not provider_face_url or not provider_full_body_url:
+                    warnings.append(f"人物资产缺少方舟原始产物 URL，将回退 COS URL，可能触发 Seedance 人脸素材审核：{asset.name}")
 
                 if not required_views or "face" in required_views:
                     face_ref = _append_reference_image(
@@ -271,8 +284,8 @@ class ShotReferenceBuilder:
             if speaker not in voice_profile_map:
                 warnings.append(f"台词说话人未绑定人物资产或音色：{speaker}")
 
-        if reference_images and len(reference_images) >= 10 and len(reference_image_parts) >= 10:
-            warnings.append("参考图已达到 Seedance 当前上限 10 张，后续资产参考可能被截断。")
+        if reference_images and len(reference_images) >= 9 and len(reference_image_parts) >= 9:
+            warnings.append("参考图已达到 Seedance 当前上限 9 张，后续资产参考可能被截断。")
 
         reference_image_block = "\n".join(reference_image_parts) if reference_image_parts else "无"
         direct_reference_section = (

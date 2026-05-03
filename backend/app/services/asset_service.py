@@ -117,6 +117,10 @@ async def restore_asset_version(asset: Asset, version: str) -> Asset:
         view_urls = dict(asset.view_urls or {})
         view_urls[selected.view_type] = selected.url
         updates["view_urls"] = view_urls
+        provider_view_urls = dict(asset.provider_view_urls or {})
+        if selected.provider_url:
+            provider_view_urls[selected.view_type] = selected.provider_url
+            updates["provider_view_urls"] = provider_view_urls
         submitted_prompts = dict(asset.submitted_prompts or {})
         if selected.prompt:
             submitted_prompts[selected.view_type] = selected.prompt
@@ -129,8 +133,12 @@ async def restore_asset_version(asset: Asset, version: str) -> Asset:
             )
         if selected.view_type == "face" or not asset.preview_url:
             updates["preview_url"] = selected.url
+            if selected.provider_url:
+                updates["provider_preview_url"] = selected.provider_url
     else:
         updates["preview_url"] = selected.url
+        if selected.provider_url:
+            updates["provider_preview_url"] = selected.provider_url
         if selected.prompt:
             updates["submitted_prompt"] = selected.prompt
             updates["submitted_prompts"] = {}

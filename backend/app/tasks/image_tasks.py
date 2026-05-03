@@ -1,7 +1,6 @@
 """Image generation Celery tasks: asset images, shot storyboard images."""
 from __future__ import annotations
 import logging
-import asyncio
 from app.celery_app import celery_app
 from app.tasks.base import run_async, finish_task_record
 from app.services.asset_prompt_builder import CHARACTER_VIEW_SPECS, build_asset_submitted_prompts
@@ -11,10 +10,6 @@ logger = logging.getLogger(__name__)
 
 def _asset_type_value(asset) -> str:
     return asset.asset_type.value if hasattr(asset.asset_type, "value") else str(asset.asset_type)
-
-
-def _status_value(asset) -> str:
-    return asset.status.value if hasattr(asset.status, "value") else str(asset.status)
 
 
 def _character_package_key(asset) -> str:
@@ -27,68 +22,6 @@ def _same_character_package(asset, other) -> bool:
         and bool(_character_package_key(asset))
         and _character_package_key(asset) == _character_package_key(other)
     )
-
-
-def _find_character_face_reference(asset, project_assets: list) -> str:
-    """Find an existing face reference URL for the same character package."""
-    status_rank = {
-        "approved": 0,
-        "pending": 1,
-        "need_regen": 2,
-        "generating": 3,
-        "queued": 4,
-        "missing": 5,
-    }
-    candidates: list[tuple[int, str, str]] = []
-    for other in project_assets:
-        if not _same_character_package(asset, other):
-            continue
-        face_url = (other.view_urls or {}).get("face")
-        if not face_url:
-            continue
-        is_current = str(other.id) == str(asset.id)
-        rank = -1 if is_current else status_rank.get(_status_value(other), 9)
-        created_key = str(getattr(other, "created_at", "") or "")
-        candidates.append((rank, created_key, face_url))
-    candidates.sort(key=lambda item: (item[0], item[1]))
-    return candidates[0][2] if candidates else ""
-
-
-def _is_canonical_character_asset(asset, project_assets: list) -> bool:
-    same_package = [
-        other for other in project_assets
-        if _same_character_package(asset, other)
-    ]
-    if not same_package:
-        return True
-    same_package.sort(key=lambda item: (str(getattr(item, "created_at", "") or ""), str(item.id)))
-    return str(same_package[0].id) == str(asset.id)
-
-
-def _has_running_canonical_character_asset(asset, project_assets: list) -> bool:
-    same_package = [
-        other for other in project_assets
-        if _same_character_package(asset, other)
-    ]
-    if not same_package:
-        return False
-    same_package.sort(key=lambda item: (str(getattr(item, "created_at", "") or ""), str(item.id)))
-    canonical = same_package[0]
-    return str(canonical.id) != str(asset.id) and _status_value(canonical) in {"queued", "generating"}
-
-
-async def _wait_for_character_face_reference(asset, asset_model, timeout_seconds: int = 420) -> str:
-    """Let non-canonical same-character assets wait for the package face baseline."""
-    deadline = asyncio.get_running_loop().time() + timeout_seconds
-    while asyncio.get_running_loop().time() < deadline:
-        await asyncio.sleep(5)
-        project_assets = await asset_model.find(asset_model.project_id == asset.project_id).to_list()
-        face_url = _find_character_face_reference(asset, project_assets)
-        if face_url:
-            return face_url
-        if not _has_running_canonical_character_asset(asset, project_assets):
-            return ""
-    return ""
 
 
 @celery_app.task(bind=True, name="app.tasks.image.gen_asset", queue="image")
@@ -124,24 +57,13 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
         image_url = None
         asset_type_str = _asset_type_value(asset)
         project_assets = await Asset.find(Asset.project_id == asset.project_id).to_list()
-        package_face_reference = ""
-        if asset_type_str == "character":
-            package_face_reference = _find_character_face_reference(asset, project_assets)
-            if (
-                not package_face_reference
-                and not _is_canonical_character_asset(asset, project_assets)
-                and _has_running_canonical_character_asset(asset, project_assets)
-            ):
-                if record:
-                    await record.set({
-                        "logs": (record.logs or []) + ["[image] 等待同角色面部基准图生成，用于保持人物一致性…"],
-                    })
-                package_face_reference = await _wait_for_character_face_reference(asset, Asset)
         generated_view_urls: dict[str, str] = {}
+        generated_provider_view_urls: dict[str, str] = {}
         submitted_prompts: dict[str, str] = {}
         submitted_prompt = ""
         final_submitted_prompt = ""
         final_submitted_prompts: dict[str, str] = {}
+        provider_image_url = None
 
         for attempt in range(MAX_RETRIES):
             blocked = await sensitive_word_service.get_all_words()
@@ -157,41 +79,35 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
 
             try:
                 generated_view_urls = {}
+                generated_provider_view_urls = {}
 
                 if asset_type_str == "character":
                     for view_key, spec in CHARACTER_VIEW_SPECS.items():
                         view_submitted_prompt = submitted_prompts[view_key]
-                        reference_images: list[str] = []
-                        if view_key == "face":
-                            if package_face_reference:
-                                reference_images.append(package_face_reference)
-                        elif view_key == "full_body":
-                            face_url = generated_view_urls.get("face") or package_face_reference
-                            if face_url:
-                                reference_images.append(face_url)
-                        elif view_key == "side":
-                            face_url = generated_view_urls.get("face") or package_face_reference
-                            full_body_url = generated_view_urls.get("full_body") or (asset.view_urls or {}).get("full_body")
-                            reference_images = [url for url in (face_url, full_body_url) if url]
 
                         if record:
                             await record.set({
                                 "progress": 30 + min(55, len(generated_view_urls) * 18),
                                 "logs": (record.logs or []) + [
-                                    f"[image] 正在生成{spec['label']}…"
-                                    + (f"（参考图 {len(reference_images)} 张）" if reference_images else "")
+                                    f"[image] 正在生成{spec['label']}…（纯文本，无参考图）"
                                 ],
                             })
                         logger.info(
                             "[ASSET IMAGE PROMPT] asset_id=%s asset=%s view=%s attempt=%d/%d references=%d\n--- PROMPT START ---\n%s\n--- PROMPT END ---",
-                            asset_id, asset.name, view_key, attempt + 1, MAX_RETRIES, len(reference_images), view_submitted_prompt,
+                            asset_id, asset.name, view_key, attempt + 1, MAX_RETRIES, 0, view_submitted_prompt,
                         )
-                        generated_view_urls[view_key] = await image_service.generate_image(
+                        image_result = await image_service.generate_image_with_metadata(
                             prompt=view_submitted_prompt,
                             size="1600x2848",
-                            image=reference_images or None,
+                            image=None,
                         )
+                        generated_view_urls[view_key] = image_result.url
+                        generated_provider_view_urls[view_key] = image_result.provider_url
                     image_url = generated_view_urls.get("full_body") or next(iter(generated_view_urls.values()))
+                    provider_image_url = (
+                        generated_provider_view_urls.get("full_body")
+                        or next(iter(generated_provider_view_urls.values()), None)
+                    )
                     submitted_prompt = "\n\n---\n\n".join(
                         f"{CHARACTER_VIEW_SPECS[key]['label']}：\n{prompt}"
                         for key, prompt in submitted_prompts.items()
@@ -202,10 +118,12 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
                         "[ASSET IMAGE PROMPT] asset_id=%s asset=%s attempt=%d/%d\n--- PROMPT START ---\n%s\n--- PROMPT END ---",
                         asset_id, asset.name, attempt + 1, MAX_RETRIES, submitted_prompt,
                     )
-                    image_url = await image_service.generate_image(
+                    image_result = await image_service.generate_image_with_metadata(
                         prompt=submitted_prompt,
                         size="1600x2848",  # 9:16 vertical 2K, avoids square character-card bias
                     )
+                    image_url = image_result.url
+                    provider_image_url = image_result.provider_url
                     final_submitted_prompts = {}
                 final_submitted_prompt = submitted_prompt
                 break  # 成功，退出重试循环
@@ -228,6 +146,7 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
                 AssetVersion(
                     version=f"v{len(asset.versions) + idx + 1}",
                     url=url,
+                    provider_url=generated_provider_view_urls.get(view_key, ""),
                     prompt=submitted_prompts.get(view_key, submitted_prompt),
                     note=CHARACTER_VIEW_SPECS[view_key]["label"],
                     view_type=view_key,
@@ -240,6 +159,7 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
                 AssetVersion(
                     version=f"v{len(asset.versions) + 1}",
                     url=image_url,
+                    provider_url=provider_image_url or "",
                     prompt=submitted_prompt,
                     created_at=datetime.utcnow(),
                 )
@@ -251,12 +171,21 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
             "submitted_prompts": final_submitted_prompts,
             "preview_url": image_url,
             "view_urls": generated_view_urls or asset.view_urls,
+            "provider_preview_url": provider_image_url,
+            "provider_view_urls": generated_provider_view_urls or asset.provider_view_urls,
             "versions": versions,
             "status": AssetStatus.pending,  # needs user confirmation
             "generation_task_id": celery_id,
         })
 
-        await finish_task_record(celery_id, result={"image_url": image_url, "view_urls": generated_view_urls})
+        await finish_task_record(
+            celery_id,
+            result={
+                "image_url": image_url,
+                "view_urls": generated_view_urls,
+                "provider_view_urls": generated_provider_view_urls,
+            },
+        )
         return {"image_url": image_url, "view_urls": generated_view_urls}
 
     except Exception as e:

@@ -1,5 +1,6 @@
 """Volcano Engine Seedream image generation service."""
 from __future__ import annotations
+from dataclasses import dataclass
 import logging
 import uuid
 import httpx
@@ -8,6 +9,12 @@ from app.config import settings
 import app.services.storage_service as storage_service
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class ImageGenerationResult:
+    url: str
+    provider_url: str
 
 
 def get_ark_client() -> Ark:
@@ -25,6 +32,21 @@ async def generate_image(
     watermark: bool = False,
     image: str | list[str] | None = None,
 ) -> str:
+    result = await generate_image_with_metadata(
+        prompt=prompt,
+        size=size,
+        watermark=watermark,
+        image=image,
+    )
+    return result.url
+
+
+async def generate_image_with_metadata(
+    prompt: str,
+    size: str = "2048x2048",
+    watermark: bool = False,
+    image: str | list[str] | None = None,
+) -> ImageGenerationResult:
     """Generate image with Seedream, upload to COS, return permanent URL.
     
     Seedream URLs expire in 24h → we immediately re-upload to COS.
@@ -62,4 +84,4 @@ async def generate_image(
     # Re-upload to COS so URL doesn't expire
     object_key = f"images/{uuid.uuid4().hex}.jpg"
     permanent_url = await storage_service.upload_from_url(temp_url, object_key)
-    return permanent_url
+    return ImageGenerationResult(url=permanent_url, provider_url=temp_url)

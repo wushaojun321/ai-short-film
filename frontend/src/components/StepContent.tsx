@@ -675,82 +675,95 @@ function StepVideos({
       <div className="space-y-3">
         {/* 中央预览 */}
         {shot && (
-          <div className="page-panel tech-border flex flex-col items-center p-4">
-            <div className="w-full max-w-[420px]">
-              <div className="mb-3 flex items-center justify-between rounded-xl border border-line bg-elev px-3 py-2">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-text">镜头 {shot.shotCode}</p>
-                  <p className="text-xs text-muted">{shot.segmentName || "未分段"} · {shot.duration}s</p>
+          <div className="page-panel tech-border p-4">
+            <div className="grid items-start gap-4 lg:grid-cols-[minmax(180px,1fr)_minmax(260px,420px)_minmax(190px,240px)]">
+              <div className="hidden lg:block" />
+
+              <div className="min-w-0">
+                <div className="mb-3 flex items-center justify-between rounded-xl border border-line bg-elev px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-text">镜头 {shot.shotCode}</p>
+                    <p className="text-xs text-muted">{shot.segmentName || "未分段"} · {shot.duration}s</p>
+                  </div>
+                  <Badge variant={shotBusy ? "warning" : shotApproved || shot.videoUrl ? "success" : "outline"}>
+                    {shotBusy ? "生成中" : shotApproved ? "已通过" : shot.videoUrl ? "已生成" : "待生成"}
+                  </Badge>
                 </div>
-                <Badge variant={shotApproved ? "success" : shot.videoUrl ? "warning" : "outline"}>
-                  {shotApproved ? "已通过" : shot.videoUrl ? "待审批" : "待生成"}
-                </Badge>
+                <div className="mx-auto h-[clamp(320px,46vh,560px)] aspect-[9/16] max-w-full bg-black rounded-2xl border border-line flex items-center justify-center mb-3 relative overflow-hidden shadow-lg">
+                  {(loadingIds.has(shot.id) || shot.state === "rendering") ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="w-8 h-8 text-warn animate-spin" />
+                      <p className="text-xs text-muted">视频生成中…</p>
+                    </div>
+                  ) : shot.videoUrl ? (
+                    <LazyVideo src={cosUrl(shot.videoUrl)} className="w-full h-full object-contain rounded-2xl" />
+                  ) : (
+                    <div className="text-center">
+                      <Film className="w-10 h-10 text-line mx-auto mb-2" />
+                      <p className="text-xs text-muted">尚未生成</p>
+                    </div>
+                  )}
+                  {shotApproved && shot.videoUrl && (
+                    <div className="pointer-events-none absolute right-2 top-2 flex items-center gap-1 rounded-full bg-brand/90 px-2 py-1 text-[11px] font-medium text-white shadow-sm">
+                      <CheckCircle2 className="w-3 h-3" />
+                      已通过
+                    </div>
+                  )}
+                  {shot.continuityDirty && shot.videoUrl && (
+                    <div className="pointer-events-none absolute left-2 top-2 rounded-full bg-warn/95 px-2 py-1 text-[11px] font-medium text-white shadow-sm">
+                      连续性需刷新
+                    </div>
+                  )}
+                </div>
+
+                <p className="rounded-xl bg-elev px-3 py-2 text-xs text-sub text-center leading-relaxed line-clamp-2">{shot.description}</p>
+                {shot.continuityDirty && (
+                  <p className="mt-2 rounded-xl border border-warn/20 bg-warn-soft px-3 py-2 text-xs text-warn">
+                    {shot.continuityDirtyReason || "依赖的上一镜尾帧已变化，建议重新生成本镜头。"}
+                  </p>
+                )}
               </div>
-              <div className="mx-auto h-[clamp(300px,38vh,460px)] aspect-[9/16] max-w-full bg-black rounded-2xl border border-line flex items-center justify-center mb-3 relative overflow-hidden shadow-lg">
-                {(loadingIds.has(shot.id) || shot.state === "rendering") ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <Loader2 className="w-8 h-8 text-brand animate-spin" />
-                    <p className="text-xs text-muted">视频生成中…</p>
-                  </div>
-                ) : shot.videoUrl ? (
-                  <LazyVideo src={cosUrl(shot.videoUrl)} className="w-full h-full object-contain rounded-2xl" />
-                ) : (
-                  <div className="text-center">
-                    <Film className="w-10 h-10 text-line mx-auto mb-2" />
-                    <p className="text-xs text-muted">尚未生成</p>
-                  </div>
-                )}
-                {shotApproved && shot.videoUrl && (
-                  <div className="pointer-events-none absolute right-2 top-2 flex items-center gap-1 rounded-full bg-brand/90 px-2 py-1 text-[11px] font-medium text-white shadow-sm">
-                    <CheckCircle2 className="w-3 h-3" />
-                    已通过
-                  </div>
-                )}
-                {shot.continuityDirty && shot.videoUrl && (
-                  <div className="pointer-events-none absolute left-2 top-2 rounded-full bg-warn/95 px-2 py-1 text-[11px] font-medium text-white shadow-sm">
-                    连续性需刷新
-                  </div>
-                )}
-              </div>
 
-              <p className="rounded-xl bg-elev px-3 py-2 text-xs text-sub text-center mb-2 leading-relaxed line-clamp-2">{shot.description}</p>
-              {shot.continuityDirty && (
-                <p className="mb-2 rounded-xl border border-warn/20 bg-warn-soft px-3 py-2 text-xs text-warn">
-                  {shot.continuityDirtyReason || "依赖的上一镜尾帧已变化，建议重新生成本镜头。"}
-                </p>
-              )}
-
-              <button
-                onClick={() => setPromptSheetOpen(true)}
-                className="w-full flex items-center justify-center gap-1.5 py-1 mb-2 rounded-lg text-xs text-muted hover:text-brand hover:bg-brand-soft transition-colors border border-dashed border-line hover:border-brand/30"
-              >
-                <FileText className="w-3 h-3" />编辑最终提交提示词
-              </button>
-
-              {!shotBusy && (
-                <div className="grid grid-cols-2 gap-2 rounded-2xl border border-line bg-panel p-2 shadow-xs">
-                  <Button
-                    variant={shot.videoUrl ? "outline" : "default"}
-                    className="col-span-2"
-                    onClick={() => handleRegen(shot.id)}
+              <div className="lg:pt-[56px]">
+                <div className="rounded-2xl border border-line bg-panel/88 p-2.5 shadow-xs">
+                  <button
+                    onClick={() => setPromptSheetOpen(true)}
+                    className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-line px-2 py-2 text-xs text-muted transition-colors hover:border-brand/30 hover:bg-brand-soft hover:text-brand"
                   >
-                    {shot.videoUrl ? (
-                      <><RefreshCw className="w-4 h-4" />重新生成本镜头</>
-                    ) : (
-                      <><Play className="w-4 h-4" />生成本镜头</>
-                    )}
-                  </Button>
-                  <Button variant="outline" onClick={() => setAgentTarget(shot.id)}>
-                    <MessageCircle className="w-4 h-4" />AI 修改
-                  </Button>
-                  <Button variant="outline" onClick={() => setHistorySheetOpen(true)} disabled={shotVersions.length === 0}>
-                    <History className="w-4 h-4" />历史版本
-                  </Button>
-                  <Button onClick={() => handleApprove(shot.id)} disabled={!shot.videoUrl || shotApproved}>
-                    <Check className="w-4 h-4" />{shotApproved ? "已审批" : "审批通过"}
-                  </Button>
+                    <FileText className="w-3.5 h-3.5" />编辑最终提交提示词
+                  </button>
+
+                  {!shotBusy ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        size="sm"
+                        variant={shot.videoUrl ? "outline" : "default"}
+                        className="col-span-2"
+                        onClick={() => handleRegen(shot.id)}
+                      >
+                        {shot.videoUrl ? (
+                          <><RefreshCw className="w-3.5 h-3.5" />重新生成</>
+                        ) : (
+                          <><Play className="w-3.5 h-3.5" />生成视频</>
+                        )}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setAgentTarget(shot.id)}>
+                        <MessageCircle className="w-3.5 h-3.5" />AI 修改
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setHistorySheetOpen(true)} disabled={shotVersions.length === 0}>
+                        <History className="w-3.5 h-3.5" />历史
+                      </Button>
+                      <Button size="sm" className="col-span-2" onClick={() => handleApprove(shot.id)} disabled={!shot.videoUrl || shotApproved}>
+                        <Check className="w-3.5 h-3.5" />{shotApproved ? "已审批" : "审批通过"}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-warn/25 bg-warn-soft px-3 py-3 text-center text-xs font-medium text-warn">
+                      视频生成中…
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
         )}
@@ -766,6 +779,7 @@ function StepVideos({
           <div className="flex gap-2 overflow-x-auto pb-1">
             {shots.map((s, idx) => {
               const isApproved = isPast || (!!s.videoUrl && s.state === "approved");
+              const isComplete = !!s.videoUrl;
               const isGenerating = loadingIds.has(s.id) || s.state === "rendering";
               return (
                 <button
@@ -779,9 +793,9 @@ function StepVideos({
                   <div className="flex items-center gap-2">
                     <div className="w-9 h-12 rounded-lg bg-soft flex items-center justify-center border border-line overflow-hidden shrink-0">
                       {isGenerating ? (
-                        <Loader2 className="w-4 h-4 text-brand animate-spin" />
+                        <Loader2 className="w-4 h-4 text-warn animate-spin" />
                       ) : s.videoUrl ? (
-                        <Play className="w-3.5 h-3.5 text-sub" />
+                        <Play className="w-3.5 h-3.5 text-success" />
                       ) : (
                         <Film className="w-4 h-4 text-line" />
                       )}
@@ -791,15 +805,15 @@ function StepVideos({
                       <div className="text-xs text-muted mt-0.5">{s.duration}s</div>
                     </div>
                     <div className="ml-auto shrink-0">
-                    {isGenerating ? (
-                      <div className="mt-1 w-1.5 h-1.5 rounded-full bg-brand animate-pulse shrink-0" />
-                    ) : isApproved ? (
-                      <CheckCircle2 className="mt-0.5 w-4 h-4 text-brand shrink-0" />
-                    ) : s.videoUrl ? (
-                      <div className="mt-1 w-1.5 h-1.5 rounded-full bg-warn shrink-0" />
-                    ) : (
-                      <div className="mt-1 w-1.5 h-1.5 rounded-full bg-line shrink-0" />
-                    )}
+                      {isGenerating ? (
+                        <div className="mt-0.5 h-3 w-3 rounded-full bg-warn shadow-[0_0_0_3px_rgba(245,158,11,0.18)] animate-pulse shrink-0" />
+                      ) : isApproved ? (
+                        <CheckCircle2 className="mt-0.5 h-5 w-5 text-success shrink-0" />
+                      ) : isComplete ? (
+                        <div className="mt-0.5 h-3 w-3 rounded-full bg-success shadow-[0_0_0_3px_rgba(52,211,153,0.16)] shrink-0" />
+                      ) : (
+                        <div className="mt-0.5 h-3 w-3 rounded-full bg-line shrink-0" />
+                      )}
                     </div>
                   </div>
                 </button>

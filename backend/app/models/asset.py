@@ -27,6 +27,7 @@ class AssetVersion(BaseModel):
     prompt: str
     note: str = ""
     view_type: str = ""
+    provider_url: str = ""
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -48,6 +49,10 @@ class Asset(Document):
     submitted_prompts: dict[str, str] = Field(default_factory=dict)
     preview_url: Optional[str] = None
     view_urls: dict[str, str] = Field(default_factory=dict)
+    # Provider-original URLs are used when sending trusted model outputs back to
+    # Volcano models. preview_url/view_urls stay as stable COS URLs for UI.
+    provider_preview_url: Optional[str] = None
+    provider_view_urls: dict[str, str] = Field(default_factory=dict)
     versions: list[AssetVersion] = Field(default_factory=list)
     generation_task_id: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
