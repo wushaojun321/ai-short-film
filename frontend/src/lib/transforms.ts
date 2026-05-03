@@ -92,11 +92,15 @@ export function transformShot(s: ApiShot): Shot {
     shotFunction: s.shot_function || undefined,
     transitionIn: s.transition_in || undefined,
     transitionOut: s.transition_out || undefined,
+    transitionType: s.transition_type || undefined,
     startState: s.start_state || undefined,
     endState: s.end_state || undefined,
     screenDirection: s.screen_direction || undefined,
     continuityNotes: s.continuity_notes || undefined,
     usePrevLastFrame: s.use_prev_last_frame ?? undefined,
+    dependsOnLastFrameShotId: s.depends_on_last_frame_shot_id || undefined,
+    continuityDirty: s.continuity_dirty ?? false,
+    continuityDirtyReason: s.continuity_dirty_reason || undefined,
     description: s.description,
     dialogues: s.dialogues ?? (
       // 兼容旧格式：dialogue/speaker 字符串

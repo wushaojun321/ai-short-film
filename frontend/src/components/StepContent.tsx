@@ -219,11 +219,13 @@ function StepScript({
       `视频时长：${shot.duration}秒`,
       `与上一镜衔接：${shot.transitionIn || "无"}`,
       `与下一镜衔接：${shot.transitionOut || "无"}`,
+      `转场类型：${shot.transitionType || "hard_cut"}`,
       `起始状态：${shot.startState || "无"}`,
       `结束状态：${shot.endState || "无"}`,
       `画面方向/空间轴线：${shot.screenDirection || "无"}`,
       `连续性约束：${shot.continuityNotes || "无"}`,
       `是否使用上一镜尾帧：${shot.usePrevLastFrame ? "是" : "否"}`,
+      `连续性刷新状态：${shot.continuityDirty ? (shot.continuityDirtyReason || "需刷新后续承接") : "正常"}`,
       "",
       "分镜描述：",
       shot.description || "无",
@@ -628,9 +630,19 @@ function StepVideos({
                     已通过
                   </div>
                 )}
+                {shot.continuityDirty && shot.videoUrl && (
+                  <div className="pointer-events-none absolute left-2 top-2 rounded-full bg-warn/95 px-2 py-1 text-[11px] font-medium text-white shadow-sm">
+                    连续性需刷新
+                  </div>
+                )}
               </div>
 
               <p className="rounded-xl bg-elev px-3 py-2 text-xs text-sub text-center mb-2 leading-relaxed line-clamp-2">{shot.description}</p>
+              {shot.continuityDirty && (
+                <p className="mb-2 rounded-xl border border-warn/20 bg-warn-soft px-3 py-2 text-xs text-warn">
+                  {shot.continuityDirtyReason || "依赖的上一镜尾帧已变化，建议重新生成本镜头。"}
+                </p>
+              )}
 
               {submittedPrompt && (
                 <button

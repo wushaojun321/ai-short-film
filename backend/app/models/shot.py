@@ -42,11 +42,15 @@ class Shot(Document):
     shot_function: str = ""
     transition_in: str = ""
     transition_out: str = ""
+    transition_type: str = "hard_cut"
     start_state: str = ""
     end_state: str = ""
     screen_direction: str = ""
     continuity_notes: str = ""
     use_prev_last_frame: bool = False
+    depends_on_last_frame_shot_id: Optional[PydanticObjectId] = None
+    continuity_dirty: bool = False
+    continuity_dirty_reason: str = ""
     description: str = ""
     dialogues: list[ShotDialogueLine] = []  # 一个镜头可有多句对白
     prompt: str = ""

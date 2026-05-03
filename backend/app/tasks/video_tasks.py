@@ -36,6 +36,29 @@ def _fallback_voice_profile(name: str, prompt: str = "") -> str:
     return f"{name}固定音色：成年男性声线，音色稳定，吐字清晰，语速中等，情绪克制，不要变成女性音色，不要忽高忽低。"
 
 
+def _needs_side_reference(shot_description: str, transition_text: str = "") -> bool:
+    text = f"{shot_description} {transition_text}"
+    return any(word in text for word in ("侧面", "侧脸", "侧身", "三分之二侧", "回头", "转身", "背身"))
+
+
+def _append_reference_image(
+    reference_images: list[str],
+    reference_image_parts: list[str],
+    *,
+    url: str | None,
+    label: str,
+    asset_type_label: str,
+    presign,
+    max_images: int = 10,
+) -> str | None:
+    if not url or len(reference_images) >= max_images:
+        return None
+    image_index = len(reference_images) + 1
+    reference_images.append(presign(url))
+    reference_image_parts.append(f"[图{image_index}] {label}（{asset_type_label}）")
+    return f"[图{image_index}]"
+
+
 async def _gen_episode_videos_async(celery_id: str, episode_id: str):
     from app.database import init_db
     await init_db()
@@ -131,6 +154,21 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
         else:
             asset_map = {}
 
+        project_assets = await Asset.find(Asset.project_id == shot.project_id).to_list()
+        package_face_refs: dict[str, str] = {}
+        for asset in project_assets:
+            if asset.asset_type != AssetType.character:
+                continue
+            package_key = asset.asset_package or asset.character_name or asset.name
+            face_url = (asset.view_urls or {}).get("face")
+            if package_key and face_url and package_key not in package_face_refs:
+                package_face_refs[package_key] = face_url
+
+        side_reference_needed = _needs_side_reference(
+            shot.description,
+            f"{shot.transition_in} {shot.transition_out} {shot.start_state} {shot.end_state}",
+        )
+
         for binding in shot.required_assets:
             asset = asset_map.get(str(binding.asset_id))
             if asset:
@@ -140,43 +178,84 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
                     AssetType.prop: "道具",
                     AssetType.template: "模板",
                 }.get(asset.asset_type, "资产")
-                candidate_urls: list[tuple[str, str]] = []
-                if asset.asset_type == AssetType.character and getattr(asset, "view_urls", None):
-                    labels = {"face": "面部", "full_body": "全身", "side": "侧面"}
-                    for key in ("face", "full_body", "side"):
-                        if asset.view_urls.get(key):
-                            candidate_urls.append((labels[key], asset.view_urls[key]))
-                elif asset.preview_url:
-                    candidate_urls.append(("", asset.preview_url))
-
-                if candidate_urls and len(reference_images) < 9:
-                    ref_labels = []
-                    for view_label, url in candidate_urls:
-                        if len(reference_images) >= 9:
-                            break
-                        image_index = len(reference_images) + 1
-                        reference_images.append(presign_if_cos(url))
-                        label_suffix = f"-{view_label}" if view_label else ""
-                        reference_image_parts.append(f"[图{image_index}] {binding.asset_name}{label_suffix}（{asset_type_label}）")
-                        ref_labels.append(f"[图{image_index}]")
-                    asset_ref = f"{''.join(ref_labels)}{binding.asset_name}"
-                else:
-                    asset_ref = binding.asset_name
                 if asset.asset_type == AssetType.character:
+                    ref_labels = []
+                    package_key = asset.asset_package or asset.character_name or asset.name
+                    identity_face_url = (asset.view_urls or {}).get("face") or package_face_refs.get(package_key)
+                    face_ref = _append_reference_image(
+                        reference_images,
+                        reference_image_parts,
+                        url=identity_face_url,
+                        label=f"{binding.asset_name}-身份面部锚点",
+                        asset_type_label=asset_type_label,
+                        presign=presign_if_cos,
+                    )
+                    if face_ref:
+                        ref_labels.append(face_ref)
+
+                    current_look_url = (asset.view_urls or {}).get("full_body") or asset.preview_url
+                    if current_look_url and current_look_url != identity_face_url:
+                        look_ref = _append_reference_image(
+                            reference_images,
+                            reference_image_parts,
+                            url=current_look_url,
+                            label=f"{binding.asset_name}-当前造型",
+                            asset_type_label=asset_type_label,
+                            presign=presign_if_cos,
+                        )
+                        if look_ref:
+                            ref_labels.append(look_ref)
+
+                    side_url = (asset.view_urls or {}).get("side")
+                    if side_reference_needed and side_url and side_url not in (identity_face_url, current_look_url):
+                        side_ref = _append_reference_image(
+                            reference_images,
+                            reference_image_parts,
+                            url=side_url,
+                            label=f"{binding.asset_name}-侧面轮廓辅助",
+                            asset_type_label=asset_type_label,
+                            presign=presign_if_cos,
+                        )
+                        if side_ref:
+                            ref_labels.append(side_ref)
+
+                    asset_ref = f"{''.join(ref_labels)}{binding.asset_name}" if ref_labels else binding.asset_name
                     character_parts.append(f"{asset_ref}（{asset_type_label}）")
                     voice_profile = asset.voice_profile or _fallback_voice_profile(asset.name, asset.prompt)
                     voice_profile_map[asset.name] = voice_profile
                     voice_profile_parts.append(f"{asset.name}：{voice_profile}")
                 elif asset.asset_type == AssetType.scene:
+                    ref = _append_reference_image(
+                        reference_images,
+                        reference_image_parts,
+                        url=asset.preview_url,
+                        label=binding.asset_name,
+                        asset_type_label=asset_type_label,
+                        presign=presign_if_cos,
+                    )
+                    asset_ref = f"{ref}{binding.asset_name}" if ref else binding.asset_name
                     scene_parts.append(f"{asset_ref}（{asset_type_label}）")
                 elif asset.asset_type == AssetType.prop:
+                    ref = _append_reference_image(
+                        reference_images,
+                        reference_image_parts,
+                        url=asset.preview_url,
+                        label=binding.asset_name,
+                        asset_type_label=asset_type_label,
+                        presign=presign_if_cos,
+                    )
+                    asset_ref = f"{ref}{binding.asset_name}" if ref else binding.asset_name
                     prop_parts.append(f"{asset_ref}（{asset_type_label}）")
+
+        dependency_shot = None
+        if getattr(shot, "depends_on_last_frame_shot_id", None):
+            dependency_shot = await Shot.get(shot.depends_on_last_frame_shot_id)
 
         prev_shots = await Shot.find(
             Shot.episode_id == shot.episode_id,
             Shot.order < shot.order,
         ).sort("-order").limit(1).to_list()
-        prev_shot = prev_shots[0] if prev_shots else None
+        prev_shot = dependency_shot or (prev_shots[0] if prev_shots else None)
         previous_last_frame_label = "无"
         previous_last_frame_url = None
         if _should_use_prev_last_frame(shot, prev_shot) and len(reference_images) < 10:
@@ -244,6 +323,7 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
             f"本镜起始状态：{shot.start_state or '无'}",
             f"本镜结束状态：{shot.end_state or '无'}",
             f"画面方向/空间轴线：{shot.screen_direction or '无'}",
+            f"转场类型：{getattr(shot, 'transition_type', '') or 'hard_cut'}",
             f"连续性硬规则：{shot.continuity_notes or '无'}",
             f"上一镜尾帧辅助图：{previous_last_frame_label}",
         ])
@@ -256,6 +336,7 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
                 "segment_name": shot.segment_name or "无",
                 "segment_function": shot.segment_function or "无",
                 "shot_function": shot.shot_function or "无",
+                "transition_type": getattr(shot, "transition_type", "") or "hard_cut",
                 "duration": duration,
                 "seg1": seg1,
                 "seg2": seg2,
@@ -381,11 +462,22 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
             "state": ShotState.rendered,
             "generation_task_id": celery_id,
             "submitted_prompt": submitted_prompt,
+            "continuity_dirty": False,
+            "continuity_dirty_reason": "",
         }
         if last_frame_url:
             updates["last_frame_url"] = last_frame_url
 
         await shot.set(updates)
+
+        dependent_shots = await Shot.find(Shot.depends_on_last_frame_shot_id == shot.id).to_list()
+        if dependent_shots:
+            for dependent in dependent_shots:
+                if dependent.video_url:
+                    await dependent.set({
+                        "continuity_dirty": True,
+                        "continuity_dirty_reason": f"依赖镜头 {shot.shot_code} 已重新生成，上一镜尾帧发生变化，建议刷新本镜视频。",
+                    })
 
         if manage_record:
             await finish_task_record(celery_id, result={"video_url": video_url, "last_frame_url": last_frame_url})

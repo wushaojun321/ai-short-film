@@ -71,11 +71,15 @@ export interface Shot {
   shotFunction?: string;
   transitionIn?: string;
   transitionOut?: string;
+  transitionType?: string;
   startState?: string;
   endState?: string;
   screenDirection?: string;
   continuityNotes?: string;
   usePrevLastFrame?: boolean;
+  dependsOnLastFrameShotId?: string;
+  continuityDirty?: boolean;
+  continuityDirtyReason?: string;
   description: string;
   dialogues: ShotDialogueLine[];
   assets: string[];

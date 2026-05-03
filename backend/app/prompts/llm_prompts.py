@@ -338,6 +338,40 @@ CONTINUITY_EXTRACT = {
     "variables": ["episode_script", "prev_episode_ending"],
 }
 
+SHOT_CONTINUITY_REPAIR = {
+    "scope": PromptConfigScope.shot_continuity_repair,
+    "name": "分镜连续性校验修复-系统提示",
+    "description": "检查并修复分镜脚本中相邻镜头的状态、资产、轴线和转场连续性",
+    "system_prompt": """你是专业影视连续性指导和剪辑指导。请校验并修复已经生成的分镜脚本。
+
+目标：提升人物形象一致性、镜头衔接连贯性、转场自然度。不得新增剧情，不得改写台词，不得删除关键情节。
+
+必须检查并修复：
+1. 相邻镜头：上一镜 end_state 必须能自然承接下一镜 start_state。
+2. 同一片段内：人物左右位置、视线方向、手中道具、服装、伤势、光线必须连续；除非 transition_type 明确换场。
+3. 人物资产：required_assets 必须选择与当前场景、剧情阶段、服装/伤势/道具状态匹配的资产名；同一 asset_package 保持同一张脸。
+4. use_prev_last_frame：同一片段内连续动作、同场对话、视线/动作承接镜头应为 true；片段首镜、明显换场、时间跳跃应为 false。
+5. transition_type 必须从以下枚举选择：
+   - hard_cut：动作点或视线点硬切，适合同场连续镜头
+   - match_cut：动作、姿态、构图或道具匹配切
+   - audio_bridge：上一镜声音/台词尾音/环境声延续到下一镜
+   - crossfade：轻微叠化，适合情绪过渡或时间流逝
+   - black_gap：明确时间跳跃、空间大幅转换、章节停顿
+6. 避免只写“切下一镜”；transition_in/out 必须说明动作、视线、声音、道具或空间如何承接。
+7. 台词镜 duration 要能承载 dialogues，中文约 6 字/秒；如果超出，请只调整 duration 到合理范围，不改台词。
+
+输出 JSON 对象，保留原有 segments/shots 结构和所有字段，补全或修正 continuity 字段，并附 issues：
+{
+  "segments": [...],
+  "issues": [
+    {"shot_code": "SEG01-S02", "level": "warn", "message": "修复说明"}
+  ]
+}
+只输出 JSON，不要解释。""",
+    "user_prompt_template": "全剧风格：\n{series_prompt}\n\n本集原文：\n{script_excerpt}\n\n连续性约束：\n{continuity_notes}\n\n可用资产列表：\n{asset_list}\n\n待校验分镜 JSON：\n{storyboard_json}",
+    "variables": ["series_prompt", "script_excerpt", "continuity_notes", "asset_list", "storyboard_json"],
+}
+
 # =============================================================================
 # 【初始化阶段 - 资产提示词生成】
 # 用途：为每个角色/场景/道具资产生成 Seedream 图像生成提示词（初始化时批量调用）
@@ -428,6 +462,7 @@ description 字段必须包含以下信息（不得省略）：
 连续性字段规则：
 - transition_in：本镜如何承接上一镜，写具体剪辑/动作/视线/声音衔接；片段首镜写"片段首镜，承接上一片段：..."
 - transition_out：本镜如何引出下一镜，写具体落点；不要只写"切下一镜"
+- transition_type：转场类型，只能是 hard_cut、match_cut、audio_bridge、crossfade、black_gap。默认同场动作/视线承接用 hard_cut 或 match_cut；台词尾音/环境声延续用 audio_bridge；情绪或时间轻微过渡用 crossfade；明显时空跳跃才用 black_gap
 - start_state：本镜开始时人物站位、姿态、视线、道具、情绪和场景光线状态
 - end_state：本镜结束时人物站位、姿态、视线、道具、情绪和场景光线状态
 - screen_direction：画面方向和空间轴线，例如"李云湘画面左侧，谢风凌画面右侧，视线从左向右"
@@ -464,6 +499,7 @@ description 字段必须包含以下信息（不得省略）：
         "duration": 6,
         "transition_in": "片段首镜，承接上一片段的情绪或场景信息",
         "transition_out": "以某个动作/视线/声音/道具引出下一镜",
+        "transition_type": "hard_cut",
         "start_state": "本镜开始时的人物、站位、姿态、视线、道具、情绪、光线",
         "end_state": "本镜结束时的人物、站位、姿态、视线、道具、情绪、光线",
         "screen_direction": "画面方向和空间轴线",
@@ -480,6 +516,7 @@ description 字段必须包含以下信息（不得省略）：
         "duration": 5,
         "transition_in": "承接上一镜结尾状态",
         "transition_out": "以说话人表情或听者反应引出下一镜",
+        "transition_type": "audio_bridge",
         "start_state": "本镜开始状态",
         "end_state": "本镜结束状态",
         "screen_direction": "画面方向和空间轴线",
@@ -505,6 +542,7 @@ description 字段必须包含以下信息（不得省略）：
         "duration": 3,
         "transition_in": "承接上一镜台词尾音或动作落点",
         "transition_out": "以眼神/沉默/动作停顿引出下一镜",
+        "transition_type": "match_cut",
         "start_state": "本镜开始状态",
         "end_state": "本镜结束状态",
         "screen_direction": "画面方向和空间轴线",
@@ -584,15 +622,16 @@ SHOT_VIDEO_GEN = {
 3. 场景参考
 4. 人物参考（每个角色明确身份、服装、性别，加排斥项）
 5. 镜头功能
-6. 固定站位
-7. 景别与机位
-8. 运镜
-9. 时间分段动作（视频时长 {duration} 秒，均匀分为三段：0-{seg1}s / {seg1}-{seg2}s / {seg2}-{duration}s，每段写明对应动作，覆盖完整时长）
-10. 台词与说话人（明确唯一发声人，其他人不得张嘴）
-11. 台词表演：必须写清每句台词对应的表情、动作、情绪和语气
-12. 音色一致性：必须按角色音色设定保持同一角色跨镜头声音一致
-13. 连续性约束：必须严格承接上一镜结尾状态、本镜起始状态和本镜结束状态
-14. 反向约束
+6. 转场类型：{transition_type}，按该类型描述本镜开头如何自然接入
+7. 固定站位
+8. 景别与机位
+9. 运镜
+10. 时间分段动作（视频时长 {duration} 秒，均匀分为三段：0-{seg1}s / {seg1}-{seg2}s / {seg2}-{duration}s，每段写明对应动作，覆盖完整时长）
+11. 台词与说话人（明确唯一发声人，其他人不得张嘴）
+12. 台词表演：必须写清每句台词对应的表情、动作、情绪和语气
+13. 音色一致性：必须按角色音色设定保持同一角色跨镜头声音一致
+14. 连续性约束：必须严格承接上一镜结尾状态、本镜起始状态和本镜结束状态
+15. 反向约束
 
 视觉风格硬规则：
 - 所有镜头必须是写实电影短剧质感，像真实摄影机拍摄的真人、真实空间和真实道具
@@ -611,8 +650,8 @@ SHOT_VIDEO_GEN = {
 
 以 JSON 格式输出：{"prompt": "完整提示词文本"}
 注意：提示词用中文撰写，台词原文保留。""",
-    "user_prompt_template": "镜头编号：{shot_code}\n所属片段：{segment_code} {segment_name}（{segment_function}）\n镜头功能：{shot_function}\n视频时长：{duration}秒\n分镜描述：{shot_description}\n\n连续性上下文：\n{continuity_context}\n\n角色音色设定：\n{voice_profiles}\n\n台词与表演：\n{dialogue_performance}\n\n直接参考图片：\n{reference_images}\n角色参考：\n{character_prompts}\n场景参考：\n{scene_prompt}\n道具参考：\n{prop_prompts}\n\n当前提示词（若有）：{shot_prompt}",
-    "variables": ["shot_code", "segment_code", "segment_name", "segment_function", "shot_function", "duration", "seg1", "seg2", "shot_description", "continuity_context", "voice_profiles", "dialogue_performance", "reference_images", "character_prompts", "scene_prompt", "prop_prompts", "shot_prompt"],
+    "user_prompt_template": "镜头编号：{shot_code}\n所属片段：{segment_code} {segment_name}（{segment_function}）\n镜头功能：{shot_function}\n转场类型：{transition_type}\n视频时长：{duration}秒\n分镜描述：{shot_description}\n\n连续性上下文：\n{continuity_context}\n\n角色音色设定：\n{voice_profiles}\n\n台词与表演：\n{dialogue_performance}\n\n直接参考图片：\n{reference_images}\n角色参考：\n{character_prompts}\n场景参考：\n{scene_prompt}\n道具参考：\n{prop_prompts}\n\n当前提示词（若有）：{shot_prompt}",
+    "variables": ["shot_code", "segment_code", "segment_name", "segment_function", "shot_function", "transition_type", "duration", "seg1", "seg2", "shot_description", "continuity_context", "voice_profiles", "dialogue_performance", "reference_images", "character_prompts", "scene_prompt", "prop_prompts", "shot_prompt"],
 }
 
 # =============================================================================
@@ -721,6 +760,7 @@ DEFAULT_PROMPTS = [
     SERIES_PLAN,
     EPISODE_SPLIT,
     ASSET_EXTRACT,
+    SHOT_CONTINUITY_REPAIR,
     CONTINUITY_EXTRACT,
     ASSET_PROMPT_GEN,
     SHOT_SCRIPT_GEN,

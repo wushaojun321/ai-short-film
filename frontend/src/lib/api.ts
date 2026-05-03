@@ -125,11 +125,15 @@ export interface ApiShot {
   shot_function?: string;
   transition_in?: string;
   transition_out?: string;
+  transition_type?: string;
   start_state?: string;
   end_state?: string;
   screen_direction?: string;
   continuity_notes?: string;
   use_prev_last_frame?: boolean;
+  depends_on_last_frame_shot_id?: string;
+  continuity_dirty?: boolean;
+  continuity_dirty_reason?: string;
   description: string;
   dialogues: ApiShotDialogueLine[];
   // 兼容旧数据

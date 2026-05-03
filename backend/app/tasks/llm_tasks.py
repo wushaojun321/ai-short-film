@@ -380,6 +380,82 @@ def _extract_shot_list(result) -> list[tuple[dict, dict]]:
     return [({}, s) for s in shots_data if isinstance(s, dict)]
 
 
+def _infer_transition_type(transition_in: str, transition_out: str, segment: dict, shot: dict) -> str:
+    """Infer a conservative transition type when the LLM omits it."""
+    raw = str(
+        shot.get("transition_type")
+        or shot.get("transition")
+        or segment.get("transition_type")
+        or ""
+    ).strip()
+    allowed = {"hard_cut", "match_cut", "audio_bridge", "crossfade", "black_gap"}
+    if raw in allowed:
+        return raw
+
+    text = f"{transition_in} {transition_out} {shot.get('shot_function', '')} {segment.get('segment_function', '')}"
+    if any(word in text for word in ("黑场", "停顿", "章节", "大幅跳跃", "时间跳跃", "数日后")):
+        return "black_gap"
+    if any(word in text for word in ("叠化", "淡入", "淡出", "情绪过渡", "回忆", "时间流逝")):
+        return "crossfade"
+    if any(word in text for word in ("声音", "台词尾音", "环境声", "音效", "呼吸声")):
+        return "audio_bridge"
+    if any(word in text for word in ("动作", "视线", "道具", "姿态", "构图", "匹配")):
+        return "match_cut"
+    return "hard_cut"
+
+
+async def _repair_storyboard_continuity(
+    *,
+    result: dict,
+    llm_service,
+    render,
+    scope,
+    series_prompt: str,
+    script_excerpt: str,
+    continuity_notes: str,
+    asset_list: list[dict],
+    record=None,
+) -> dict:
+    """Run a lightweight continuity repair pass after storyboard generation.
+
+    This is best-effort: if the repair LLM fails or returns a malformed shape,
+    the original storyboard is preserved so generation remains usable.
+    """
+    import json
+
+    if not isinstance(result, dict):
+        return result
+    if not _extract_shot_list(result):
+        return result
+
+    try:
+        system_prompt, user_prompt, _ = await render(
+            scope,
+            {
+                "series_prompt": series_prompt,
+                "script_excerpt": script_excerpt,
+                "continuity_notes": continuity_notes,
+                "asset_list": json.dumps(asset_list, ensure_ascii=False),
+                "storyboard_json": json.dumps(result, ensure_ascii=False),
+            },
+        )
+        repaired = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=20000)
+        if isinstance(repaired, dict) and _extract_shot_list(repaired):
+            if record:
+                issues = repaired.get("issues") or []
+                issue_count = len(issues) if isinstance(issues, list) else 0
+                await record.set({
+                    "logs": (record.logs or []) + [f"[continuity] 分镜连续性校验完成，修复/提示 {issue_count} 项"],
+                })
+            return repaired
+    except Exception as exc:
+        if record:
+            await record.set({
+                "logs": (record.logs or []) + [f"[continuity] 连续性校验跳过：{exc}"],
+            })
+    return result
+
+
 @celery_app.task(bind=True, name="app.tasks.llm.gen_shot_script", queue="llm")
 def gen_shot_script_task(self, episode_id: str, max_shot_duration: int = 8, feedback: str | None = None):
     """Generate storyboard script for an episode."""
@@ -445,6 +521,17 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
             await record.set({"progress": 30})
 
         result = await llm_service.chat_json(system_prompt, user_prompt)
+        result = await _repair_storyboard_continuity(
+            result=result,
+            llm_service=llm_service,
+            render=render,
+            scope=PromptConfigScope.shot_continuity_repair,
+            series_prompt=project.series_prompt or "",
+            script_excerpt=episode.script_excerpt or episode.summary or "",
+            continuity_notes=episode.continuity_notes or "无",
+            asset_list=asset_list,
+            record=record,
+        )
 
         if record:
             await record.set({"progress": 70})
@@ -460,6 +547,7 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
         flattened_shots = _extract_shot_list(result)
         # Build asset name→id map once for efficiency
         asset_map = {a.name: a for a in assets}
+        previous_created_shot: Shot | None = None
         for idx, (segment, s) in enumerate(flattened_shots):
             segment_code = str(segment.get("segment_code") or segment.get("code") or "")
             segment_name = str(segment.get("segment_name") or segment.get("name") or segment.get("title") or "")
@@ -502,6 +590,11 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
                 old_speaker = s.get("speaker", "")
                 dialogues = [ShotDialogueLine(speaker=old_speaker, text=old_text)] if old_text else []
 
+            transition_in = str(s.get("transition_in") or segment.get("transition_in") or "")
+            transition_out = str(s.get("transition_out") or segment.get("transition_out") or "")
+            use_prev_last_frame = bool(s.get("use_prev_last_frame", False))
+            depends_on_last_frame_shot_id = previous_created_shot.id if (use_prev_last_frame and previous_created_shot) else None
+
             shot = Shot(
                 project_id=episode.project_id,
                 episode_id=episode.id,
@@ -512,13 +605,15 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
                 segment_name=segment_name,
                 segment_function=segment_function,
                 shot_function=shot_function,
-                transition_in=str(s.get("transition_in") or segment.get("transition_in") or ""),
-                transition_out=str(s.get("transition_out") or segment.get("transition_out") or ""),
+                transition_in=transition_in,
+                transition_out=transition_out,
+                transition_type=_infer_transition_type(transition_in, transition_out, segment, s),
                 start_state=str(s.get("start_state") or ""),
                 end_state=str(s.get("end_state") or ""),
                 screen_direction=str(s.get("screen_direction") or ""),
                 continuity_notes=str(s.get("continuity_notes") or ""),
-                use_prev_last_frame=bool(s.get("use_prev_last_frame", False)),
+                use_prev_last_frame=use_prev_last_frame,
+                depends_on_last_frame_shot_id=depends_on_last_frame_shot_id,
                 description=s.get("description", ""),
                 dialogues=dialogues,
                 prompt=s.get("prompt", ""),
@@ -526,6 +621,7 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
                 state=ShotState.planned,
             )
             await shot.insert()
+            previous_created_shot = shot
 
         await finish_task_record(celery_id, result={"shots": len(flattened_shots)})
 

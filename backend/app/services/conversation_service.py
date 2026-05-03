@@ -59,6 +59,14 @@ async def _build_artifact_snapshot(
                 "prompt": obj.prompt,
                 "state": obj.state,
                 "duration": obj.duration,
+                "transition_in": obj.transition_in,
+                "transition_out": obj.transition_out,
+                "transition_type": obj.transition_type,
+                "start_state": obj.start_state,
+                "end_state": obj.end_state,
+                "screen_direction": obj.screen_direction,
+                "continuity_notes": obj.continuity_notes,
+                "use_prev_last_frame": obj.use_prev_last_frame,
             }
     elif target_type == ConversationTarget.shot_image:
         from app.models.shot import Shot
@@ -256,7 +264,12 @@ async def apply_edit_from_reply(
         from app.models.shot import Shot
         shot = await Shot.get(target_id)
         if shot and changes:
-            allowed = {"description", "prompt", "duration", "shot_code"}
+            allowed = {
+                "description", "prompt", "duration", "shot_code",
+                "transition_in", "transition_out", "transition_type",
+                "start_state", "end_state", "screen_direction",
+                "continuity_notes", "use_prev_last_frame",
+            }
             update = {k: v for k, v in changes.items() if k in allowed}
             if update:
                 await shot.set(update)

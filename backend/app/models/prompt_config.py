@@ -10,6 +10,7 @@ class PromptConfigScope(str, Enum):
     series_plan          = "series_plan"
     asset_extract        = "asset_extract"
     continuity_extract   = "continuity_extract"
+    shot_continuity_repair = "shot_continuity_repair"
     shot_script_gen      = "shot_script_gen"
     shot_script_edit     = "shot_script_edit"
     asset_prompt_gen     = "asset_prompt_gen"
