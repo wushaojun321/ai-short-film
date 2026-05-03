@@ -229,6 +229,218 @@ def _registry_from_plan(plan_result: dict) -> dict:
     return {"characters": [], "scenes": [], "props": []}
 
 
+def _jsonl_plan_from_text(raw_text: str) -> tuple[dict, dict]:
+    """Parse line-delimited JSON into the production-plan shape.
+
+    JSONL lets us keep every complete line if the model output is truncated.
+    """
+    import json
+
+    result = {
+        "series": {},
+        "episodes": [],
+        "asset_registry": {"characters": [], "scenes": [], "props": []},
+        "ignored_assets": [],
+        "continuity_report": {"issues": [], "warnings": [], "status": "needs_review"},
+    }
+    stats = {"lines": 0, "parsed": 0, "skipped": 0}
+
+    if not raw_text or not raw_text.strip():
+        return result, stats
+
+    # Backward compatibility: if a model still returns the old compact JSON object, accept it.
+    stripped = raw_text.strip()
+    if stripped.startswith("{") and stripped.endswith("}"):
+        try:
+            parsed = json.loads(stripped)
+            if isinstance(parsed, dict):
+                stats.update({"lines": 1, "parsed": 1, "skipped": 0})
+                return parsed, stats
+        except json.JSONDecodeError:
+            pass
+
+    char_map: dict[str, dict] = {}
+    scene_map: dict[str, dict] = {}
+    prop_map: dict[str, dict] = {}
+
+    def key_for(*values) -> str:
+        return _merge_key(*(_text_value(value) for value in values))
+
+    def get_character(name: str, package: str = "") -> dict:
+        character_name = _text_value(name, package)
+        asset_package = _text_value(package, character_name)
+        key = key_for(asset_package, character_name)
+        if key not in char_map:
+            char_map[key] = {
+                "character_name": character_name,
+                "asset_package": asset_package,
+                "role": "",
+                "importance": "",
+                "reuse_scope": "",
+                "face_identity": "",
+                "voice_profile": "",
+                "variants": [],
+            }
+            result["asset_registry"]["characters"].append(char_map[key])
+        return char_map[key]
+
+    def get_scene(name: str, package: str = "") -> dict:
+        scene_name = _text_value(name, package)
+        scene_package = _text_value(package, scene_name)
+        key = key_for(scene_package, scene_name)
+        if key not in scene_map:
+            scene_map[key] = {
+                "name": scene_name,
+                "scene_package": scene_package,
+                "importance": "",
+                "reuse_scope": "",
+                "variants": [],
+            }
+            result["asset_registry"]["scenes"].append(scene_map[key])
+        return scene_map[key]
+
+    def get_prop(name: str, package: str = "") -> dict:
+        prop_name = _text_value(name, package)
+        prop_package = _text_value(package, prop_name)
+        key = key_for(prop_package, prop_name)
+        if key not in prop_map:
+            prop_map[key] = {
+                "name": prop_name,
+                "prop_package": prop_package,
+                "importance": "",
+                "reuse_scope": "",
+                "owner": "",
+                "variants": [],
+            }
+            result["asset_registry"]["props"].append(prop_map[key])
+        return prop_map[key]
+
+    for raw_line in raw_text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("```"):
+            continue
+        stats["lines"] += 1
+        if line.startswith(("- ", "* ")):
+            line = line[2:].strip()
+        start = line.find("{")
+        end = line.rfind("}")
+        if start < 0 or end <= start:
+            stats["skipped"] += 1
+            continue
+        line = line[start:end + 1]
+        if line.endswith(","):
+            line = line[:-1]
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError:
+            stats["skipped"] += 1
+            continue
+        if not isinstance(item, dict):
+            stats["skipped"] += 1
+            continue
+        stats["parsed"] += 1
+
+        item_type = _norm_token(item.get("type") or item.get("kind"))
+        if item_type == "series":
+            result["series"] = {
+                "series_prompt": _text_value(item.get("series_prompt"), item.get("style")),
+                "main_storyline": _text_value(item.get("main_storyline"), item.get("storyline"), item.get("summary")),
+                "continuity_notes": _text_value(item.get("continuity_notes"), item.get("continuity")),
+            }
+        elif item_type == "episode":
+            try:
+                number = int(item.get("number") or item.get("episode") or len(result["episodes"]) + 1)
+            except (TypeError, ValueError):
+                number = len(result["episodes"]) + 1
+            ranges = item.get("source_block_ranges") if isinstance(item.get("source_block_ranges"), list) else []
+            if not ranges and ("start_block" in item or "end_block" in item):
+                ranges = [{
+                    "start_block": item.get("start_block", item.get("start")),
+                    "end_block": item.get("end_block", item.get("end")),
+                }]
+            result["episodes"].append({
+                "number": number,
+                "title": _text_value(item.get("title"), f"第{number}集"),
+                "summary": _text_value(item.get("summary")),
+                "source_block_ranges": ranges,
+                "estimated_duration": item.get("estimated_duration", item.get("duration", 0)),
+                "beats": item.get("beats", []) if isinstance(item.get("beats"), list) else [],
+                "ending_hook": _text_value(item.get("ending_hook"), item.get("hook")),
+                "asset_requirements": {"characters": [], "scenes": [], "props": []},
+            })
+        elif item_type == "character":
+            character = get_character(item.get("name") or item.get("character_name"), item.get("package") or item.get("asset_package"))
+            character.update({
+                "role": _text_value(item.get("role"), character.get("role")),
+                "importance": _text_value(item.get("importance"), character.get("importance")),
+                "reuse_scope": _text_value(item.get("episodes"), item.get("reuse_scope"), character.get("reuse_scope")),
+                "face_identity": _text_value(item.get("face"), item.get("face_identity"), character.get("face_identity")),
+                "voice_profile": _text_value(item.get("voice"), item.get("voice_profile"), character.get("voice_profile")),
+            })
+        elif item_type == "character_variant":
+            character = get_character(item.get("character") or item.get("character_name"), item.get("package") or item.get("asset_package"))
+            state = _text_value(item.get("state"), item.get("appearance_stage"), "常规状态")
+            character["variants"].append({
+                "name": _text_value(item.get("name"), f"{character['character_name']}-{state}"),
+                "asset_level": _text_value(item.get("level"), item.get("asset_level"), "recommended"),
+                "episode_range": _text_value(item.get("episodes"), item.get("episode_range")),
+                "scene_scope": _text_value(item.get("scene"), item.get("scene_scope")),
+                "appearance_stage": state,
+                "stage_change_reason": _text_value(item.get("reason"), item.get("stage_change_reason")),
+                "description": _text_value(item.get("reason"), item.get("description")),
+                "prompt_seed": _text_value(item.get("prompt_seed"), "写实电影质感人物定妆参考，真实摄影基础，真实影视布光。"),
+            })
+        elif item_type == "scene":
+            scene = get_scene(item.get("name"), item.get("package") or item.get("scene_package"))
+            scene.update({
+                "importance": _text_value(item.get("importance"), scene.get("importance")),
+                "reuse_scope": _text_value(item.get("episodes"), item.get("reuse_scope"), scene.get("reuse_scope")),
+            })
+        elif item_type == "scene_variant":
+            scene = get_scene(item.get("scene") or item.get("name"), item.get("package") or item.get("scene_package"))
+            state = _text_value(item.get("state"), "常规状态")
+            scene["variants"].append({
+                "name": _text_value(item.get("name"), f"{scene['name']}-{state}"),
+                "asset_level": _text_value(item.get("level"), item.get("asset_level"), "recommended"),
+                "episode_range": _text_value(item.get("episodes"), item.get("episode_range")),
+                "state": state,
+                "description": _text_value(item.get("reason"), item.get("description")),
+                "prompt_seed": _text_value(item.get("prompt_seed"), "写实电影质感场景参考，真实摄影基础，真实影视布光。"),
+            })
+        elif item_type == "prop":
+            prop = get_prop(item.get("name"), item.get("package") or item.get("prop_package"))
+            prop.update({
+                "importance": _text_value(item.get("importance"), prop.get("importance")),
+                "reuse_scope": _text_value(item.get("episodes"), item.get("reuse_scope"), prop.get("reuse_scope")),
+                "owner": _text_value(item.get("owner"), prop.get("owner")),
+            })
+        elif item_type == "prop_variant":
+            prop = get_prop(item.get("prop") or item.get("name"), item.get("package") or item.get("prop_package"))
+            state = _text_value(item.get("state"), "常规状态")
+            prop["variants"].append({
+                "name": _text_value(item.get("name"), f"{prop['name']}-{state}"),
+                "asset_level": _text_value(item.get("level"), item.get("asset_level"), "recommended"),
+                "episode_range": _text_value(item.get("episodes"), item.get("episode_range")),
+                "state": state,
+                "owner": _text_value(item.get("owner"), prop.get("owner")),
+                "description": _text_value(item.get("reason"), item.get("description")),
+                "prompt_seed": _text_value(item.get("prompt_seed"), "写实道具摄影参考，真实材质，真实影视布光。"),
+            })
+        elif item_type == "ignore":
+            result["ignored_assets"].append({
+                "type": _text_value(item.get("asset_type"), item.get("assetType")),
+                "name": _text_value(item.get("name")),
+                "reason": _text_value(item.get("reason")),
+            })
+        elif item_type == "warning":
+            message = _text_value(item.get("message"), item.get("warning"))
+            if message:
+                result["continuity_report"]["warnings"].append(message)
+
+    result["episodes"].sort(key=lambda ep: ep.get("number", 0))
+    return result, stats
+
+
 def _character_bible_from_registry(characters: list[dict]) -> list[dict]:
     bible: list[dict] = []
     seen: set[str] = set()
@@ -696,6 +908,36 @@ async def _parse_script_async(celery_id: str, project_id: str):
             ], progress)
         return result
 
+    async def chat_text_step(
+        system_prompt: str,
+        user_prompt: str,
+        *,
+        max_tokens: int,
+        timeout_seconds: int = 240,
+        label: str = "",
+        progress: int = 25,
+    ) -> str:
+        """Bound raw text planning calls. Used for JSONL so partial output stays useful."""
+        started = time.perf_counter()
+        try:
+            result = await asyncio.wait_for(
+                llm_service.chat_completion(system_prompt, user_prompt, temperature=0.2, max_tokens=max_tokens),
+                timeout=timeout_seconds,
+            )
+        except Exception as exc:
+            if label:
+                elapsed = time.perf_counter() - started
+                await log([
+                    f"[timing] {label} 失败：{elapsed:.1f}s，输入约 {len(system_prompt) + len(user_prompt)} 字，输出上限 {max_tokens}"
+                ], progress)
+            raise
+        if label:
+            elapsed = time.perf_counter() - started
+            await log([
+                f"[timing] {label} 完成：{elapsed:.1f}s，输入约 {len(system_prompt) + len(user_prompt)} 字，输出上限 {max_tokens}"
+            ], progress)
+        return result
+
     record = None
     try:
         project = await Project.get(PydanticObjectId(project_id))
@@ -744,14 +986,23 @@ async def _parse_script_async(celery_id: str, project_id: str):
             },
         )
         try:
-            production_result = await chat_json_step(
+            production_raw = await chat_text_step(
                 system_prompt,
                 user_prompt,
-                max_tokens=22000,
-                timeout_seconds=420,
+                max_tokens=12000,
+                timeout_seconds=240,
                 label="script_production_plan",
                 progress=45,
             )
+            production_result, plan_stats = _jsonl_plan_from_text(production_raw)
+            await log([
+                (
+                    "[plan] JSONL 蓝图解析完成："
+                    f"{plan_stats['parsed']}/{plan_stats['lines']} 行可用，跳过 {plan_stats['skipped']} 行"
+                )
+            ], 48)
+            if plan_stats["parsed"] <= 0:
+                raise ValueError("LLM JSONL response contained no valid planning lines")
         except Exception as exc:
             production_result = {}
             await log([f"[warn] 综合制作规划失败，使用后端原文边界兜底：{exc}"], 45)
