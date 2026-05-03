@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Upload, FileText, ChevronRight, Check, Loader2,
+  Upload, FileText, ChevronLeft, ChevronRight, Check, Loader2,
   Edit2, Clock, Hash, Sparkles, Terminal, RefreshCw,
   AlertTriangle, Activity, X, ZoomIn, Trash2, Play, CheckCircle2,
   MessageCircle, ImagePlus, History, RotateCcw,
@@ -862,6 +862,7 @@ const CHARACTER_VIEW_META = [
 
 type AssetFilter = "all" | "need_generate" | "generating" | "pending_confirm" | "approved";
 type AssetGroup = { key: string; label: string; assets: ApiAsset[] };
+type AssetLightboxItem = { url: string; label: string };
 
 const ASSET_FILTERS: Array<{ key: AssetFilter; label: string }> = [
   { key: "all", label: "全部" },
@@ -938,33 +939,51 @@ const getAssetGroupStats = (group: AssetGroup) => {
   };
 };
 
+const getAssetImageSlotCount = (asset: ApiAsset) => {
+  if (asset.asset_type === "character") return CHARACTER_VIEW_META.length;
+  return 1;
+};
+
+const isSingleImageAssetGroup = (group: AssetGroup) =>
+  group.assets.length === 1 && getAssetImageSlotCount(group.assets[0]) === 1;
+
+const getAssetLightboxItems = (asset: ApiAsset): AssetLightboxItem[] => {
+  if (asset.asset_type === "character") {
+    return CHARACTER_VIEW_META.flatMap((view) => {
+      const url = asset.view_urls?.[view.key];
+      return url ? [{ url, label: `${asset.name} · ${view.label}` }] : [];
+    });
+  }
+  return asset.preview_url ? [{ url: asset.preview_url, label: asset.name }] : [];
+};
+
+const getAssetGroupLightboxItems = (group: AssetGroup): AssetLightboxItem[] =>
+  group.assets.flatMap(getAssetLightboxItems);
+
 function AssetCard({
   asset,
   projectId,
   onUpdate,
   layout = "grid",
   onViewPrompt,
+  lightboxItems,
 }: {
   asset: ApiAsset;
   projectId: string;
   onUpdate: () => void;
   layout?: "grid" | "stage";
   onViewPrompt?: (asset: ApiAsset) => void;
+  lightboxItems?: AssetLightboxItem[];
 }) {
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [restoringVersion, setRestoringVersion] = useState<string | null>(null);
-  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [activeLightboxItems, setActiveLightboxItems] = useState<AssetLightboxItem[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const { cosUrl } = useCos();
 
-  useEffect(() => {
-    if (!lightboxUrl) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setLightboxUrl(null); };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [lightboxUrl]);
   const isQueued = asset.status === "queued";
   const isGenerating = asset.status === "generating" || isQueued;
   const isReady = isAssetImageReady(asset);
@@ -973,6 +992,10 @@ function AssetCard({
   const status: AssetStatus = ASSET_STATUS_ZH[asset.status] ?? "缺失";
   const promptPreview = asset.prompt || "（暂无提示词）";
   const assetVersions = asset.versions ?? [];
+  const localLightboxItems = getAssetLightboxItems(asset);
+  const sharedLightboxItems = lightboxItems?.length ? lightboxItems : localLightboxItems;
+  const currentLightboxItem = lightboxIndex === null ? null : activeLightboxItems[lightboxIndex];
+  const canPageLightbox = activeLightboxItems.length > 1;
 
   const statusConfig: Record<AssetStatus, { label: string; variant: "success" | "warning" | "destructive" | "secondary" }> = {
     "已生成": { label: "已生成", variant: "success" },
@@ -1014,6 +1037,37 @@ function AssetCard({
     }
   };
 
+  const openLightbox = (url: string, label: string, source: AssetLightboxItem[] = sharedLightboxItems) => {
+    const items = source.length > 0 ? source : [{ url, label }];
+    const index = items.findIndex((item) => item.url === url);
+    setActiveLightboxItems(items);
+    setLightboxIndex(index >= 0 ? index : 0);
+  };
+
+  const closeLightbox = () => {
+    setLightboxIndex(null);
+    setActiveLightboxItems([]);
+  };
+
+  const pageLightbox = (delta: number) => {
+    setLightboxIndex((current) => {
+      if (current === null || activeLightboxItems.length === 0) return current;
+      return (current + delta + activeLightboxItems.length) % activeLightboxItems.length;
+    });
+  };
+
+  useEffect(() => {
+    if (!currentLightboxItem) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeLightbox();
+      if (e.key === "ArrowLeft") pageLightbox(-1);
+      if (e.key === "ArrowRight") pageLightbox(1);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentLightboxItem, activeLightboxItems.length]);
+
   const viewStrip = (
     <div className={cn("grid grid-cols-3 gap-2", layout === "grid" ? "h-full gap-px bg-line" : "h-28 sm:h-32")}>
       {CHARACTER_VIEW_META.map((view) => {
@@ -1026,7 +1080,7 @@ function AssetCard({
               "relative overflow-hidden bg-soft border border-line group/view",
               layout === "grid" ? "border-0 rounded-none" : "rounded-lg"
             )}
-            onClick={() => url ? setLightboxUrl(url) : handleGenerate()}
+            onClick={() => url ? openLightbox(url, `${asset.name} · ${view.label}`) : handleGenerate()}
             title={url ? `查看${view.label}图` : `生成${view.label}图`}
           >
             {url ? (
@@ -1057,11 +1111,11 @@ function AssetCard({
             src={cosUrl(previewUrl)}
             alt={asset.name}
             className="w-full h-full object-contain cursor-zoom-in"
-            onClick={() => setLightboxUrl(previewUrl)}
+            onClick={() => openLightbox(previewUrl, asset.name)}
           />
           <div
             className="absolute bottom-2 right-2 bg-black/50 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-zoom-in"
-            onClick={() => setLightboxUrl(previewUrl)}
+            onClick={() => openLightbox(previewUrl, asset.name)}
           >
             <ZoomIn className="w-3.5 h-3.5 text-white" />
           </div>
@@ -1144,6 +1198,12 @@ function AssetCard({
           <div className="grid max-h-[70vh] grid-cols-1 gap-3 overflow-y-auto pr-1 md:grid-cols-2 lg:grid-cols-3">
             {assetVersions.slice().reverse().map((item) => {
               const isCurrent = item.url === asset.preview_url || Object.values(asset.view_urls ?? {}).includes(item.url);
+              const versionLightboxItems = assetVersions
+                .filter((version) => Boolean(version.url))
+                .map((version) => ({
+                  url: version.url,
+                  label: `${asset.name} · ${version.version}${version.note ? ` · ${version.note}` : ""}`,
+                }));
               return (
                 <div key={item.version} className="rounded-xl border border-line bg-panel p-3">
                   <div className="mb-2 flex items-center justify-between gap-2">
@@ -1158,7 +1218,7 @@ function AssetCard({
                   <button
                     type="button"
                     className="h-44 w-full overflow-hidden rounded-lg border border-line bg-soft"
-                    onClick={() => setLightboxUrl(item.url)}
+                    onClick={() => openLightbox(item.url, `${asset.name} · ${item.version}`, versionLightboxItems)}
                     title="点击放大预览"
                   >
                     <img src={cosUrl(item.url)} alt={`${asset.name}-${item.version}`} className="h-full w-full object-contain" />
@@ -1191,17 +1251,57 @@ function AssetCard({
     </Dialog>
   );
 
+  const lightboxOverlay = currentLightboxItem && (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-6" onClick={closeLightbox}>
+      <button className="absolute right-4 top-4 text-white/70 transition-colors hover:text-white" onClick={closeLightbox}>
+        <X className="w-7 h-7" />
+      </button>
+      {canPageLightbox && (
+        <button
+          type="button"
+          className="absolute left-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur transition-colors hover:bg-white/25"
+          onClick={(e) => {
+            e.stopPropagation();
+            pageLightbox(-1);
+          }}
+          title="上一张"
+        >
+          <ChevronLeft className="w-6 h-6" />
+        </button>
+      )}
+      <div className="flex max-h-[92vh] max-w-[92vw] flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
+        <img
+          src={cosUrl(currentLightboxItem.url)}
+          alt={currentLightboxItem.label}
+          className="max-h-[86vh] max-w-[92vw] rounded-lg object-contain shadow-2xl"
+        />
+        <div className="rounded-full bg-black/45 px-3 py-1 text-xs text-white/85">
+          {currentLightboxItem.label}
+          {canPageLightbox && lightboxIndex !== null && (
+            <span className="ml-2 text-white/60">{lightboxIndex + 1} / {activeLightboxItems.length}</span>
+          )}
+        </div>
+      </div>
+      {canPageLightbox && (
+        <button
+          type="button"
+          className="absolute right-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur transition-colors hover:bg-white/25"
+          onClick={(e) => {
+            e.stopPropagation();
+            pageLightbox(1);
+          }}
+          title="下一张"
+        >
+          <ChevronRight className="w-6 h-6" />
+        </button>
+      )}
+    </div>
+  );
+
   if (layout === "stage") {
     return (
       <>
-        {lightboxUrl && (
-          <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-6" onClick={() => setLightboxUrl(null)}>
-            <button className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors" onClick={() => setLightboxUrl(null)}>
-              <X className="w-7 h-7" />
-            </button>
-            <img src={cosUrl(lightboxUrl)} alt={asset.name} className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl" onClick={(e) => e.stopPropagation()} />
-          </div>
-        )}
+        {lightboxOverlay}
         <div className="border border-line rounded-xl bg-panel p-3 hover:shadow-card-hover transition-all">
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="lg:w-[280px] shrink-0">
@@ -1258,27 +1358,9 @@ function AssetCard({
 
   return (
     <>
-      {lightboxUrl && (
-        <div
-          className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-6"
-          onClick={() => setLightboxUrl(null)}
-        >
-          <button
-            className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors"
-            onClick={() => setLightboxUrl(null)}
-          >
-            <X className="w-7 h-7" />
-          </button>
-          <img
-            src={cosUrl(lightboxUrl)}
-            alt={asset.name}
-            className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
-      <div className="border border-line rounded-xl overflow-hidden bg-panel hover:shadow-card-hover transition-all">
-        <div className="aspect-[4/5] bg-soft relative overflow-hidden group">
+      {lightboxOverlay}
+      <div className="flex h-full flex-col overflow-hidden rounded-xl border border-line bg-panel transition-all hover:shadow-card-hover">
+        <div className="aspect-[4/3] bg-soft relative overflow-hidden group">
           {isGenerating ? (
             <div className="w-full h-full flex flex-col items-center justify-center gap-2">
               <Loader2 className="w-6 h-6 animate-spin text-brand" />
@@ -1289,7 +1371,7 @@ function AssetCard({
             <Badge variant={cfg.variant}>{cfg.label}</Badge>
           </div>
         </div>
-        <div className="p-3">
+        <div className="flex min-h-[210px] flex-1 flex-col p-4">
           <p className="text-sm font-medium text-text truncate">{asset.name}</p>
           <p className="text-xs text-muted mt-0.5 line-clamp-2">{promptPreview}</p>
           {asset.asset_type === "character" && (
@@ -1305,7 +1387,7 @@ function AssetCard({
           {asset.asset_type === "character" && asset.voice_profile && (
             <p className="text-xs text-sub mt-1 line-clamp-2">音色：{asset.voice_profile}</p>
           )}
-          <div className="mt-3">{actions}</div>
+          <div className="mt-auto pt-3">{actions}</div>
         </div>
       </div>
 
@@ -1346,8 +1428,8 @@ function AssetGroupCard({
     .join(" / ");
 
   return (
-    <div className="border border-line rounded-xl bg-panel overflow-hidden transition-all hover:shadow-card-hover">
-      <button type="button" className="block w-full text-left" onClick={onOpen}>
+    <div className="flex h-full flex-col overflow-hidden rounded-xl border border-line bg-panel transition-all hover:shadow-card-hover">
+      <button type="button" className="flex h-full w-full flex-col text-left" onClick={onOpen}>
         <div className="relative aspect-[4/3] bg-soft overflow-hidden">
           {previewUrl ? (
             <img
@@ -1387,7 +1469,7 @@ function AssetGroupCard({
           </div>
         </div>
 
-        <div className="p-4 flex flex-col min-h-[210px]">
+        <div className="p-4 flex flex-col min-h-[210px] flex-1">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-base font-semibold text-text truncate">{group.label}</p>
@@ -1658,15 +1740,16 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
           </TabsList>
           <TabsContent value={tab}>
             {currentGroups.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
                 {currentGroups.map((group) => {
-                  if (group.assets.length === 1) {
+                  if (isSingleImageAssetGroup(group)) {
                     const [asset] = group.assets;
                     return (
                       <AssetCard
                         key={group.key}
                         asset={asset}
                         projectId={projectId}
+                        lightboxItems={getAssetGroupLightboxItems(group)}
                         onViewPrompt={setPromptAsset}
                         onUpdate={() => setPollKey((k) => k + 1)}
                       />
@@ -1720,6 +1803,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
                   asset={asset}
                   projectId={projectId}
                   layout="stage"
+                  lightboxItems={getAssetGroupLightboxItems(selectedGroup)}
                   onViewPrompt={setPromptAsset}
                   onUpdate={() => setPollKey((k) => k + 1)}
                 />
