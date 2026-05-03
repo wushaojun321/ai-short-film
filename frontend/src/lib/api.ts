@@ -185,6 +185,8 @@ export interface ApiAsset {
   scene_scope?: string;
   appearance_stage?: string;
   view_requirements?: string;
+  submitted_prompt?: string;
+  submitted_prompts?: Record<string, string>;
   preview_url?: string;
   view_urls?: Record<string, string>;
   versions: ApiAssetVersion[];

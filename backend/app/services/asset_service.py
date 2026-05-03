@@ -36,17 +36,31 @@ async def restore_asset_version(asset: Asset, version: str) -> Asset:
         raise ValueError("Asset version not found")
 
     updates: dict = {
-        "prompt": selected.prompt or asset.prompt,
         "status": AssetStatus.pending,
     }
+    if not asset.prompt and selected.prompt:
+        updates["prompt"] = selected.prompt
     if selected.view_type:
         view_urls = dict(asset.view_urls or {})
         view_urls[selected.view_type] = selected.url
         updates["view_urls"] = view_urls
+        submitted_prompts = dict(asset.submitted_prompts or {})
+        if selected.prompt:
+            submitted_prompts[selected.view_type] = selected.prompt
+            updates["submitted_prompts"] = submitted_prompts
+            view_labels = {"face": "面部特写", "full_body": "全身正面", "side": "侧面视角"}
+            updates["submitted_prompt"] = "\n\n---\n\n".join(
+                f"{view_labels.get(key, key)}：\n{prompt}"
+                for key, prompt in submitted_prompts.items()
+                if prompt
+            )
         if selected.view_type == "face" or not asset.preview_url:
             updates["preview_url"] = selected.url
     else:
         updates["preview_url"] = selected.url
+        if selected.prompt:
+            updates["submitted_prompt"] = selected.prompt
+            updates["submitted_prompts"] = {}
 
     await asset.set(updates)
     return asset

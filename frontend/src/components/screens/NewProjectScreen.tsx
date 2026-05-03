@@ -960,6 +960,37 @@ const getAssetLightboxItems = (asset: ApiAsset): AssetLightboxItem[] => {
 const getAssetGroupLightboxItems = (group: AssetGroup): AssetLightboxItem[] =>
   group.assets.flatMap(getAssetLightboxItems);
 
+const getAssetSubmittedPrompt = (asset: ApiAsset) => {
+  const submittedPrompts = asset.submitted_prompts ?? {};
+  const submittedEntries = CHARACTER_VIEW_META
+    .map((view) => ({ label: view.label, prompt: submittedPrompts[view.key] }))
+    .filter((item) => Boolean(item.prompt));
+
+  if (asset.submitted_prompt?.trim()) return asset.submitted_prompt;
+  if (submittedEntries.length > 0) {
+    return submittedEntries.map((item) => `${item.label}：\n${item.prompt}`).join("\n\n---\n\n");
+  }
+
+  const versions = asset.versions ?? [];
+  if (asset.asset_type === "character") {
+    const currentPrompts: Array<{ label: string; prompt: string }> = [];
+    CHARACTER_VIEW_META.forEach((view) => {
+      const url = asset.view_urls?.[view.key];
+      const version = versions.find((item) => item.url === url && item.prompt);
+      if (version) currentPrompts.push({ label: view.label, prompt: version.prompt });
+    });
+    if (currentPrompts.length > 0) {
+      return currentPrompts.map((item) => `${item.label}：\n${item.prompt}`).join("\n\n---\n\n");
+    }
+  }
+
+  const currentVersion = versions.find((item) => item.url === asset.preview_url && item.prompt);
+  return currentVersion?.prompt || versions.slice().reverse().find((item) => item.prompt)?.prompt || "";
+};
+
+const getAssetDisplayPrompt = (asset: ApiAsset) =>
+  getAssetSubmittedPrompt(asset) || asset.prompt || "（暂无提示词）";
+
 function AssetCard({
   asset,
   projectId,
@@ -990,7 +1021,7 @@ function AssetCard({
   const previewUrl = getAssetPreviewUrl(asset);
   const hasCharacterViews = CHARACTER_VIEW_META.some((view) => Boolean(asset.view_urls?.[view.key]));
   const status: AssetStatus = ASSET_STATUS_ZH[asset.status] ?? "缺失";
-  const promptPreview = asset.prompt || "（暂无提示词）";
+  const promptPreview = getAssetDisplayPrompt(asset);
   const assetVersions = asset.versions ?? [];
   const localLightboxItems = getAssetLightboxItems(asset);
   const sharedLightboxItems = lightboxItems?.length ? lightboxItems : localLightboxItems;
@@ -1520,6 +1551,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
   const [selectedAssetGroup, setSelectedAssetGroup] = useState<{ key: string; type: string } | null>(null);
   const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
   const [promptAsset, setPromptAsset] = useState<ApiAsset | null>(null);
+  const [assetPromptMode, setAssetPromptMode] = useState<"final" | "base">("final");
   const [assetPromptDraft, setAssetPromptDraft] = useState("");
   const [savingAssetPrompt, setSavingAssetPrompt] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1558,6 +1590,7 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
 
   useEffect(() => {
     setAssetPromptDraft(promptAsset?.prompt ?? "");
+    setAssetPromptMode(promptAsset && getAssetSubmittedPrompt(promptAsset) ? "final" : "base");
   }, [promptAsset]);
 
   const tabs = [...new Set(assets.map((a) => a.asset_type))].filter((t) => ["character", "scene", "prop"].includes(t));
@@ -1584,6 +1617,8 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
     pending_confirm: assets.filter((a) => matchesAssetFilter(a, "pending_confirm")).length,
     approved: assets.filter((a) => matchesAssetFilter(a, "approved")).length,
   };
+  const promptAssetFinalPrompt = promptAsset ? getAssetSubmittedPrompt(promptAsset) : "";
+  const promptAssetTextareaValue = assetPromptMode === "final" ? promptAssetFinalPrompt : assetPromptDraft;
 
   const handleGenerateAll = async () => {
     const needGen = assets.filter((a) =>
@@ -1819,19 +1854,52 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{promptAsset?.name || "资产提示词"}</DialogTitle>
-            <DialogDescription>当前资产记录中保存的生成提示词，可人工修改并保存，下一次生成资产图会使用保存后的内容。</DialogDescription>
+            <DialogDescription>
+              默认展示真正提交给 Seedream 的最终提示词；基础提示词可人工修改，下一次生成时会先基于它再次优化。
+            </DialogDescription>
           </DialogHeader>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setAssetPromptMode("final")}
+              disabled={!promptAssetFinalPrompt}
+              className={cn(
+                "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                assetPromptMode === "final"
+                  ? "border-brand bg-brand text-white"
+                  : "border-line bg-panel text-sub hover:border-brand/40 hover:text-text",
+                !promptAssetFinalPrompt && "cursor-not-allowed opacity-45"
+              )}
+            >
+              最终提交提示词
+            </button>
+            <button
+              type="button"
+              onClick={() => setAssetPromptMode("base")}
+              className={cn(
+                "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                assetPromptMode === "base"
+                  ? "border-brand bg-brand text-white"
+                  : "border-line bg-panel text-sub hover:border-brand/40 hover:text-text"
+              )}
+            >
+              基础可编辑提示词
+            </button>
+          </div>
           <Textarea
-            value={assetPromptDraft}
-            onChange={(e) => setAssetPromptDraft(e.target.value)}
+            value={promptAssetTextareaValue}
+            onChange={(e) => {
+              if (assetPromptMode === "base") setAssetPromptDraft(e.target.value);
+            }}
+            readOnly={assetPromptMode === "final"}
             rows={16}
             className="min-h-[45vh] text-xs leading-relaxed font-sans"
-            placeholder="可在这里人工修改资产生成提示词"
+            placeholder={assetPromptMode === "final" ? "生成资产图后会显示最终提交提示词" : "可在这里人工修改基础资产生成提示词"}
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setPromptAsset(null)}>关闭</Button>
-            <Button onClick={handleSaveAssetPrompt} disabled={!promptAsset || savingAssetPrompt}>
-              {savingAssetPrompt ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />保存中…</> : <><Check className="w-3.5 h-3.5" />保存提示词</>}
+            <Button onClick={handleSaveAssetPrompt} disabled={!promptAsset || savingAssetPrompt || assetPromptMode !== "base"}>
+              {savingAssetPrompt ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />保存中…</> : <><Check className="w-3.5 h-3.5" />保存基础提示词</>}
             </Button>
           </DialogFooter>
         </DialogContent>

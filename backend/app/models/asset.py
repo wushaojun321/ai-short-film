@@ -43,6 +43,9 @@ class Asset(Document):
     scene_scope: str = ""
     appearance_stage: str = ""
     view_requirements: str = ""
+    # prompt 是可人工编辑的基础提示词；submitted_prompt/submitted_prompts 记录最终提交给生图模型的完整提示词。
+    submitted_prompt: str = ""
+    submitted_prompts: dict[str, str] = Field(default_factory=dict)
     preview_url: Optional[str] = None
     view_urls: dict[str, str] = Field(default_factory=dict)
     versions: list[AssetVersion] = Field(default_factory=list)

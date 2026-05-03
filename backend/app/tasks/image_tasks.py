@@ -54,6 +54,8 @@ def _character_view_prompt(base_prompt: str, view_key: str) -> str:
         f"本次只生成一张独立人物资产图：{spec['label']}。{spec['instruction']}。"
         "风格必须是写实电影质感：真实人像摄影基础、真实影视布光、真实镜头景深、细腻材质和克制电影氛围，"
         "保持真实皮肤、自然毛孔、真实织物和可用于视频参考的可信人物形象。"
+        "同一人物资产包内必须保持同一张脸、同一骨相、同一五官比例；不同角色之间必须保持清晰可辨的脸型、五官和气质差异，"
+        "严禁生成成其他角色的近似长相，严禁通用脸、网红脸、同一演员换装感。"
         "严禁把面部特写、全身正面、侧面视角拼在同一张图里；严禁三宫格、分屏、多视角合成图；"
         "严禁超现实、梦境、动漫、卡通、插画、游戏CG、3D建模质感。"
     )
@@ -95,6 +97,39 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
         project = await Project.get(asset.project_id)
         series_prompt = (project.series_prompt or "") if project else ""
         asset_type_str = asset.asset_type.value if hasattr(asset.asset_type, "value") else str(asset.asset_type)
+        character_identity_context = "非人物资产，无需人物差异化约束。"
+        if asset_type_str == "character":
+            current_package = (asset.asset_package or asset.character_name or asset.name or "").strip()
+            character_assets = await Asset.find(Asset.project_id == asset.project_id).to_list()
+            seen_packages: set[str] = set()
+            identity_lines: list[str] = []
+            for other in character_assets:
+                if str(other.id) == str(asset.id):
+                    continue
+                other_type = other.asset_type.value if hasattr(other.asset_type, "value") else str(other.asset_type)
+                if other_type != "character":
+                    continue
+                other_package = (other.asset_package or other.character_name or other.name or "").strip()
+                if not other_package or other_package == current_package or other_package in seen_packages:
+                    continue
+                seen_packages.add(other_package)
+                identity = (
+                    other.face_identity
+                    or other.prompt
+                    or other.submitted_prompt
+                    or "暂无明确面部基准，仍需与该角色保持可辨差异"
+                )
+                identity = identity.strip().replace("\n", " ")
+                if len(identity) > 160:
+                    identity = f"{identity[:160]}..."
+                identity_lines.append(f"- {other_package}：{identity}")
+                if len(identity_lines) >= 12:
+                    break
+            character_identity_context = (
+                "\n".join(identity_lines)
+                if identity_lines
+                else "暂无其他角色面部基准；仍需避免通用脸，当前角色要有独立可识别的脸型、五官比例和气质。"
+            )
 
         system_prompt, user_prompt_tpl, _ = await render(
             PromptConfigScope.asset_prompt_gen,
@@ -110,8 +145,12 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
                     f"视角要求：{asset.view_requirements or '面部特写、全身形象、侧面视角'}\n"
                     f"描述：{asset.prompt}"
                 ),
+                "character_identity_context": character_identity_context,
                 "style_guide": series_prompt or "写实电影质感，真实摄影基础，真实影视布光，真实材质，克制电影氛围",
-                "negative_prompt_rules": "避免超现实、梦境、动漫、卡通、插画、游戏CG、3D建模、三宫格、分屏、多视角拼图、模糊、变形、多余肢体、不自然比例",
+                "negative_prompt_rules": (
+                    "避免超现实、梦境、动漫、卡通、插画、游戏CG、3D建模、三宫格、分屏、多视角拼图、"
+                    "模糊、变形、多余肢体、不自然比例；人物还要避免不同角色长相近似、同一张脸换装、通用脸、网红脸"
+                ),
             },
         )
 
@@ -119,6 +158,8 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
         MAX_RETRIES = 3
         image_url = None
         optimized_prompt = asset.prompt  # 默认回退到原始 prompt
+        final_submitted_prompt = ""
+        final_submitted_prompts: dict[str, str] = {}
 
         for attempt in range(MAX_RETRIES):
             # 每次重试都注入最新黑名单
@@ -157,6 +198,7 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
                         f"共享面部基准：{asset.face_identity or '保持同一脸型、骨相、五官比例和皮肤质感'}，"
                         f"剧情/造型阶段：{asset.appearance_stage or '按剧本阶段'}，同一位演员同一套造型，"
                         "与同一人物资产包内其他造型保持同一张脸、同一骨相、同一五官比例；"
+                        "与项目内其他人物保持明显不同的脸型、五官比例、年龄感、发型和气质，严禁不同角色长相近似或同一张脸换装；"
                         "除非剧本明确面部受伤、毁容、年龄变化或伪装改变，否则不得改变面部身份，"
                         "真实皮肤纹理，自然毛孔，真实织物，真实影视布光，真实镜头景深，电影级调色，高清"
                     )
@@ -203,6 +245,7 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
                         f"{CHARACTER_VIEW_SPECS[key]['label']}：\n{prompt}"
                         for key, prompt in submitted_prompts.items()
                     )
+                    final_submitted_prompts = dict(submitted_prompts)
                 else:
                     logger.info(
                         "[ASSET IMAGE PROMPT] asset_id=%s asset=%s attempt=%d/%d\n--- PROMPT START ---\n%s\n--- PROMPT END ---",
@@ -212,8 +255,8 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
                         prompt=submitted_prompt,
                         size="1600x2848",  # 9:16 vertical 2K, avoids square character-card bias
                     )
-                # 将最终使用的优化 prompt 存回 asset
-                await asset.set({"prompt": optimized_prompt})
+                    final_submitted_prompts = {}
+                final_submitted_prompt = submitted_prompt
                 break  # 成功，退出重试循环
             except Exception as gen_err:
                 err_str = str(gen_err)
@@ -253,6 +296,9 @@ async def _gen_asset_image_async(celery_id: str, asset_id: str):
 
         versions = asset.versions + new_versions
         await asset.set({
+            "prompt": optimized_prompt,
+            "submitted_prompt": final_submitted_prompt,
+            "submitted_prompts": final_submitted_prompts,
             "preview_url": image_url,
             "view_urls": generated_view_urls or asset.view_urls,
             "versions": versions,
