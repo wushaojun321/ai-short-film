@@ -856,6 +856,7 @@ const CHARACTER_VIEW_META = [
 ] as const;
 
 type AssetFilter = "all" | "need_generate" | "generating" | "pending_confirm" | "approved";
+type AssetGroup = { key: string; label: string; assets: ApiAsset[] };
 
 const ASSET_FILTERS: Array<{ key: AssetFilter; label: string }> = [
   { key: "all", label: "全部" },
@@ -899,13 +900,30 @@ const getAssetGroupKey = (asset: ApiAsset) => {
 const getAssetGroupLabel = (asset: ApiAsset) => getAssetGroupKey(asset) || asset.name;
 
 const buildAssetGroups = (list: ApiAsset[]) => Object.values(
-  list.reduce<Record<string, { key: string; label: string; assets: ApiAsset[] }>>((acc, asset) => {
+  list.reduce<Record<string, AssetGroup>>((acc, asset) => {
     const key = getAssetGroupKey(asset);
     if (!acc[key]) acc[key] = { key, label: getAssetGroupLabel(asset), assets: [] };
     acc[key].assets.push(asset);
     return acc;
   }, {})
 );
+
+const getGroupPreviewAsset = (group: AssetGroup) =>
+  group.assets.find(isAssetImageReady) || group.assets.find((asset) => getAssetPreviewUrl(asset)) || group.assets[0];
+
+const getAssetGroupStats = (group: AssetGroup) => {
+  const generated = group.assets.filter(isAssetImageReady).length;
+  const running = group.assets.filter(isAssetRunning).length;
+  const approved = group.assets.filter((asset) => asset.status === "approved").length;
+  return {
+    generated,
+    running,
+    approved,
+    total: group.assets.length,
+    pendingGenerate: group.assets.length - generated,
+    readyToConfirm: group.assets.filter((asset) => isAssetImageReady(asset) && asset.status !== "approved").length,
+  };
+};
 
 function AssetCard({
   asset,
@@ -1212,6 +1230,145 @@ function AssetCard({
   );
 }
 
+function AssetGroupCard({
+  group,
+  type,
+  expanded,
+  projectId,
+  onToggle,
+  onUpdate,
+  onViewPrompt,
+}: {
+  group: AssetGroup;
+  type: string;
+  expanded: boolean;
+  projectId: string;
+  onToggle: () => void;
+  onUpdate: () => void;
+  onViewPrompt: (asset: ApiAsset) => void;
+}) {
+  const { cosUrl } = useCos();
+  const previewAsset = getGroupPreviewAsset(group);
+  const previewUrl = previewAsset ? getAssetPreviewUrl(previewAsset) : undefined;
+  const stats = getAssetGroupStats(group);
+  const typeLabel = ASSET_TYPE_ZH[type] ?? type;
+  const completeLabel = type === "character" ? "三视角" : "图片";
+  const stageSummary = group.assets
+    .map((asset) => asset.appearance_stage || asset.scene_scope || asset.name)
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(" / ");
+
+  return (
+    <div className={cn(
+      "border border-line rounded-xl bg-white overflow-hidden transition-all hover:shadow-card-hover",
+      expanded && "md:col-span-2 xl:col-span-3 shadow-card-hover border-brand/35"
+    )}>
+      <button
+        type="button"
+        className="block w-full text-left"
+        onClick={onToggle}
+      >
+        <div className={cn("grid gap-0", expanded ? "md:grid-cols-[320px_1fr]" : "grid-cols-1")}>
+          <div className={cn(
+            "relative bg-soft overflow-hidden",
+            expanded ? "aspect-[4/3] md:aspect-auto md:min-h-[230px]" : "aspect-[4/3]"
+          )}>
+            {previewUrl ? (
+              <img
+                src={cosUrl(previewUrl)}
+                alt={previewAsset?.name || group.label}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted">
+                <Play className="w-7 h-7" />
+                <span className="text-sm">待生成主预览图</span>
+              </div>
+            )}
+            <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+              <Badge variant="secondary">{typeLabel}资产包</Badge>
+              {stats.running > 0 && <Badge variant="secondary">{stats.running} 生成中</Badge>}
+              {stats.readyToConfirm > 0 && <Badge variant="warning">{stats.readyToConfirm} 待确认</Badge>}
+            </div>
+            {type === "character" && previewAsset?.view_urls && (
+              <div className="absolute left-3 right-3 bottom-3 grid grid-cols-3 gap-1.5">
+                {CHARACTER_VIEW_META.map((view) => {
+                  const url = previewAsset.view_urls?.[view.key];
+                  return (
+                    <div key={view.key} className="h-12 rounded-md overflow-hidden border border-white/70 bg-black/25">
+                      {url ? (
+                        <img src={cosUrl(url)} alt={view.label} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-[10px] text-white/70">{view.label}</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="p-4 flex flex-col min-h-[210px]">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-base font-semibold text-text truncate">{group.label}</p>
+                <p className="text-xs text-sub mt-1">
+                  {group.assets.length} 个{typeLabel}资产 · {stats.generated}/{stats.total} 已生成{completeLabel}
+                </p>
+              </div>
+              <ChevronRight className={cn("w-5 h-5 text-muted shrink-0 mt-0.5 transition-transform", expanded && "rotate-90")} />
+            </div>
+
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <div className="rounded-lg bg-soft px-2 py-2">
+                <div className="text-sm font-semibold text-text">{stats.generated}</div>
+                <div className="text-[11px] text-muted">已生成</div>
+              </div>
+              <div className="rounded-lg bg-soft px-2 py-2">
+                <div className="text-sm font-semibold text-text">{stats.approved}</div>
+                <div className="text-[11px] text-muted">已确认</div>
+              </div>
+              <div className="rounded-lg bg-soft px-2 py-2">
+                <div className="text-sm font-semibold text-text">{stats.pendingGenerate}</div>
+                <div className="text-[11px] text-muted">待生成</div>
+              </div>
+            </div>
+
+            <p className="mt-3 text-xs text-sub line-clamp-2 min-h-[32px]">
+              {stageSummary || previewAsset?.prompt || "点击展开查看资产明细、提示词和生成状态。"}
+            </p>
+
+            <div className="mt-auto pt-3 flex items-center justify-between text-xs text-muted">
+              <span>{expanded ? "收起资产明细" : "点击展开资产明细"}</span>
+              {stats.generated === stats.total && stats.total > 0 && (
+                <span className="text-brand">图片完整</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-line bg-soft/35 p-4">
+          <div className="space-y-3">
+            {group.assets.map((asset) => (
+              <AssetCard
+                key={asset.id}
+                asset={asset}
+                projectId={projectId}
+                layout="stage"
+                onViewPrompt={onViewPrompt}
+                onUpdate={onUpdate}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Phase3({ projectId, onFinish, manageMode = false }: { projectId: string; onFinish: () => void; manageMode?: boolean }) {
   const [tab, setTab] = useState("character");
   const [assets, setAssets] = useState<ApiAsset[]>([]);
@@ -1413,53 +1570,20 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
           </TabsList>
           <TabsContent value={tab}>
             {currentGroups.length > 0 ? (
-              <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
                 {currentGroups.map((group) => {
                   const expanded = expandedPackages[group.key] ?? false;
-                  const generated = group.assets.filter(isAssetImageReady).length;
-                  const running = group.assets.filter((a) => a.status === "generating" || a.status === "queued").length;
-                  const approved = group.assets.filter((a) => a.status === "approved").length;
-                  const typeLabel = ASSET_TYPE_ZH[tab] ?? tab;
-                  const completeLabel = tab === "character" ? "已生成三视角" : "已生成";
                   return (
-                    <div key={group.key} className="border border-line rounded-xl bg-white overflow-hidden">
-                      <button
-                        type="button"
-                        className="w-full px-4 py-3 flex items-center justify-between hover:bg-soft transition-colors"
-                        onClick={() => setExpandedPackages((prev) => ({ ...prev, [group.key]: !expanded }))}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <ChevronRight className={cn("w-4 h-4 text-muted transition-transform", expanded && "rotate-90")} />
-                          <div className="text-left min-w-0">
-                            <p className="text-sm font-semibold text-text truncate">{group.label}</p>
-                            <p className="text-xs text-sub mt-0.5">
-                              {group.assets.length} 个{typeLabel}资产 · {generated}/{group.assets.length} {completeLabel}
-                              {running > 0 ? ` · ${running} 个生成中` : ""}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Badge variant="secondary">{approved} 已确认</Badge>
-                          {generated < group.assets.length && <Badge variant="warning">{group.assets.length - generated} 待生成</Badge>}
-                        </div>
-                      </button>
-                      {expanded && (
-                        <div className="border-t border-line bg-soft/35 p-4">
-                          <div className="space-y-3">
-                            {group.assets.map((asset) => (
-                              <AssetCard
-                                key={asset.id}
-                                asset={asset}
-                                projectId={projectId}
-                                layout="stage"
-                                onViewPrompt={setPromptAsset}
-                                onUpdate={() => setPollKey((k) => k + 1)}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    <AssetGroupCard
+                      key={group.key}
+                      group={group}
+                      type={tab}
+                      expanded={expanded}
+                      projectId={projectId}
+                      onToggle={() => setExpandedPackages((prev) => ({ ...prev, [group.key]: !expanded }))}
+                      onViewPrompt={setPromptAsset}
+                      onUpdate={() => setPollKey((k) => k + 1)}
+                    />
                   );
                 })}
               </div>
