@@ -1580,7 +1580,6 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
   const [submitting, setSubmitting] = useState(false);
   const [batchGenerating, setBatchGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedAssetGroup, setSelectedAssetGroup] = useState<{ key: string; type: string } | null>(null);
   const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
   const [promptAsset, setPromptAsset] = useState<ApiAsset | null>(null);
   const [assetPromptMode, setAssetPromptMode] = useState<"final" | "base">("final");
@@ -1628,9 +1627,6 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
   const tabs = [...new Set(assets.map((a) => a.asset_type))].filter((t) => ["character", "scene", "prop"].includes(t));
   const filteredAssets = assets.filter((a) => matchesAssetFilter(a, assetFilter));
   const currentGroups = buildAssetGroups(filteredAssets.filter((a) => a.asset_type === tab));
-  const selectedGroup = selectedAssetGroup
-    ? buildAssetGroups(assets.filter((a) => a.asset_type === selectedAssetGroup.type)).find((group) => group.key === selectedAssetGroup.key)
-    : null;
   const pendingCount = assets.filter((a) => a.status !== "approved").length;
   const generatingCount = assets.filter((a) => a.status === "generating" || a.status === "queued").length;
   const needGenerateCount = assets.filter((a) =>
@@ -1809,30 +1805,18 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
           <TabsContent value={tab}>
             {currentGroups.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
-                {currentGroups.map((group) => {
-                  if (isSingleImageAssetGroup(group)) {
-                    const [asset] = group.assets;
-                    return (
-                      <AssetCard
-                        key={group.key}
-                        asset={asset}
-                        projectId={projectId}
-                        lightboxItems={getAssetGroupLightboxItems(group)}
-                        onViewPrompt={setPromptAsset}
-                        onUpdate={() => setPollKey((k) => k + 1)}
-                      />
-                    );
-                  }
-
-                  return (
-                    <AssetGroupCard
-                      key={group.key}
-                      group={group}
-                      type={tab}
-                      onOpen={() => setSelectedAssetGroup({ key: group.key, type: tab })}
+                {currentGroups.flatMap((group) =>
+                  group.assets.map((asset) => (
+                    <AssetCard
+                      key={asset.id}
+                      asset={asset}
+                      projectId={projectId}
+                      lightboxItems={getAssetGroupLightboxItems(group)}
+                      onViewPrompt={setPromptAsset}
+                      onUpdate={() => setPollKey((k) => k + 1)}
                     />
-                  );
-                })}
+                  ))
+                )}
               </div>
             ) : (
               <div className="empty-state-panel">
@@ -1852,37 +1836,6 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
           <AlertTriangle className="w-4 h-4 shrink-0" />{error}
         </div>
       )}
-
-      <Dialog open={Boolean(selectedAssetGroup && selectedGroup)} onOpenChange={(open) => !open && setSelectedAssetGroup(null)}>
-        <DialogContent className="sm:max-w-5xl">
-          <DialogHeader>
-            <DialogTitle>{selectedGroup?.label || "资产包预览"}</DialogTitle>
-            <DialogDescription>
-              {selectedGroup
-                ? `${selectedGroup.assets.length} 个${ASSET_TYPE_ZH[selectedAssetGroup?.type || ""] ?? "资产"}，可在这里查看不同阶段、生成提示词和确认状态。`
-                : "查看资产包明细。"}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="max-h-[70vh] overflow-y-auto pr-1">
-            <div className="space-y-3">
-              {selectedGroup?.assets.map((asset) => (
-                <AssetCard
-                  key={asset.id}
-                  asset={asset}
-                  projectId={projectId}
-                  layout="stage"
-                  lightboxItems={getAssetGroupLightboxItems(selectedGroup)}
-                  onViewPrompt={setPromptAsset}
-                  onUpdate={() => setPollKey((k) => k + 1)}
-                />
-              ))}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSelectedAssetGroup(null)}>关闭</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={promptAsset !== null} onOpenChange={(open) => !open && setPromptAsset(null)}>
         <DialogContent className="sm:max-w-2xl">
