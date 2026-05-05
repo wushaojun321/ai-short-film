@@ -1013,6 +1013,7 @@ function AssetCard({
   const [restoringVersion, setRestoringVersion] = useState<string | null>(null);
   const [activeLightboxItems, setActiveLightboxItems] = useState<AssetLightboxItem[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [carouselIndex, setCarouselIndex] = useState(0);
   const { cosUrl } = useCos();
 
   const isQueued = asset.status === "queued";
@@ -1099,38 +1100,83 @@ function AssetCard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentLightboxItem, activeLightboxItems.length]);
 
-  const viewStrip = (
-    <div className={cn("grid grid-cols-3 gap-2", layout === "grid" ? "h-full gap-px bg-line" : "h-28 sm:h-32")}>
-      {CHARACTER_VIEW_META.map((view) => {
-        const url = asset.view_urls?.[view.key];
-        return (
-          <button
+  const allViews = CHARACTER_VIEW_META;
+  const safeCarouselIndex = carouselIndex % allViews.length;
+  const currentView = allViews[safeCarouselIndex];
+  const currentViewUrl = asset.view_urls?.[currentView.key];
+
+  const viewCarousel = (
+    <div className={cn("relative w-full group/carousel", layout === "grid" ? "h-full" : "h-28 sm:h-32")}>
+      {/* 主图 */}
+      <button
+        type="button"
+        className="w-full h-full bg-soft overflow-hidden relative"
+        onClick={() => currentViewUrl ? openLightbox(currentViewUrl, `${asset.name} · ${currentView.label}`) : handleGenerate()}
+        title={currentViewUrl ? `点击查看大图` : `点击生成`}
+      >
+        {currentViewUrl ? (
+          <img src={cosUrl(currentViewUrl)} alt={`${asset.name}-${currentView.label}`} className="w-full h-full object-contain" />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-muted">
+            <ImagePlus className="w-5 h-5" />
+            <span className="text-xs">点击生成</span>
+          </div>
+        )}
+      </button>
+      {/* 底部标签 + 指示器 */}
+      <div className="absolute bottom-2 left-0 right-0 flex items-center justify-center gap-2 pointer-events-none">
+        <span className="rounded-full bg-black/55 px-2 py-0.5 text-[11px] text-white">
+          {currentView.label}
+        </span>
+        <span className="rounded-full bg-black/55 px-1.5 py-0.5 text-[11px] text-white/70">
+          {safeCarouselIndex + 1}/{allViews.length}
+        </span>
+      </div>
+      {/* 指示圆点 */}
+      <div className="absolute bottom-8 left-0 right-0 flex items-center justify-center gap-1.5 pointer-events-none">
+        {allViews.map((view, idx) => (
+          <span
             key={view.key}
-            type="button"
             className={cn(
-              "relative overflow-hidden bg-soft border border-line group/view",
-              layout === "grid" ? "border-0 rounded-none" : "rounded-lg"
+              "w-1.5 h-1.5 rounded-full transition-colors",
+              idx === safeCarouselIndex ? "bg-white" : "bg-white/40"
             )}
-            onClick={() => url ? openLightbox(url, `${asset.name} · ${view.label}`) : handleGenerate()}
-            title={url ? `查看${view.label}图` : `生成${view.label}图`}
+          />
+        ))}
+      </div>
+      {/* 左右切换按钮 */}
+      {allViews.length > 1 && (
+        <>
+          <button
+            type="button"
+            className="absolute left-1 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-black/40 text-white opacity-0 group-hover/carousel:opacity-100 transition-opacity hover:bg-black/60"
+            onClick={(e) => {
+              e.stopPropagation();
+              setCarouselIndex((prev) => (prev - 1 + allViews.length) % allViews.length);
+            }}
+            title="上一张"
           >
-            {url ? (
-              <img src={cosUrl(url)} alt={`${asset.name}-${view.label}`} className="w-full h-full object-contain" />
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-muted">
-                <ImagePlus className="w-4 h-4" />
-                <span className="text-[11px]">生成</span>
-              </div>
-            )}
-            <span className="absolute left-1 bottom-1 rounded bg-black/55 px-1.5 py-0.5 text-[11px] text-white">
-              {view.label}
-            </span>
-            {url && (
-              <ZoomIn className="absolute right-1 bottom-1 w-3.5 h-3.5 text-white opacity-0 group-hover/view:opacity-100 transition-opacity" />
-            )}
+            <ChevronLeft className="w-4 h-4" />
           </button>
-        );
-      })}
+          <button
+            type="button"
+            className="absolute right-1 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-black/40 text-white opacity-0 group-hover/carousel:opacity-100 transition-opacity hover:bg-black/60"
+            onClick={(e) => {
+              e.stopPropagation();
+              setCarouselIndex((prev) => (prev + 1) % allViews.length);
+            }}
+            title="下一张"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </>
+      )}
+      {/* 放大图标 */}
+      {currentViewUrl && (
+        <div className="absolute top-2 right-2 bg-black/50 rounded-full p-1 opacity-0 group-hover/carousel:opacity-100 transition-opacity">
+          <ZoomIn className="w-3.5 h-3.5 text-white" />
+        </div>
+      )}
     </div>
   );
 
@@ -1341,7 +1387,7 @@ function AssetCard({
                   <Loader2 className="w-5 h-5 animate-spin text-brand" />
                   <span className="text-xs text-muted">{isQueued ? "排队等待…" : "生成中…"}</span>
                 </div>
-              ) : asset.asset_type === "character" ? viewStrip : (
+              ) : asset.asset_type === "character" ? viewCarousel : (
                 <div className="h-28 sm:h-32 rounded-lg overflow-hidden border border-line">{singlePreview}</div>
               )}
             </div>
@@ -1367,22 +1413,8 @@ function AssetCard({
               </div>
               {asset.face_identity && <p className="text-xs text-sub mt-2 line-clamp-2">面部基准：{asset.face_identity}</p>}
             </div>
-            <div className="lg:w-36 shrink-0 flex lg:flex-col gap-2 justify-end lg:justify-start">
-              {actions}
-            </div>
           </div>
         </div>
-        <AgentDialog
-          open={agentOpen}
-          onOpenChange={setAgentOpen}
-          targetType="asset"
-          targetId={asset.id}
-          projectId={projectId}
-          title={`AI 修改 · ${asset.name}`}
-          onTaskStarted={onUpdate}
-          initialPrompt={asset.prompt}
-        />
-        {historyDialog}
       </>
     );
   }
@@ -1397,7 +1429,7 @@ function AssetCard({
               <Loader2 className="w-6 h-6 animate-spin text-brand" />
               <span className="text-xs text-muted">{isQueued ? "排队等待…" : "生成中…"}</span>
             </div>
-          ) : asset.asset_type === "character" && hasCharacterViews ? viewStrip : singlePreview}
+          ) : asset.asset_type === "character" && hasCharacterViews ? viewCarousel : singlePreview}
           <div className="absolute top-2 left-2">
             <Badge variant={cfg.variant}>{cfg.label}</Badge>
           </div>
