@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   CheckCircle2, RefreshCw, Loader2, Play, Volume2,
-  Film, Layers, Clock, Tag, Edit3, Check, FileText, MessageCircle, History, RotateCcw, AlertTriangle, Images,
+  Film, Layers, Clock, Tag, Edit3, Check, FileText, MessageCircle, History, RotateCcw, AlertTriangle, Images, Download,
 } from "lucide-react";
 import AgentDialog from "@/components/AgentDialog";
 import { Sheet } from "@/components/ui/sheet";
@@ -1425,6 +1425,8 @@ function StepDone({ episode, projectId }: { episode: EpisodeDetail; projectId: s
   const { cosUrl } = useCos();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const totalDuration = episode.shots.reduce((s, sh) => s + sh.duration, 0);
   const m = Math.floor(totalDuration / 60);
   const sec = totalDuration % 60;
@@ -1436,6 +1438,35 @@ function StepDone({ episode, projectId }: { episode: EpisodeDetail; projectId: s
     params.set("episode", episode.id);
     params.set("step", repairStep);
     navigate(`/projects/${projectId}?${params.toString()}`);
+  };
+
+  const handleDownloadFinalVideo = async () => {
+    if (!episode.finalVideoUrl || downloading) return;
+    setDownloadError(null);
+    setDownloading(true);
+
+    // Mobile browsers often block async popups. Open a blank tab synchronously,
+    // then redirect it after the authenticated API call returns the signed URL.
+    const downloadWindow = window.open("", "_blank");
+    try {
+      const { url } = await episodeAPI.finalVideoDownloadUrl(projectId, episode.id);
+      if (downloadWindow) {
+        downloadWindow.location.href = url;
+      } else {
+        const link = document.createElement("a");
+        link.href = url;
+        link.target = "_blank";
+        link.rel = "noreferrer";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
+    } catch (e: unknown) {
+      downloadWindow?.close();
+      setDownloadError(e instanceof Error ? e.message : "获取下载链接失败");
+    } finally {
+      setDownloading(false);
+    }
   };
 
   return (
@@ -1485,11 +1516,20 @@ function StepDone({ episode, projectId }: { episode: EpisodeDetail; projectId: s
         </div>
       )}
 
+      {downloadError && (
+        <div className="mb-4 rounded-xl border border-danger/20 bg-danger-soft px-3 py-2">
+          <p className="text-xs text-danger">{downloadError}</p>
+        </div>
+      )}
 
       {episode.finalVideoUrl ? (
-        <a href={cosUrl(episode.finalVideoUrl)} download target="_blank" rel="noreferrer">
-          <Button>下载成片</Button>
-        </a>
+        <Button onClick={handleDownloadFinalVideo} disabled={downloading}>
+          {downloading ? (
+            <><Loader2 className="h-4 w-4 animate-spin" />准备下载…</>
+          ) : (
+            <><Download className="h-4 w-4" />下载成片</>
+          )}
+        </Button>
       ) : (
         <Button onClick={goToRepairStep}>
           {unresolvedShots > 0 ? "返回分镜视频" : "返回合并"}

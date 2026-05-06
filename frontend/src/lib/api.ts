@@ -126,6 +126,11 @@ export interface ApiEpisode {
   updated_at: string;
 }
 
+export interface ApiDownloadUrl {
+  url: string;
+  filename: string;
+  expires_in: number;
+}
 
 export interface ApiShotDialogueLine {
   speaker: string;
@@ -320,6 +325,9 @@ export const episodeAPI = {
 
   setStep: (projectId: string, episodeId: string, step: string): Promise<ApiEpisode> =>
     client.post(`/projects/${projectId}/episodes/${episodeId}/set-step`, { step }),
+
+  finalVideoDownloadUrl: (projectId: string, episodeId: string): Promise<ApiDownloadUrl> =>
+    client.get(`/projects/${projectId}/episodes/${episodeId}/final-video/download-url`),
 };
 
 // ─── Shot API ─────────────────────────────────────────────────

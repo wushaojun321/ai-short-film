@@ -2,6 +2,7 @@
 import io
 import uuid
 from pathlib import Path
+from urllib.parse import quote
 from qcloud_cos import CosConfig, CosS3Client
 from app.config import settings
 
@@ -38,6 +39,33 @@ def get_presigned_url(object_key: str, expires: int = 3600) -> str:
         Bucket=settings.cos_bucket,
         Key=object_key,
         Expired=expires,
+    )
+
+
+def get_presigned_download_url(url: str, filename: str, expires: int = 600) -> str:
+    """Return a signed URL that asks COS to send the object as an attachment."""
+    object_key = cos_url_to_object_key(url)
+    if not object_key:
+        return url
+
+    safe_filename = filename.replace("\r", "").replace("\n", "").strip() or "video.mp4"
+    ascii_fallback = "".join(ch if ch.isascii() and ch not in {'"', "\\"} else "_" for ch in safe_filename)
+    ascii_fallback = ascii_fallback.strip("._ ") or "video.mp4"
+    disposition = (
+        f'attachment; filename="{ascii_fallback}"; '
+        f"filename*=UTF-8''{quote(safe_filename)}"
+    )
+
+    client = _get_client()
+    return client.get_presigned_url(
+        Method="GET",
+        Bucket=settings.cos_bucket,
+        Key=object_key,
+        Expired=expires,
+        Params={
+            "response-content-disposition": disposition,
+            "response-content-type": "video/mp4",
+        },
     )
 
 

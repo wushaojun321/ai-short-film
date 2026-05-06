@@ -5,6 +5,7 @@ from app.models.episode import EpisodeStep
 from app.models.shot import Shot
 from app.schemas.episode import EpisodeCreate, EpisodeUpdate, StepAdvanceRequest
 from app.services import episode_service
+from app.services import storage_service
 from app.deps import get_current_user, get_owned_project
 
 router = APIRouter(prefix="/projects/{project_id}/episodes", tags=["episodes"], dependencies=[Depends(get_current_user)])
@@ -89,6 +90,29 @@ async def get_episode(
         ]
         return data
     return episode
+
+
+@router.get("/{episode_id}/final-video/download-url")
+async def get_final_video_download_url(
+    episode_id: PydanticObjectId,
+    project: Project = Depends(get_owned_project),
+):
+    episode = await episode_service.get_episode(episode_id)
+    if not episode or episode.project_id != project.id:
+        raise HTTPException(404, "Episode not found")
+    if not episode.final_video_url:
+        raise HTTPException(400, "当前分集还没有合成视频")
+
+    safe_title = "".join(ch if ch not in '\\/:*?"<>|' else "_" for ch in episode.title).strip()
+    filename = f"第{episode.number}集_{safe_title or '成片'}.mp4"
+    return {
+        "url": storage_service.get_presigned_download_url(
+            episode.final_video_url,
+            filename=filename,
+        ),
+        "filename": filename,
+        "expires_in": 600,
+    }
 
 
 @router.patch("/{episode_id}")
