@@ -19,15 +19,16 @@
     text-rendering: optimizeLegibility;
     overflow-x: hidden;
     scrollbar-gutter: stable;
+    scroll-behavior: smooth;
   }
 
   body {
     min-width: 320px;
     overflow-x: hidden;
     background:
-      radial-gradient(circle at 12% -10%, rgba(52,211,153,0.10), transparent 34rem),
-      radial-gradient(circle at 86% 8%, rgba(110,231,183,0.06), transparent 30rem),
-      linear-gradient(180deg, #1B1D20 0%, #141618 46%, #111315 100%);
+      radial-gradient(circle at 12% -8%, rgba(52,211,153,0.075), transparent 32rem),
+      radial-gradient(circle at 86% 6%, rgba(110,231,183,0.045), transparent 28rem),
+      linear-gradient(180deg, #1D2023 0%, #171A1D 46%, #111315 100%);
     color: #F4F7F5;
     font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
     line-height: 1.6;
@@ -50,6 +51,10 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 99px; }
   ::-webkit-scrollbar-thumb:hover { background: rgba(52,211,153,0.56); }
+
+  button, a, input, textarea, select {
+    touch-action: manipulation;
+  }
 }
 
 /* ── Utility Classes ───────────────────────────────────────── */
@@ -57,43 +62,44 @@
   .app-workspace {
     @apply min-h-screen bg-bg text-text;
     background-image:
-      linear-gradient(180deg, rgba(27,29,32,0.90) 0%, rgba(20,22,24,0.95) 520px, #111315 100%),
-      radial-gradient(circle at 9% 7%, rgba(52,211,153,0.10), transparent 26rem),
-      radial-gradient(circle at 92% 0%, rgba(255,255,255,0.07), transparent 22rem),
-      linear-gradient(rgba(255,255,255,0.045) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
-    background-size: auto, auto, auto, 36px 36px, 36px 36px;
+      linear-gradient(180deg, rgba(29,32,35,0.92) 0%, rgba(20,22,24,0.96) 520px, #111315 100%),
+      radial-gradient(circle at 9% 7%, rgba(52,211,153,0.085), transparent 25rem),
+      radial-gradient(circle at 92% 0%, rgba(255,255,255,0.045), transparent 22rem),
+      linear-gradient(rgba(255,255,255,0.032) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.026) 1px, transparent 1px);
+    background-size: auto, auto, auto, 40px 40px, 40px 40px;
   }
 
   .page-shell {
-    @apply mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8;
+    @apply mx-auto w-full max-w-7xl px-3 sm:px-5 lg:px-7 xl:px-8;
   }
 
   .page-panel {
     @apply rounded-2xl border border-line bg-panel/90 shadow-card backdrop-blur-xl;
     background-image:
-      linear-gradient(145deg, rgba(255,255,255,0.060), rgba(255,255,255,0.014) 42%, rgba(52,211,153,0.026));
-    box-shadow: 0 16px 38px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.08);
+      linear-gradient(145deg, rgba(255,255,255,0.052), rgba(255,255,255,0.012) 44%, rgba(52,211,153,0.020));
+    box-shadow: 0 14px 32px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.07);
   }
 
   .page-header {
     @apply rounded-2xl border border-line bg-panel/90 px-4 py-5 shadow-card backdrop-blur-xl sm:px-6 sm:py-6;
     background-image:
-      linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02) 40%, rgba(52,211,153,0.055)),
-      linear-gradient(90deg, rgba(52,211,153,0.10), transparent 36%);
-    box-shadow: 0 18px 46px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.09);
+      linear-gradient(135deg, rgba(255,255,255,0.072), rgba(255,255,255,0.018) 40%, rgba(52,211,153,0.045)),
+      linear-gradient(90deg, rgba(52,211,153,0.085), transparent 38%);
+    box-shadow: 0 16px 40px rgba(0,0,0,0.31), inset 0 1px 0 rgba(255,255,255,0.08);
   }
 
   .toolbar {
-    @apply flex flex-wrap items-center gap-3 rounded-xl border border-line bg-elev/85 px-4 py-3 shadow-xs backdrop-blur;
+    @apply flex flex-wrap items-center gap-3 rounded-xl border border-line bg-elev/90 px-4 py-3 shadow-xs backdrop-blur;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.055), 0 8px 18px rgba(0,0,0,0.22);
   }
 
   .metric-tile {
-    @apply rounded-xl border border-line bg-elev/85 px-4 py-3 shadow-xs;
+    @apply rounded-xl border border-line bg-elev/90 px-4 py-3 shadow-xs;
   }
 
   .mini-stat {
-    @apply rounded-xl border border-line bg-elev/85 px-4 py-3 shadow-xs;
+    @apply rounded-xl border border-line bg-elev/90 px-4 py-3 shadow-xs;
     background-image: linear-gradient(180deg, rgba(255,255,255,0.075), rgba(255,255,255,0.025));
   }
 
@@ -114,8 +120,9 @@
   }
 
   .sticky-action-bar {
-    @apply sticky bottom-2 z-20 mt-6 flex flex-col gap-3 rounded-2xl border border-line bg-panel/90 px-4 py-3 shadow-lg backdrop-blur-xl sm:bottom-4 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4;
-    box-shadow: 0 18px 48px rgba(0,0,0,0.36), inset 0 1px 0 rgba(255,255,255,0.09);
+    @apply sticky bottom-2 z-20 mt-6 flex flex-col gap-3 rounded-2xl border border-line bg-panel/95 px-4 py-3 shadow-lg backdrop-blur-xl sm:bottom-4 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4;
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+    box-shadow: 0 16px 42px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.08);
   }
 
   .prompt-block {
@@ -123,7 +130,7 @@
   }
 
   .icon-button {
-    @apply inline-flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-elev text-muted shadow-xs transition-all hover:border-brand/45 hover:bg-brand-soft hover:text-brand hover:shadow-brand;
+    @apply inline-flex h-11 w-11 items-center justify-center rounded-xl border border-line bg-elev text-muted shadow-xs transition-all hover:border-brand/45 hover:bg-brand-soft hover:text-brand hover:shadow-brand active:scale-[0.97];
   }
 
   .tech-border {
@@ -144,11 +151,11 @@
     @apply bg-panel/90 rounded-2xl border border-line shadow-card transition-all duration-200 backdrop-blur;
   }
   .card-hover {
-    @apply hover:shadow-card-hover hover:border-brand/35 hover:-translate-y-0.5;
+    @apply hover:shadow-card-hover hover:border-brand/35 hover:-translate-y-0.5 active:translate-y-0;
   }
 
   .media-card {
-    @apply rounded-2xl border border-line bg-panel/90 shadow-card transition-all duration-200 hover:shadow-card-hover hover:border-brand/45 backdrop-blur;
+    @apply rounded-2xl border border-line bg-panel/90 shadow-card transition-all duration-200 hover:shadow-card-hover hover:border-brand/45 active:scale-[0.997] backdrop-blur;
   }
 
   .action-row {
@@ -156,7 +163,7 @@
   }
 
   .section-title {
-    @apply text-xs font-black uppercase tracking-[0.22em] text-brand;
+    @apply text-xs font-black uppercase tracking-[0.18em] text-brand;
   }
 
   /* 徽章/标签 */
@@ -183,7 +190,7 @@
 
   /* 侧边栏项 */
   .sidebar-item {
-    @apply flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-sub
+    @apply flex min-h-11 items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-sub
            transition-all duration-150 cursor-pointer select-none
            hover:bg-soft hover:text-text;
   }
@@ -199,6 +206,25 @@
   .step-badge-done    { @apply bg-success-soft text-success; }
   .step-badge-active  { @apply bg-brand text-white shadow-brand; }
   .step-badge-pending { @apply bg-soft text-muted border border-line; }
+
+  .mobile-action-grid {
+    @apply grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center;
+  }
+
+  .touch-card {
+    @apply min-h-11 transition-all duration-150 active:scale-[0.99];
+  }
+
+  .scroll-shadow-x {
+    mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+  }
+
+  .studio-work-area {
+    @apply rounded-2xl border border-line bg-panel/70;
+    background-image:
+      linear-gradient(145deg, rgba(255,255,255,0.038), transparent 42%),
+      radial-gradient(circle at 50% 0%, rgba(52,211,153,0.040), transparent 24rem);
+  }
 }
 
 /* ── Focus Ring ────────────────────────────────────────────── */
@@ -217,6 +243,28 @@
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 640px) {
+  body {
+    background:
+      radial-gradient(circle at 20% -6%, rgba(52,211,153,0.08), transparent 22rem),
+      linear-gradient(180deg, #1B1E21 0%, #141618 48%, #111315 100%);
+  }
+
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+
+  .page-header,
+  .page-panel {
+    border-radius: 14px;
+  }
+
+  .media-card:hover,
+  .card-hover:hover {
+    transform: none;
   }
 }
 

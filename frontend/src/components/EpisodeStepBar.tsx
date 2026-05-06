@@ -33,8 +33,8 @@ export default function EpisodeStepBar({
   };
 
   return (
-    <div className="bg-panel/90 border-b border-line px-2 py-0 overflow-x-auto shadow-xs backdrop-blur-xl sm:px-4 lg:px-7">
-      <div className="flex items-stretch min-w-max">
+    <div className="scroll-shadow-x overflow-x-auto border-b border-line bg-panel/90 px-2 py-0 shadow-xs backdrop-blur-xl sm:px-4 lg:px-7 lg:[mask-image:none]">
+      <div className="flex min-w-max items-stretch">
         {EPISODE_STEPS.map((stepDef, idx) => {
           const stepIdx = getStepIndex(stepDef.key);
           const isDone = stepIdx < currentIdx;
@@ -49,7 +49,7 @@ export default function EpisodeStepBar({
                 onClick={() => handleStepClick(stepDef.key)}
                 disabled={!isReachable}
                 className={cn(
-                  "relative flex flex-col items-center gap-1 px-3 py-2.5 text-xs transition-colors border-b-2 sm:gap-1.5 sm:px-4 sm:py-3 lg:px-5 lg:py-3.5 lg:text-sm",
+                  "relative flex min-h-[68px] flex-col items-center gap-1 border-b-2 px-3 py-2.5 text-xs transition-colors sm:gap-1.5 sm:px-4 sm:py-3 lg:px-5 lg:py-3.5 lg:text-sm",
                   isReachable ? "cursor-pointer" : "cursor-default",
                   isActive
                     ? "border-brand text-brand font-semibold"

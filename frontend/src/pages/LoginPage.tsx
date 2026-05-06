@@ -1,6 +1,6 @@
 import { useState, FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { Clapperboard } from "lucide-react";
+import { Clapperboard, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { authAPI } from "@/lib/api";
@@ -41,29 +41,29 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="app-workspace flex min-h-screen flex-col items-center justify-center px-4">
+    <div className="app-workspace flex min-h-screen flex-col items-center justify-center px-4 py-8">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex flex-col items-center gap-3 mb-8">
-          <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center shadow-md ring-1 ring-black/10">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary shadow-brand ring-1 ring-white/10">
             <Clapperboard className="w-6 h-6 text-white" />
           </div>
           <div className="text-center">
-            <h1 className="text-xl font-bold text-text">短剧制作</h1>
+            <h1 className="text-2xl font-black text-text">短剧制作</h1>
           </div>
         </div>
 
         {/* Card */}
-        <div className="page-panel p-6">
+        <div className="page-panel tech-border p-5 sm:p-6">
           {/* Tabs */}
-          <div className="flex gap-0 mb-6 bg-soft rounded-xl p-1 ring-1 ring-line/60">
+          <div className="mb-6 flex gap-0 rounded-xl bg-soft p-1 ring-1 ring-line/60">
             {(["login", "register"] as Tab[]).map((t) => (
               <button
                 key={t}
                 type="button"
                 onClick={() => { setTab(t); setError(""); }}
                 className={
-                  "flex-1 py-1.5 text-sm font-medium rounded-md transition-all " +
+                  "min-h-10 flex-1 rounded-lg py-1.5 text-sm font-bold transition-all " +
                   (tab === t
                     ? "bg-panel text-brand shadow-sm"
                     : "text-muted hover:text-text")
@@ -121,7 +121,7 @@ export default function LoginPage() {
             )}
 
             <Button type="submit" disabled={loading} className="w-full mt-1">
-              {loading ? "处理中..." : tab === "login" ? "登录" : "注册"}
+              {loading ? <><Loader2 className="h-4 w-4 animate-spin" />处理中...</> : tab === "login" ? "登录" : "注册"}
             </Button>
           </form>
         </div>

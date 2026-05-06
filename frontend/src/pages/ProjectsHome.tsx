@@ -53,13 +53,13 @@ function ProjectCard({ project }: { project: Project }) {
       <div
         onClick={() => navigate(`/projects/${project.id}`)}
         className={cn(
-          "group media-card tech-border relative flex h-full min-h-[300px] cursor-pointer flex-col overflow-hidden p-4 sm:min-h-[328px]",
+          "group media-card tech-border touch-card relative flex h-full min-h-[276px] cursor-pointer flex-col overflow-hidden p-4 sm:min-h-[304px]",
           "animate-fade-in"
         )}
       >
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-signal to-transparent opacity-80" />
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_24%_0%,rgba(52,211,153,0.08),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.040),transparent_38%)] opacity-70 transition-opacity duration-200 group-hover:opacity-100" />
-        <div className="relative mb-4 min-h-[104px]">
+        <div className="relative mb-3 min-h-[94px]">
           <div className="mb-3 flex items-start justify-between gap-3">
             <div className={cn(
               "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs ring-1 ring-white/10",
@@ -78,14 +78,14 @@ function ProjectCard({ project }: { project: Project }) {
               <button
                 type="button"
                 title="删除项目"
-                aria-label="删除项目"
+              aria-label="删除项目"
                 onClick={(e) => {
                   e.stopPropagation();
                   setDeleteError(null);
                   setDeleteOpen(true);
                 }}
                 className={cn(
-                  "ml-1 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-transparent",
+                  "ml-1 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-transparent sm:h-8 sm:w-8 sm:rounded-lg",
                   "text-muted opacity-70 transition-all hover:border-danger/30 hover:bg-danger-soft hover:text-danger",
                   "focus:outline-none focus:ring-2 focus:ring-danger/20"
                 )}
@@ -97,7 +97,7 @@ function ProjectCard({ project }: { project: Project }) {
 
           <h3
             title={project.title}
-            className="min-h-[3rem] break-words pr-1 text-lg font-black leading-tight text-text transition-colors line-clamp-2 group-hover:text-brand sm:min-h-[3.25rem] sm:text-xl"
+            className="min-h-[2.75rem] break-words pr-1 text-lg font-black leading-tight text-text transition-colors line-clamp-2 group-hover:text-brand sm:min-h-[3rem] sm:text-xl"
           >
             {project.title}
           </h3>
@@ -129,16 +129,16 @@ function ProjectCard({ project }: { project: Project }) {
         </div>
 
         <div className="relative grid grid-cols-3 gap-2 mb-3">
-          <div className="rounded-xl border border-line/70 bg-elev/85 p-3 text-center min-h-[72px]">
+          <div className="rounded-xl border border-line/70 bg-elev/90 p-2.5 text-center min-h-[64px] sm:p-3 sm:min-h-[72px]">
             <div className="text-xl font-black text-text tabular-nums">{project.renderedEpisodes}</div>
             <div className="text-2xs text-muted mt-0.5">已完成</div>
           </div>
-          <div className="rounded-xl border border-line/70 bg-elev/85 p-3 text-center min-h-[72px]">
+          <div className="rounded-xl border border-line/70 bg-elev/90 p-2.5 text-center min-h-[64px] sm:p-3 sm:min-h-[72px]">
             <div className="text-xl font-black text-text tabular-nums">{project.episodes || "—"}</div>
             <div className="text-2xs text-muted mt-0.5">最低集数</div>
           </div>
           <div className={cn(
-            "rounded-xl border border-line/70 p-3 text-center min-h-[72px]",
+            "rounded-xl border border-line/70 p-2.5 text-center min-h-[64px] sm:p-3 sm:min-h-[72px]",
             project.blockers && project.blockers > 0 ? "border-danger/20 bg-danger-soft" : "bg-elev"
           )}>
             <div className={cn(
@@ -168,7 +168,7 @@ function ProjectCard({ project }: { project: Project }) {
 
         <div className="relative mt-auto flex items-center justify-between border-t border-line pt-3">
           <span className="min-w-0 truncate text-xs text-muted">{project.stage}</span>
-          <span className="text-xs font-black text-brand flex items-center gap-1 rounded-lg bg-brand-soft px-2.5 py-1 transition-colors group-hover:text-brand">
+          <span className="flex min-h-9 items-center gap-1 rounded-lg bg-brand-soft px-2.5 py-1 text-xs font-black text-brand transition-colors group-hover:text-brand">
             进入项目 <ChevronRight className="w-3.5 h-3.5" />
           </span>
         </div>
@@ -217,7 +217,7 @@ function ProjectCard({ project }: { project: Project }) {
 function EmptyState() {
   const navigate = useNavigate();
   return (
-    <div className="col-span-full flex flex-col items-center justify-center py-28 gap-6 animate-fade-in">
+    <div className="col-span-full flex flex-col items-center justify-center gap-6 py-20 animate-fade-in sm:py-28">
       <div className="w-24 h-24 rounded-3xl border border-line bg-elev flex items-center justify-center shadow-card">
         <Layers className="w-10 h-10 text-brand" />
       </div>
@@ -242,7 +242,7 @@ export default function ProjectsHome() {
 
   return (
     <div className="min-h-screen">
-      <div className="page-shell py-5 sm:py-7">
+      <div className="page-shell py-4 sm:py-7">
         <div className="page-header">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -280,7 +280,7 @@ export default function ProjectsHome() {
           </div>
         )}
         {loading ? (
-          <div className="mt-5 grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="mt-5 grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
             {[1, 2, 3].map((i) => (
               <div key={i} className="page-panel h-[328px] p-4">
                 <div className="flex items-start gap-3">
@@ -301,7 +301,7 @@ export default function ProjectsHome() {
             ))}
           </div>
         ) : (
-          <div className="mt-5 grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="mt-5 grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
             {projects.length > 0
               ? projects.map((p) => <ProjectCard key={p.id} project={p} />)
               : <EmptyState />

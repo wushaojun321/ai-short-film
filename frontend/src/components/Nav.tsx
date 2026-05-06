@@ -31,13 +31,13 @@ export default function Nav() {
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 h-16 border-b border-line bg-panel/90 shadow-card backdrop-blur-2xl">
-      <div className="h-full flex items-center px-3 gap-2 sm:px-5 sm:gap-4">
+    <header className="fixed top-0 left-0 right-0 z-50 h-16 border-b border-line bg-panel/95 shadow-card backdrop-blur-2xl supports-[backdrop-filter]:bg-panel/80">
+      <div className="h-full flex min-w-0 items-center px-3 gap-2 sm:px-5 sm:gap-4">
 
         {/* Logo */}
         <button
           onClick={() => navigate("/projects")}
-          className="flex items-center gap-2 text-text hover:opacity-95 transition-opacity shrink-0 group sm:gap-3"
+          className="flex min-h-11 items-center gap-2 text-text hover:opacity-95 transition-opacity shrink-0 group sm:gap-3"
           aria-label="首页"
         >
           <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-brand ring-1 ring-white/10 group-hover:shadow-card-hover transition-shadow sm:w-10 sm:h-10">
@@ -50,19 +50,19 @@ export default function Nav() {
 
         {/* 路径分隔 + 项目切换 */}
         {!isHome && (
-          <div className="flex items-center gap-1 min-w-0">
+          <div className="flex min-w-0 flex-1 items-center gap-1 sm:flex-none">
             <span className="text-line text-lg font-light">/</span>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className={cn(
-                  "flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold",
-                  "text-text hover:bg-soft transition-colors duration-150 min-w-0 max-w-[148px] group border border-transparent hover:border-line sm:max-w-[260px]"
+                  "flex min-h-11 min-w-0 items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold",
+                  "text-text hover:bg-soft transition-colors duration-150 max-w-[46vw] group border border-transparent hover:border-line sm:max-w-[260px]"
                 )}>
                   <span className="truncate">{currentProject?.title ?? "项目"}</span>
                   <ChevronDown className="w-3.5 h-3.5 text-muted shrink-0 transition-transform group-data-[state=open]:rotate-180" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-80 p-2">
+              <DropdownMenuContent align="start" className="w-[calc(100vw-1rem)] max-w-80 p-2">
                 <DropdownMenuLabel className="px-3 py-2 text-xs text-muted font-bold uppercase tracking-wider">
                   我的项目
                 </DropdownMenuLabel>
@@ -123,7 +123,7 @@ export default function Nav() {
           {isHome && (
             <button
               onClick={() => navigate("/projects")}
-              className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl border border-line text-sm font-bold text-sub hover:border-brand/45 hover:bg-soft hover:text-text transition-colors"
+              className="hidden min-h-11 items-center gap-2 rounded-xl border border-line px-4 py-2 text-sm font-bold text-sub transition-colors hover:border-brand/45 hover:bg-soft hover:text-text sm:flex"
             >
               <LayoutGrid className="w-3.5 h-3.5" />
               所有项目
@@ -132,7 +132,7 @@ export default function Nav() {
           {/* 用户菜单 */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-line bg-elev/80 hover:border-brand/45 hover:bg-soft transition-colors group">
+              <button className="flex min-h-11 items-center gap-2 rounded-xl border border-line bg-elev/80 px-1.5 py-1.5 transition-colors hover:border-brand/45 hover:bg-soft group sm:px-2.5">
                 <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-sm font-black shadow-brand">
                   {user?.username?.[0]?.toUpperCase() ?? "U"}
                 </div>

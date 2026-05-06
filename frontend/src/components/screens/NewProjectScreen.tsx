@@ -51,14 +51,14 @@ const STEP_NODES = [
 function StepIndicator({ current, maxReached }: { current: Phase; maxReached: number }) {
   const visualCurrent = current <= 1.5 ? 1 : current === 2 ? 2 : 3;
   return (
-    <div className="flex items-center gap-3 mb-10">
+    <div className="scroll-shadow-x mb-6 flex items-center gap-2 overflow-x-auto pb-1 sm:mb-10 sm:gap-3">
       {STEP_NODES.map((node, idx) => {
         const isActive = visualCurrent === node.visual;
         const isDone = maxReached > node.visual;
         return (
-          <div key={node.visual} className="flex items-center gap-2">
+          <div key={node.visual} className="flex shrink-0 items-center gap-2">
             <div className={cn(
-              "w-9 h-9 rounded-full flex items-center justify-center text-sm font-black",
+              "flex h-10 w-10 items-center justify-center rounded-full text-sm font-black sm:h-9 sm:w-9",
               isDone   && "bg-brand text-white",
               isActive && "bg-brand text-white ring-4 ring-brand/20",
               !isDone && !isActive && "bg-soft text-muted border border-line",
@@ -72,7 +72,7 @@ function StepIndicator({ current, maxReached }: { current: Phase; maxReached: nu
               {node.label}
             </span>
             {idx < STEP_NODES.length - 1 && (
-              <ChevronRight className="w-5 h-5 text-line mx-1" />
+              <ChevronRight className="w-5 h-5 text-line mx-0.5 sm:mx-1" />
             )}
           </div>
         );
@@ -123,9 +123,9 @@ function Phase1({
   };
 
   return (
-    <div className="page-panel tech-border max-w-2xl mx-auto p-8">
+    <div className="page-panel tech-border mx-auto max-w-2xl p-4 sm:p-8">
       <div className="mb-7">
-        <h2 className="text-3xl font-black text-text mb-2">上传剧本</h2>
+        <h2 className="mb-2 text-2xl font-black text-text sm:text-3xl">上传剧本</h2>
         <p className="text-base text-sub">上传剧本文件，AI 将自动解析分集规划和资产需求。</p>
       </div>
 
@@ -135,7 +135,7 @@ function Phase1({
         onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
         onClick={() => !uploadedFile && fileRef.current?.click()}
         className={cn(
-          "border-2 border-dashed rounded-2xl p-14 text-center transition-all cursor-pointer bg-panel/80",
+          "rounded-2xl border-2 border-dashed bg-panel/80 p-8 text-center transition-all cursor-pointer sm:p-14",
           dragging ? "border-brand bg-brand-soft" : "border-line hover:border-brand/50 hover:bg-soft",
           uploadedFile && "border-brand bg-brand-soft cursor-default"
         )}
@@ -168,7 +168,7 @@ function Phase1({
       </div>
 
       <div className="mt-7 flex justify-end">
-        <Button disabled={!uploadedFile} onClick={() => setDialogOpen(true)}>
+        <Button className="w-full sm:w-auto" disabled={!uploadedFile} onClick={() => setDialogOpen(true)}>
           解析剧本 <ChevronRight className="w-4 h-4" />
         </Button>
       </div>
@@ -315,10 +315,10 @@ function PhaseWaiting({
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [logs]);
 
   return (
-    <div className="page-panel tech-border max-w-2xl mx-auto p-8">
-      <div className="mb-7 flex items-start gap-5">
+    <div className="page-panel tech-border mx-auto max-w-2xl p-4 sm:p-8">
+      <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
         <div className={cn(
-          "w-16 h-16 rounded-3xl flex items-center justify-center shrink-0",
+          "flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl sm:h-16 sm:w-16 sm:rounded-3xl",
           finished ? (error ? "bg-danger-soft" : "bg-brand-soft") : "bg-primary/5"
         )}>
           {finished
@@ -326,7 +326,7 @@ function PhaseWaiting({
             : <Loader2 className="w-6 h-6 text-brand animate-spin" />}
         </div>
         <div>
-          <h2 className="text-3xl font-black text-text mb-2">
+          <h2 className="mb-2 text-2xl font-black text-text sm:text-3xl">
             {finished ? (error ? "解析失败" : "解析完成") : "AI 正在深度解析剧本"}
           </h2>
           <p className="text-base text-sub leading-relaxed">
@@ -348,7 +348,7 @@ function PhaseWaiting({
         </div>
       </div>
 
-      <div className="rounded-2xl border border-line bg-slate-950 overflow-hidden mb-7 shadow-card">
+      <div className="mb-7 overflow-hidden rounded-2xl border border-line bg-slate-950 shadow-card">
         <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 border-b border-slate-800">
           <div className="flex gap-1.5">
             <div className="w-3 h-3 rounded-full bg-red-500/70" />
@@ -367,7 +367,7 @@ function PhaseWaiting({
                 </span>}
           </div>
         </div>
-        <div className="p-4 h-64 overflow-y-auto font-mono">
+        <div className="h-56 overflow-y-auto p-3 font-mono sm:h-64 sm:p-4">
           {logs.length === 0 && !finished && <div className="text-xs text-slate-600 italic">等待任务启动…</div>}
           {logs.map((line, i) => (
             <div key={i} className={cn("text-xs leading-relaxed mb-0.5",
@@ -389,10 +389,10 @@ function PhaseWaiting({
         </div>
       </div>
 
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-muted">{logs.length} 条日志</p>
         {error ? (
-          <Button onClick={onRetry} variant="outline"><RefreshCw className="w-4 h-4" />重新上传剧本</Button>
+          <Button className="w-full sm:w-auto" onClick={onRetry} variant="outline"><RefreshCw className="w-4 h-4" />重新上传剧本</Button>
         ) : finished ? (
           <span className="text-sm text-brand font-medium flex items-center gap-1.5">
             <Check className="w-4 h-4" />
@@ -521,11 +521,11 @@ function Phase2({
   };
 
   return (
-    <div className="page-panel tech-border max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+    <div className="page-panel tech-border mx-auto max-w-7xl p-3 sm:p-6 lg:p-7">
       <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between mb-7">
         <div>
           <p className="section-title mb-2">Plan Review</p>
-          <h2 className="text-3xl font-black text-text mb-2">分集与资产确认</h2>
+          <h2 className="mb-2 text-2xl font-black text-text sm:text-3xl">分集与资产确认</h2>
           <p className="text-base text-sub">确认 AI 生成的分集规划和资产清单。可 inline 编辑，或点击右下角「AI 助手」通过对话调整。</p>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-5 xl:w-[520px]">
@@ -543,14 +543,14 @@ function Phase2({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 lg:gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
+      <div className="grid grid-cols-1 gap-4 lg:gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(340px,0.95fr)]">
         {/* 左侧：分集列表 */}
-        <div className="rounded-2xl border border-line bg-elev p-3">
+        <div className="rounded-2xl border border-line bg-elev/90 p-3">
           <div className="mb-3 flex items-center justify-between px-1">
             <h3 className="text-sm font-semibold text-text">分集规划</h3>
             <span className="text-xs text-muted">{episodes.length} 集</span>
           </div>
-          <div className="max-h-[70dvh] space-y-2 overflow-y-auto pr-1 lg:max-h-[620px]">
+          <div className="max-h-[64dvh] space-y-2 overflow-y-auto pr-1 lg:max-h-[620px]">
             {episodes.map((ep, idx) => (
               <div key={idx} className="group media-card p-3 hover:border-brand/30">
                 <div className="flex items-start gap-3">
@@ -605,7 +605,7 @@ function Phase2({
         </div>
 
         {/* 右侧：资产列表 */}
-        <div className="rounded-2xl border border-line bg-elev p-3">
+        <div className="rounded-2xl border border-line bg-elev/90 p-3">
           <div className="mb-3 flex items-center justify-between px-1">
             <h3 className="text-sm font-semibold text-text">资产清单</h3>
             <span className="text-xs text-muted">{currentAssets.length} 项</span>
@@ -625,7 +625,7 @@ function Phase2({
                 ))}
               </TabsList>
               <TabsContent value={assetTab}>
-                <div className="space-y-2 max-h-[560px] overflow-y-auto pr-1">
+                <div className="max-h-[62dvh] space-y-2 overflow-y-auto pr-1 lg:max-h-[560px]">
                   {currentAssets.map((a) => {
                     const isEditing = editingAssetId === a.id;
                     const draft = assetEdits[a.id] ?? {
@@ -765,7 +765,8 @@ function Phase2({
                                   }));
                                   setEditingAssetId(a.id);
                                 }}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-muted hover:text-brand rounded shrink-0"
+                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-brand-soft hover:text-brand sm:opacity-0 sm:group-hover:opacity-100"
+                                aria-label="编辑资产"
                               >
                                 <Edit2 className="w-3 h-3" />
                               </button>
@@ -774,7 +775,8 @@ function Phase2({
                                   await assetAPI.delete(projectId, a.id);
                                   loadData();
                                 }}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-muted hover:text-danger rounded shrink-0"
+                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-danger-soft hover:text-danger sm:opacity-0 sm:group-hover:opacity-100"
+                                aria-label="删除资产"
                               >
                                 <Trash2 className="w-3 h-3" />
                               </button>
@@ -812,16 +814,16 @@ function Phase2({
       </div>
 
       <div className="sticky-action-bar">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Button variant="outline" onClick={onBackToScript} disabled={submitting}>
+        <div className="mobile-action-grid">
+          <Button className="w-full sm:w-auto" variant="outline" onClick={onBackToScript} disabled={submitting}>
             <ChevronLeft className="w-4 h-4" />重新上传剧本
           </Button>
-          <Button variant="outline" onClick={() => setAgentOpen(true)} className="flex items-center gap-1.5">
+          <Button variant="outline" onClick={() => setAgentOpen(true)} className="w-full sm:w-auto">
             <MessageCircle className="w-4 h-4" />返工修改
           </Button>
-          <p className="text-sm text-sub">确认后进入图片确认阶段，不会自动生成图片；需手动生成全部或单个资产。</p>
+          <p className="text-sm leading-relaxed text-sub sm:max-w-md">确认后进入图片确认阶段，图片生成由你手动触发。</p>
         </div>
-        <Button onClick={handleConfirm} disabled={submitting || episodes.length === 0}>
+        <Button className="w-full sm:w-auto" onClick={handleConfirm} disabled={submitting || episodes.length === 0}>
           {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />确认中…</> : <>确认分集与资产 <ChevronRight className="w-4 h-4" /></>}
         </Button>
       </div>
@@ -1334,14 +1336,14 @@ function AssetCard({
   );
 
   const lightboxOverlay = currentLightboxItem && (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-6" onClick={closeLightbox}>
-      <button className="absolute right-4 top-4 text-white/70 transition-colors hover:text-white" onClick={closeLightbox}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-3 backdrop-blur-md sm:p-6" onClick={closeLightbox}>
+      <button className="absolute right-3 top-3 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white/75 transition-colors hover:bg-white/15 hover:text-white sm:right-4 sm:top-4" onClick={closeLightbox} aria-label="关闭预览">
         <X className="w-7 h-7" />
       </button>
       {canPageLightbox && (
         <button
           type="button"
-          className="absolute left-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur transition-colors hover:bg-white/25"
+          className="absolute left-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur transition-colors hover:bg-white/25 sm:left-4"
           onClick={(e) => {
             e.stopPropagation();
             pageLightbox(-1);
@@ -1351,7 +1353,7 @@ function AssetCard({
           <ChevronLeft className="w-6 h-6" />
         </button>
       )}
-      <div className="flex max-h-[92vh] max-w-[92vw] flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
+      <div className="flex max-h-[92vh] max-w-[94vw] flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
         <img
           src={cosUrl(currentLightboxItem.url)}
           alt={currentLightboxItem.label}
@@ -1367,7 +1369,7 @@ function AssetCard({
       {canPageLightbox && (
         <button
           type="button"
-          className="absolute right-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur transition-colors hover:bg-white/25"
+          className="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur transition-colors hover:bg-white/25 sm:right-4"
           onClick={(e) => {
             e.stopPropagation();
             pageLightbox(1);
@@ -1384,7 +1386,7 @@ function AssetCard({
     return (
       <>
         {lightboxOverlay}
-        <div className="border border-line rounded-xl bg-panel p-3 hover:shadow-card-hover transition-all">
+        <div className="rounded-xl border border-line bg-panel p-3 transition-all hover:shadow-card-hover">
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="lg:w-[280px] shrink-0">
               {isGenerating ? (
@@ -1427,7 +1429,7 @@ function AssetCard({
   return (
     <>
       {lightboxOverlay}
-      <div className="flex h-full flex-col overflow-hidden rounded-xl border border-line bg-panel transition-all hover:shadow-card-hover">
+      <div className="flex h-full flex-col overflow-hidden rounded-xl border border-line bg-panel transition-all hover:border-brand/35 hover:shadow-card-hover">
         <div className="aspect-[4/3] bg-soft relative overflow-hidden group">
           {isGenerating ? (
             <div className="w-full h-full flex flex-col items-center justify-center gap-2">
@@ -1439,7 +1441,7 @@ function AssetCard({
             <Badge variant={cfg.variant}>{cfg.label}</Badge>
           </div>
         </div>
-        <div className="flex min-h-[210px] flex-1 flex-col p-4">
+        <div className="flex min-h-[190px] flex-1 flex-col p-3 sm:min-h-[210px] sm:p-4">
           <p className="text-sm font-medium text-text truncate">{asset.name}</p>
           <p className="text-xs text-muted mt-0.5 line-clamp-2">{promptPreview}</p>
           {asset.asset_type === "character" && (
@@ -1496,7 +1498,7 @@ function AssetGroupCard({
     .join(" / ");
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-xl border border-line bg-panel transition-all hover:shadow-card-hover">
+    <div className="flex h-full flex-col overflow-hidden rounded-xl border border-line bg-panel transition-all hover:border-brand/35 hover:shadow-card-hover">
       <button type="button" className="flex h-full w-full flex-col text-left" onClick={onOpen}>
         <div className="relative aspect-[4/3] bg-soft overflow-hidden">
           {previewUrl ? (
@@ -1537,7 +1539,7 @@ function AssetGroupCard({
           </div>
         </div>
 
-        <div className="p-4 flex flex-col min-h-[210px] flex-1">
+        <div className="flex min-h-[190px] flex-1 flex-col p-3 sm:min-h-[210px] sm:p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-base font-semibold text-text truncate">{group.label}</p>
@@ -1738,7 +1740,7 @@ export function Phase3({
 
   return (
     <div className="mx-auto max-w-7xl">
-      <div className="page-panel tech-border mb-5 p-4 sm:mb-6 sm:p-6">
+      <div className="page-panel tech-border mb-4 p-4 sm:mb-6 sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="section-title mb-2">Asset Review</p>
@@ -1795,7 +1797,7 @@ export function Phase3({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 mb-5 sm:gap-3 md:grid-cols-4 lg:grid-cols-7">
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:mb-5 sm:gap-3 md:grid-cols-4 lg:grid-cols-7">
         {[
           ["人物包", characterGroupCount],
           ["阶段造型", characterAssetCount],
@@ -1812,14 +1814,14 @@ export function Phase3({
         ))}
       </div>
 
-      <div className="flex gap-2 mb-5 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
+      <div className="scroll-shadow-x mb-4 flex gap-2 overflow-x-auto pb-1 sm:mb-5 sm:flex-wrap sm:overflow-visible">
         {ASSET_FILTERS.map((filter) => (
           <button
             key={filter.key}
             type="button"
             onClick={() => setAssetFilter(filter.key)}
             className={cn(
-              "h-8 shrink-0 rounded-full border px-3 text-xs font-medium transition-colors",
+              "h-10 shrink-0 rounded-full border px-3 text-xs font-medium transition-colors sm:h-8",
               assetFilter === filter.key
                 ? "border-brand bg-brand text-white"
                 : "border-line bg-panel text-sub hover:border-brand/40 hover:text-text"
@@ -1845,7 +1847,7 @@ export function Phase3({
           </TabsList>
           <TabsContent value={tab}>
             {currentGroups.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
+              <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 md:gap-4 xl:grid-cols-3">
                 {currentGroups.flatMap((group) =>
                   group.assets.map((asset) => (
                     <AssetCard
@@ -1934,7 +1936,7 @@ export function Phase3({
       </Dialog>
 
       <div className="sticky-action-bar">
-        <p className="text-sm text-sub">
+        <p className="text-sm leading-relaxed text-sub">
           {manageMode
             ? (pendingCount > 0 ? `${pendingCount} 个资产未确认。` : "所有资产已确认。")
             : (generatingCount > 0
@@ -1946,6 +1948,7 @@ export function Phase3({
                   : "所有资产已确认，可以开始制作。")}
         </p>
         <Button
+          className="w-full sm:w-auto"
           onClick={handleFinish}
           disabled={submitting || (!manageMode && generatingCount > 0)}
           variant={manageMode ? "outline" : "default"}
@@ -2061,10 +2064,10 @@ export default function NewProjectScreen({
 
   return (
     <div className="min-h-screen">
-      <div className="page-shell py-10">
-        <div className="page-header mb-10">
+      <div className="page-shell py-4 sm:py-8 lg:py-10">
+        <div className="page-header mb-6 sm:mb-10">
           <p className="section-title mb-2">Project Initialization</p>
-          <h1 className="text-4xl font-black text-text">{project.title}</h1>
+          <h1 className="break-words text-2xl font-black text-text sm:text-4xl">{project.title}</h1>
           <p className="text-base text-sub mt-2">完成以下三步后即可开始分集制作。</p>
         </div>
         <StepIndicator current={phase} maxReached={maxReached} />

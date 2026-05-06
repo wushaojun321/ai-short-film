@@ -37,7 +37,7 @@ export function Sheet({ open, onClose, title, children, width = "sm:w-[480px]" }
       {/* 抽屉面板 */}
       <div
         className={cn(
-          "fixed top-0 right-0 z-50 h-full w-[calc(100vw-1rem)] max-w-full bg-panel/95 shadow-card-hover flex flex-col transition-transform duration-300 ease-in-out border-l border-line backdrop-blur-xl",
+          "fixed top-0 right-0 z-50 h-full w-full max-w-full bg-panel/95 shadow-card-hover flex flex-col transition-transform duration-300 ease-out border-l border-line backdrop-blur-xl sm:w-[calc(100vw-1rem)]",
           width,
           open ? "translate-x-0" : "translate-x-full"
         )}
@@ -46,12 +46,13 @@ export function Sheet({ open, onClose, title, children, width = "sm:w-[480px]" }
           {title && <h3 className="min-w-0 font-bold text-text text-base leading-snug">{title}</h3>}
           <button
             onClick={onClose}
-            className="ml-auto rounded-lg border border-line bg-soft/70 p-1.5 text-muted transition-colors hover:border-brand/40 hover:text-text"
+            className="ml-auto inline-flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-soft/70 text-muted transition-colors hover:border-brand/40 hover:text-text"
+            aria-label="关闭"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+        <div className="flex-1 overflow-y-auto px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-5">
           {children}
         </div>
       </div>

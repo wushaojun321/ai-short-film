@@ -152,7 +152,7 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0">
                   <p className="section-title mb-2">Episode Workspace</p>
-                  <h2 className="text-xl font-black text-text sm:text-2xl">
+                  <h2 className="break-words text-xl font-black text-text sm:text-2xl">
                     第 {activeEpisode.number} 集 · {activeEpisode.title}
                   </h2>
                   {activeEpisode.summary && (
@@ -182,12 +182,12 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
                     </p>
                   )}
                 </div>
-                <div className="flex w-full flex-wrap items-center gap-2 shrink-0 xl:ml-4 xl:w-auto">
+                <div className="mobile-action-grid w-full shrink-0 xl:ml-4 xl:w-auto">
                   {activeEpisode.scriptExcerpt && (
                     <Button
                       size="default"
                       variant="outline"
-                      className="flex-1 items-center gap-2 sm:flex-none"
+                      className="w-full items-center gap-2 sm:w-auto"
                       onClick={() => setScriptSheetOpen(true)}
                     >
                       <FileText className="w-3.5 h-3.5" />
@@ -197,7 +197,7 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
                   <Button
                       size="default"
                     variant="outline"
-                    className="flex-1 items-center gap-2 sm:flex-none"
+                    className="w-full items-center gap-2 sm:w-auto"
                     onClick={() => navigate(`/projects/${project.id}?view=assets`)}
                   >
                     <Images className="w-3.5 h-3.5" />

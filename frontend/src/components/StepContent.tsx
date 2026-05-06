@@ -107,10 +107,10 @@ function ApprovalBar({
 }: ApprovalBarProps) {
   return (
     <div className={cn(
-      "flex items-center gap-4 px-4 bg-panel/95 rounded-xl border border-line shadow-xs",
+      "flex flex-col gap-3 rounded-xl border border-line bg-panel/95 px-4 shadow-xs sm:flex-row sm:items-center sm:gap-4",
       compact ? "py-2.5" : "mb-5 py-3"
     )}>
-      <div className="flex-1">
+      <div className="w-full flex-1">
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-xs text-sub">审批进度</span>
           <span className={cn(
@@ -133,9 +133,9 @@ function ApprovalBar({
           <p className="text-xs text-muted mt-1">后台重新生成中，你可以继续其他操作</p>
         )}
       </div>
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:shrink-0 sm:items-center">
         {onRegenerate && !allApproved && (
-          <Button size="sm" variant="outline" onClick={onRegenerate} disabled={regenerating}>
+          <Button size="sm" className="w-full sm:w-auto" variant="outline" onClick={onRegenerate} disabled={regenerating}>
             {regenerating
               ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />重新生成中…</>
               : <><RefreshCw className="w-3.5 h-3.5" />{regenerateLabel ?? "打回重新生成"}</>
@@ -144,6 +144,7 @@ function ApprovalBar({
         )}
         <Button
           size="sm"
+          className="w-full sm:w-auto"
           onClick={onApproveAll}
           disabled={allApproved || approving || notReady || regenerating}
         >
@@ -404,12 +405,12 @@ function StepScript({
                   <div
                     key={shot.id}
                     className={cn(
-                      "media-card p-4",
+                      "media-card p-3 sm:p-4",
                       approved ? "border-brand/30 bg-brand/5" : "border-line",
                     )}
                   >
-                    <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-soft flex items-center justify-center text-xs font-black text-text shrink-0 ring-1 ring-line/80">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-soft text-xs font-black text-text ring-1 ring-line/80">
                         {index + 1}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -449,29 +450,34 @@ function StepScript({
                             </div>
                           </div>
                         ) : (
-                          <div className="group/desc flex items-start gap-2">
+                          <div className="group/desc flex flex-col gap-2 sm:flex-row sm:items-start">
                             <p className="text-xs text-sub leading-relaxed flex-1">{shot.description}</p>
-                            <button
-                              onClick={() => setPromptShot(shot)}
-                              className="shrink-0 p-1.5 rounded-lg border border-line bg-panel text-muted transition-colors hover:bg-soft hover:text-brand"
-                              title="查看完整提交提示词"
-                            >
-                              <FileText className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleStartEdit(shot)}
-                              className="shrink-0 p-1.5 rounded-lg border border-line bg-panel text-muted transition-colors hover:bg-soft hover:text-brand"
-                              title="编辑描述"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => setAgentTarget(shot.id)}
-                              className="shrink-0 p-1.5 rounded-lg border border-line bg-panel text-muted transition-colors hover:bg-soft hover:text-brand"
-                              title="AI 修改"
-                            >
-                              <MessageCircle className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="flex shrink-0 items-center gap-2 sm:gap-1.5">
+                              <button
+                                onClick={() => setPromptShot(shot)}
+                                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-line bg-panel text-muted transition-colors hover:bg-soft hover:text-brand sm:h-8 sm:w-8"
+                                title="查看完整提交提示词"
+                                aria-label="查看完整提交提示词"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleStartEdit(shot)}
+                                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-line bg-panel text-muted transition-colors hover:bg-soft hover:text-brand sm:h-8 sm:w-8"
+                                title="编辑描述"
+                                aria-label="编辑描述"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setAgentTarget(shot.id)}
+                                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-line bg-panel text-muted transition-colors hover:bg-soft hover:text-brand sm:h-8 sm:w-8"
+                                title="AI 修改"
+                                aria-label="AI 修改"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
                         )}
 
@@ -805,12 +811,12 @@ function StepVideos({
       <div className="space-y-3">
         {/* 中央预览 */}
         {shot && (
-          <div className="page-panel tech-border p-3 sm:p-4">
-            <div className="grid items-start gap-4 lg:grid-cols-[minmax(180px,1fr)_minmax(260px,420px)_minmax(190px,240px)]">
+          <div className="studio-work-area tech-border p-3 sm:p-4">
+            <div className="grid items-start gap-4 lg:grid-cols-[minmax(120px,1fr)_minmax(260px,420px)_minmax(190px,240px)]">
               <div className="hidden lg:block" />
 
               <div className="min-w-0">
-                <div className="mb-3 flex items-center justify-between rounded-xl border border-line bg-elev px-3 py-2">
+                <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-line bg-elev px-3 py-2">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-text">{selectedShotLabel}</p>
                     <p className="text-xs text-muted">
@@ -818,11 +824,11 @@ function StepVideos({
                       {shot.shotCode ? ` · 原编号 ${shot.shotCode}` : ""}
                     </p>
                   </div>
-                  <Badge variant={shotBusy ? "warning" : shotApproved || shot.videoUrl ? "success" : "outline"}>
+                  <Badge variant={shotBusy ? "warning" : shotApproved || shot.videoUrl ? "success" : "outline"} className="shrink-0">
                     {shotBusy ? "生成中" : shotApproved ? "已通过" : shot.videoUrl ? "已生成" : "待生成"}
                   </Badge>
                 </div>
-                <div className="mx-auto aspect-[9/16] w-full max-w-[320px] bg-black rounded-2xl border border-line flex items-center justify-center mb-3 relative overflow-hidden shadow-lg sm:max-w-[360px] lg:h-[clamp(320px,46vh,560px)] lg:w-auto lg:max-w-full">
+                <div className="relative mx-auto mb-3 flex aspect-[9/16] w-full max-w-[300px] items-center justify-center overflow-hidden rounded-2xl border border-line bg-black shadow-lg sm:max-w-[360px] lg:h-[clamp(320px,46vh,560px)] lg:w-auto lg:max-w-full">
                   {(loadingIds.has(shot.id) || shot.state === "rendering") ? (
                     <div className="flex flex-col items-center gap-2">
                       <Loader2 className="w-8 h-8 text-warn animate-spin" />
@@ -858,7 +864,7 @@ function StepVideos({
               </div>
 
               <div className="lg:pt-[56px]">
-                <div className="rounded-2xl border border-line bg-panel/88 p-2.5 shadow-xs">
+                <div className="rounded-2xl border border-line bg-panel/90 p-2.5 shadow-xs">
                   <button
                     onClick={() => setPromptSheetOpen(true)}
                     className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-line px-2 py-2 text-xs text-muted transition-colors hover:border-brand/30 hover:bg-brand-soft hover:text-brand"
@@ -909,7 +915,7 @@ function StepVideos({
               {selected + 1} / {shots.length}
             </span>
           </div>
-          <div className="flex snap-x gap-3 overflow-x-auto pb-1">
+          <div className="scroll-shadow-x flex snap-x gap-3 overflow-x-auto pb-1">
             {shotGroups.map((group, groupIdx) => (
               <div key={group.key} className="shrink-0 snap-start">
                 <div className="mb-1.5 flex items-center gap-2 px-1">
@@ -930,7 +936,7 @@ function StepVideos({
                         key={s.id}
                         onClick={() => setSelected(idx)}
                         className={cn(
-                          "min-w-[136px] max-w-[136px] rounded-xl border p-2 text-left transition-all sm:min-w-[150px] sm:max-w-[150px]",
+                          "min-h-[68px] min-w-[136px] max-w-[136px] rounded-xl border p-2 text-left transition-all active:scale-[0.99] sm:min-w-[150px] sm:max-w-[150px]",
                           selected === idx ? "border-brand bg-brand-soft shadow-sm" : "border-line bg-panel hover:bg-soft"
                         )}
                       >

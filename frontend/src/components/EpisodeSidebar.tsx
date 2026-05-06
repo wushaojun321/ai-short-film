@@ -73,7 +73,7 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
       </div>
 
       {/* 分集列表 */}
-      <div className="min-h-0 flex-1 overflow-x-auto lg:overflow-y-auto lg:overflow-x-hidden">
+      <div className="scroll-shadow-x min-h-0 flex-1 overflow-x-auto lg:overflow-y-auto lg:overflow-x-hidden lg:[mask-image:none]">
         <div className="flex gap-2 px-3 py-3 lg:block">
           {episodes.map((ep) => {
             const isActive = ep.id === activeEpisodeId;
@@ -84,7 +84,7 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
                 key={ep.id}
                 onClick={() => handleSelect(ep.id)}
                 className={cn(
-                  "min-w-[144px] text-left px-3 py-3 rounded-2xl flex items-center gap-2.5 border lg:mb-2 lg:w-full lg:min-w-0 lg:px-4 lg:py-3.5 lg:gap-3",
+                  "min-h-[68px] min-w-[148px] text-left px-3 py-3 rounded-2xl flex items-center gap-2.5 border lg:mb-2 lg:w-full lg:min-w-0 lg:px-4 lg:py-3.5 lg:gap-3",
                   "transition-all duration-150 group",
                   isActive
                     ? "bg-brand-soft border-brand/35 shadow-brand"
