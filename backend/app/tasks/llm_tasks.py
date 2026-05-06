@@ -1120,7 +1120,13 @@ async def _parse_script_async(celery_id: str, project_id: str):
         started = time.perf_counter()
         try:
             result = await asyncio.wait_for(
-                llm_service.chat_json(system_prompt, user_prompt, max_tokens=max_tokens),
+                llm_service.chat_json(
+                    system_prompt,
+                    user_prompt,
+                    max_tokens=max_tokens,
+                    scope=label,
+                    audit={"project_id": project_id},
+                ),
                 timeout=timeout_seconds,
             )
         except Exception as exc:
@@ -1150,7 +1156,14 @@ async def _parse_script_async(celery_id: str, project_id: str):
         started = time.perf_counter()
         try:
             result = await asyncio.wait_for(
-                llm_service.chat_completion(system_prompt, user_prompt, temperature=0.2, max_tokens=max_tokens),
+                llm_service.chat_completion(
+                    system_prompt,
+                    user_prompt,
+                    temperature=0.2,
+                    max_tokens=max_tokens,
+                    scope=label,
+                    audit={"project_id": project_id},
+                ),
                 timeout=timeout_seconds,
             )
         except Exception as exc:
@@ -1595,6 +1608,35 @@ def _build_shot_asset_index(assets) -> list[dict]:
     ]
 
 
+def _segment_asset_index(segment_plan: dict, episode_asset_index: list[dict]) -> list[dict]:
+    """Return the compact asset index needed by one segment detail call."""
+    raw_ids = segment_plan.get("key_asset_ids") or segment_plan.get("asset_ids") or []
+    if isinstance(raw_ids, (str, dict)):
+        raw_ids = [raw_ids]
+    if not isinstance(raw_ids, list):
+        raw_ids = []
+
+    selected_ids: set[str] = set()
+    for item in raw_ids:
+        if isinstance(item, dict):
+            value = item.get("id") or item.get("asset_id")
+        else:
+            value = item
+        value = str(value or "").strip()
+        if value:
+            selected_ids.add(value)
+
+    if not selected_ids:
+        return episode_asset_index
+
+    selected = [
+        asset
+        for asset in episode_asset_index
+        if str(asset.get("id") or "").strip() in selected_ids
+    ]
+    return selected or episode_asset_index
+
+
 def _normalize_match_text(value: str) -> str:
     return str(value or "").lower().replace(" ", "")
 
@@ -1919,6 +1961,8 @@ async def _repair_storyboard_continuity(
     script_excerpt: str,
     continuity_notes: str,
     asset_list: list[dict],
+    project_id: str = "",
+    episode_id: str = "",
     record=None,
 ) -> dict:
     """Run a lightweight continuity repair pass after storyboard generation.
@@ -1953,7 +1997,13 @@ async def _repair_storyboard_continuity(
                 "storyboard_json": storyboard_json,
             },
         )
-        repaired = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=20000)
+        repaired = await llm_service.chat_json(
+            system_prompt,
+            user_prompt,
+            max_tokens=20000,
+            scope=scope.value if hasattr(scope, "value") else str(scope),
+            audit={"project_id": project_id, "episode_id": episode_id},
+        )
         if isinstance(repaired, dict) and _extract_shot_list(repaired):
             if record:
                 issues = repaired.get("issues") or []
@@ -2038,7 +2088,13 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
             await record.set({"progress": 20})
 
         try:
-            plan_result = await llm_service.chat_json(system_prompt, user_prompt, max_tokens=6000)
+            plan_result = await llm_service.chat_json(
+                system_prompt,
+                user_prompt,
+                max_tokens=6000,
+                scope=PromptConfigScope.shot_segment_plan.value,
+                audit={"project_id": str(episode.project_id), "episode_id": str(episode.id)},
+            )
             plan_segments = _extract_segment_plan_list(plan_result)
         except Exception as plan_exc:
             plan_segments = _fallback_segment_plan_from_script(episode.script_excerpt or episode.summary or "")
@@ -2066,6 +2122,8 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
                 segment_plan,
                 episode.script_excerpt or episode.summary or "",
             )
+            segment_asset_index = _segment_asset_index(segment_plan, asset_index)
+            segment_asset_index_json = json.dumps(segment_asset_index, ensure_ascii=False)
             detail_system_prompt, detail_user_prompt, _ = await render(
                 PromptConfigScope.shot_segment_detail,
                 {
@@ -2076,7 +2134,7 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
                     "script_excerpt": segment_script,
                     "continuity_notes": episode.continuity_notes or "无",
                     "previous_context": previous_context,
-                    "asset_index": asset_index_json,
+                    "asset_index": segment_asset_index_json,
                     "max_shot_duration": max_shot_duration,
                     "feedback_section": f"\n\n修改意见：\n{feedback}" if feedback else "",
                 },
@@ -2085,6 +2143,13 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
                 detail_system_prompt,
                 detail_user_prompt,
                 max_tokens=32000,
+                scope=PromptConfigScope.shot_segment_detail.value,
+                audit={
+                    "project_id": str(episode.project_id),
+                    "episode_id": str(episode.id),
+                    "segment_code": segment_code,
+                    "asset_count": len(segment_asset_index),
+                },
             )
             normalized_segment = _normalize_segment_detail(detail_result, segment_plan, segment_idx)
             detailed_segments.append(normalized_segment)
@@ -2121,6 +2186,8 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
             script_excerpt=episode.script_excerpt or episode.summary or "",
             continuity_notes=episode.continuity_notes or "无",
             asset_list=asset_index,
+            project_id=str(episode.project_id),
+            episode_id=str(episode.id),
             record=record,
         )
 

@@ -48,6 +48,7 @@ class ShotUpdate(BaseModel):
     description: Optional[str] = None
     prompt: Optional[str] = None
     submitted_prompt: Optional[str] = None
+    submitted_prompt_input_hash: Optional[str] = None
     state: Optional[ShotState] = None
     image_url: Optional[str] = None
     video_url: Optional[str] = None

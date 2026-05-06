@@ -65,6 +65,7 @@ class ShotPromptAgent:
         self,
         data: ShotPromptInput,
         blocked_words: list[str] | None = None,
+        audit: dict | None = None,
     ) -> ShotPromptOutput:
         system_prompt, user_prompt, _ = await render(
             PromptConfigScope.shot_video_gen,
@@ -107,6 +108,8 @@ class ShotPromptAgent:
             parsed = await llm_service.chat_json(
                 system_prompt=system_prompt + blocked_note,
                 user_prompt=user_prompt,
+                scope=PromptConfigScope.shot_video_gen.value,
+                audit=audit,
             )
             if isinstance(parsed, str):
                 parsed = json.loads(parsed)

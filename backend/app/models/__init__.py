@@ -7,6 +7,7 @@ from .asset import Asset, AssetType, AssetStatus, AssetVersion
 from .conversation import Conversation, Message, ConversationTarget, ConversationRole
 from .prompt_config import PromptConfig, PromptConfigScope
 from .task_record import TaskRecord, TaskStatus
+from .llm_call_record import LLMCallRecord
 from .user import User
 from .invite_code import InviteCode
 
@@ -20,6 +21,7 @@ __all__ = [
     "Conversation", "Message", "ConversationTarget", "ConversationRole",
     "PromptConfig", "PromptConfigScope",
     "TaskRecord", "TaskStatus",
+    "LLMCallRecord",
     "User",
     "InviteCode",
 ]

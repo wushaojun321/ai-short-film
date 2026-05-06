@@ -220,7 +220,15 @@ async def send_message(
     messages.append({"role": "user", "content": user_content})
 
     # Call LLM
-    reply = await llm_service.chat_with_history(messages)
+    reply = await llm_service.chat_with_history(
+        messages,
+        scope=f"conversation_{conversation.target_type}",
+        audit={
+            "project_id": str(conversation.project_id),
+            "target_id": str(conversation.target_id),
+            "target_type": str(conversation.target_type),
+        },
+    )
 
     # Save both messages to conversation
     user_msg = Message(

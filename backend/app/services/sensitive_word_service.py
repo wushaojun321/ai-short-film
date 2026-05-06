@@ -75,7 +75,12 @@ async def extract_and_save(prompt: str, source: str) -> list[str]:
 
     words: list[str] = []
     try:
-        raw = await llm_service.chat_json(system_prompt=system, user_prompt=user)
+        raw = await llm_service.chat_json(
+            system_prompt=system,
+            user_prompt=user,
+            scope="sensitive_word_extract",
+            audit={"source": source},
+        )
         if isinstance(raw, str):
             import json
             raw = json.loads(raw)

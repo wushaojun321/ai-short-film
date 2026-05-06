@@ -556,7 +556,6 @@ function StepVideos({
   }, [shots]);
 
   const missingVideoCount = shots.filter((s) => !s.videoUrl).length;
-  const pendingVideoShots = shots.filter((s) => !s.videoUrl && !loadingIds.has(s.id) && s.state !== "rendering");
   const hasUngenerated = missingVideoCount > 0;
   const shot = shots[selected] ?? shots[0];
   const submittedPrompt = shot?.submittedPrompt;
@@ -800,21 +799,6 @@ function StepVideos({
 
                   {!shotBusy ? (
                     <div className="grid grid-cols-2 gap-2">
-                      {hasUngenerated && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          className="col-span-2"
-                          onClick={handleBatchGenerate}
-                          disabled={batchGenerating || pendingVideoShots.length === 0}
-                        >
-                          {batchGenerating ? (
-                            <><Loader2 className="w-3.5 h-3.5 animate-spin" />生成中…</>
-                          ) : (
-                            <><Play className="w-3.5 h-3.5" />生成所有镜头</>
-                          )}
-                        </Button>
-                      )}
                       <Button
                         size="sm"
                         variant={shot.videoUrl ? "outline" : "default"}

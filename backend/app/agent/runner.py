@@ -19,6 +19,8 @@ async def run_agent(
     user_message: str,            # current user input
     tools: list[dict],            # OpenAI function schemas for this target
     max_rounds: int = 5,
+    history_limit: int = 20,
+    audit: dict | None = None,
 ) -> tuple[str, list[dict], list[dict]]:
     """
     Execute agent loop.
@@ -31,7 +33,7 @@ async def run_agent(
     """
     # Build full message list: system + history + new user message
     msgs: list[dict] = [{"role": "system", "content": system_prompt}]
-    msgs.extend(history)
+    msgs.extend(history[-history_limit:] if history_limit > 0 else [])
     user_msg = {"role": "user", "content": user_message}
     msgs.append(user_msg)
 
@@ -42,6 +44,8 @@ async def run_agent(
         text_reply, tool_calls = await chat_with_tools(
             messages=msgs,
             tools=tools,
+            scope="agent_tool_call",
+            audit=audit,
         )
 
         if tool_calls:

@@ -748,15 +748,17 @@
 
 这样后面做第 4 集、第 5 集时，就不需要再靠人工临时约束，而是直接按系统规则生产。
 
-## 15. 已落地：剧本解析多模块化
+## 15. 已落地：低 token 剧本解析链路
 
-当前初始化解析不再由单个 LLM 调用同时承担分集、资产、正文生成：
+当前初始化解析不采用串行多 Agent，而是采用“原文索引 + 单次综合规划 + 后端归并派生”的折中生产方案：
 
 1. `ScriptIndexer` 先把原始剧本切成 `script_blocks`，保留行号、块类型、说话人和原文位置。
-2. `SeriesPlannerAgent` 只生成全剧世界观、主线和连续性基调。
-3. `EpisodeSplitterAgent` 只规划每集对应的原文块范围，不生成 `script_excerpt` 正文。
-4. `EpisodeMaterialBuilder` 用原文块回填 `Episode.script_excerpt`，保证对白不会在摘要阶段丢失。
-5. `AssetExtractorAgent` 独立解析人物、场景、道具资产；人物继续按角色、场景和剧情阶段拆分，但同一角色的不同状态会归入同一个 `asset_package`，并共享 `face_identity` 作为全局人脸一致性基准。
+2. `ScriptProductionPlanAgent` 一次输出 JSONL 蓝图行，包括 series、episode、character、character_variant、scene、scene_variant、prop、prop_variant、ignore 和 warning。
+3. `EpisodeMaterialBuilder` 由后端根据 start_block / end_block 回填 `Episode.script_excerpt`，保证对白不会在摘要阶段丢失。
+4. 后端把 JSONL 资产注册表归并为 `ProductionBlueprint`，再派生当前前端兼容的 `Episode` / `Asset` 记录。
+5. 资产图片提示词不再二次调用 LLM，而由确定性 `asset_prompt_builder` 根据资产字段生成最终提交给 Seedream 的提示词。
+
+这套方案的目标是降低重复上下文和输出过长风险。`SeriesPlannerAgent`、`EpisodeSplitterAgent`、`AssetExtractorAgent` 等独立 Agent 仍可作为后续演进方向，但不再写作当前已落地实现。
 
 人物资产一致性规则：
 

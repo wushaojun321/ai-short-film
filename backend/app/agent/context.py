@@ -7,6 +7,13 @@ from __future__ import annotations
 from app.prompts import BASE_INSTRUCTIONS
 
 
+def _clip(text: str | None, limit: int = 300) -> str:
+    value = (text or "").strip()
+    if len(value) <= limit:
+        return value
+    return value[:limit].rstrip() + "..."
+
+
 async def build_system_prompt(
     target_type: str,
     target_id: str,
@@ -75,7 +82,7 @@ async def _build_snapshot(target_type: str, target_id: str) -> str:
                 f"shot_id：{target_id}\n"
                 f"镜头编号：{shot.shot_code}\n"
                 f"场景描述：{shot.description}\n"
-                f"当前提示词：{shot.prompt}\n"
+                f"当前提示词摘要：{_clip(shot.prompt, 500)}\n"
                 f"绑定资产：{assets_str}\n"
                 f"与上一镜衔接：{shot.transition_in or '无'}\n"
                 f"与下一镜衔接：{shot.transition_out or '无'}\n"
@@ -129,7 +136,6 @@ async def _build_snapshot(target_type: str, target_id: str) -> str:
                 if typed:
                     asset_lines.append(f"  【{label}】")
                     for a in typed:
-                        prompt_text = f"{a.prompt[:80]}…" if len(a.prompt) > 80 else a.prompt
                         voice_text = f" | voice: {a.voice_profile}" if getattr(a, "voice_profile", "") else ""
                         meta_parts = [
                             f"角色:{a.character_name}" if getattr(a, "character_name", "") else "",
@@ -139,7 +145,7 @@ async def _build_snapshot(target_type: str, target_id: str) -> str:
                             f"阶段:{a.appearance_stage}" if getattr(a, "appearance_stage", "") else "",
                         ]
                         meta_text = " | " + "，".join(part for part in meta_parts if part) if any(meta_parts) else ""
-                        asset_lines.append(f"    - {a.name}（id:{a.id}）| prompt: {prompt_text}{meta_text}{voice_text}")
+                        asset_lines.append(f"    - {a.name}（id:{a.id}）{meta_text}{voice_text}")
 
             eps_text = "\n".join(eps_lines) if eps_lines else "  （暂无分集）"
             assets_text = "\n".join(asset_lines) if asset_lines else "  （暂无资产）"

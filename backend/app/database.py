@@ -4,6 +4,7 @@ from app.models import (
     Project, Episode, Shot, Asset,
     ScriptBlock, ProductionBlueprint,
     Conversation, PromptConfig, TaskRecord,
+    LLMCallRecord,
     User, InviteCode,
 )
 
@@ -21,6 +22,7 @@ async def init_db():
             Conversation,
             PromptConfig,
             TaskRecord,
+            LLMCallRecord,
             User,
             InviteCode,
         ],

@@ -1,11 +1,37 @@
 """Video generation Celery tasks using Seedance."""
 from __future__ import annotations
+import hashlib
+import json
 import logging
 from datetime import datetime
 from app.celery_app import celery_app
 from app.tasks.base import run_async, finish_task_record
 
 logger = logging.getLogger(__name__)
+SHOT_VIDEO_PROMPT_CACHE_VERSION = "shot-video-prompt-v1"
+
+
+def _shot_prompt_payload(prompt_input, reference_images: list[str], blocked_words: list[str]) -> dict:
+    try:
+        prompt_data = prompt_input.model_dump(mode="json")
+    except TypeError:
+        prompt_data = prompt_input.model_dump()
+    return {
+        "version": SHOT_VIDEO_PROMPT_CACHE_VERSION,
+        "prompt_input": prompt_data,
+        "reference_images": reference_images,
+        "blocked_words": sorted(blocked_words or []),
+    }
+
+
+def _shot_prompt_input_hash(prompt_input, reference_images: list[str], blocked_words: list[str]) -> str:
+    raw = json.dumps(
+        _shot_prompt_payload(prompt_input, reference_images, blocked_words),
+        ensure_ascii=False,
+        sort_keys=True,
+        default=str,
+    )
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 @celery_app.task(bind=True, name="app.tasks.video.gen_shot_video", queue="video")
@@ -189,29 +215,63 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
         from app.services import sensitive_word_service
 
         submitted_prompt = ""
+        submitted_prompt_input_hash = ""
 
         MAX_RETRIES = 3
         result = None
         for attempt in range(MAX_RETRIES):
             # 每次重试都重新生成 prompt，注入最新黑名单
             blocked = await sensitive_word_service.get_all_words()
-
-            prompt_output = await shot_prompt_agent.generate(
+            prompt_input_hash = _shot_prompt_input_hash(
                 prompt_input,
-                blocked_words=blocked,
+                reference_context.reference_images,
+                blocked,
             )
-            if prompt_output.error and record:
-                await record.set({"logs": (record.logs or []) + [f"[prompt-agent] LLM 优化失败：{prompt_output.error}"]})
-            if prompt_output.used_fallback and record:
-                # 兜底：不含敏感词的中文视觉描述
-                await record.set({"logs": (record.logs or []) + ["[prompt-agent] 使用兜底通用提示词"]})
 
-            submitted_prompt = prompt_output.submitted_prompt
+            if (
+                attempt == 0
+                and shot.submitted_prompt
+                and shot.submitted_prompt_input_hash == prompt_input_hash
+            ):
+                submitted_prompt = shot.submitted_prompt
+                submitted_prompt_input_hash = prompt_input_hash
+                if record:
+                    await record.set({
+                        "logs": (record.logs or []) + ["[prompt-agent] 输入未变化，复用已保存的最终提交提示词"]
+                    })
+            else:
+                prompt_output = await shot_prompt_agent.generate(
+                    prompt_input,
+                    blocked_words=blocked,
+                    audit={
+                        "project_id": str(shot.project_id),
+                        "episode_id": str(shot.episode_id),
+                        "shot_id": str(shot.id),
+                        "shot_code": shot.shot_code,
+                        "attempt": attempt + 1,
+                    },
+                )
+                if prompt_output.error and record:
+                    await record.set({"logs": (record.logs or []) + [f"[prompt-agent] LLM 优化失败：{prompt_output.error}"]})
+                if prompt_output.used_fallback and record:
+                    # 兜底：不含敏感词的中文视觉描述
+                    await record.set({"logs": (record.logs or []) + ["[prompt-agent] 使用兜底通用提示词"]})
 
-            # 立即写入最终真实提交文本，前端生成中即可看到。
-            await shot.set({"submitted_prompt": submitted_prompt})
-            if record:
-                await record.set({"logs": (record.logs or []) + [f"[prompt] 最终提交提示词：{submitted_prompt}"]})
+                submitted_prompt = prompt_output.submitted_prompt
+
+                # 立即写入最终真实提交文本，前端生成中即可看到。
+                prompt_updates = {"submitted_prompt": submitted_prompt}
+                if prompt_output.used_fallback:
+                    prompt_updates["submitted_prompt_input_hash"] = ""
+                    prompt_updates["submitted_prompt_cached_at"] = None
+                    submitted_prompt_input_hash = ""
+                else:
+                    prompt_updates["submitted_prompt_input_hash"] = prompt_input_hash
+                    prompt_updates["submitted_prompt_cached_at"] = datetime.utcnow()
+                    submitted_prompt_input_hash = prompt_input_hash
+                await shot.set(prompt_updates)
+                if record:
+                    await record.set({"logs": (record.logs or []) + [f"[prompt] 最终提交提示词：{submitted_prompt}"]})
 
             if record:
                 attempt_label = f"第 {attempt + 1} 次" if attempt > 0 else ""
@@ -277,6 +337,8 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
             "state": ShotState.rendered,
             "generation_task_id": celery_id,
             "submitted_prompt": submitted_prompt,
+            "submitted_prompt_input_hash": submitted_prompt_input_hash,
+            "submitted_prompt_cached_at": datetime.utcnow() if submitted_prompt_input_hash else None,
             "continuity_dirty": bool(reference_context.warnings),
             "continuity_dirty_reason": "；".join(reference_context.warnings) if reference_context.warnings else "",
             "version": version_label,

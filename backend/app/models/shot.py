@@ -80,6 +80,8 @@ class Shot(Document):
     dialogues: list[ShotDialogueLine] = []  # 一个镜头可有多句对白
     prompt: str = ""
     submitted_prompt: str = ""
+    submitted_prompt_input_hash: str = ""
+    submitted_prompt_cached_at: Optional[datetime] = None
     required_assets: list[ShotAssetBinding] = []
     state: ShotState = ShotState.planned
     version: str = "v1"

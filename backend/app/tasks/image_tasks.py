@@ -294,6 +294,13 @@ async def _gen_shot_image_async(celery_id: str, shot_id: str):
                 raw = await llm_service.chat_json(
                     system_prompt=system_prompt + blocked_note,
                     user_prompt=user_prompt,
+                    scope=PromptConfigScope.shot_image_gen.value,
+                    audit={
+                        "project_id": str(shot.project_id),
+                        "episode_id": str(shot.episode_id),
+                        "shot_id": str(shot.id),
+                        "shot_code": shot.shot_code,
+                    },
                 )
                 if isinstance(raw, str):
                     raw = json.loads(raw)

@@ -127,6 +127,12 @@ async def chat(conv_id: PydanticObjectId, body: ChatRequest, current_user: User 
         history=history,
         user_message=body.content,
         tools=tools,
+        history_limit=20,
+        audit={
+            "project_id": str(conv.project_id),
+            "target_id": str(conv.target_id),
+            "target_type": str(conv.target_type),
+        },
     )
 
     now = datetime.utcnow()
@@ -266,6 +272,12 @@ async def chat(conv_id: PydanticObjectId, body: ChatRequest) -> ChatResponse:
         history=history,
         user_message=body.content,
         tools=tools,
+        history_limit=20,
+        audit={
+            "project_id": str(conv.project_id),
+            "target_id": str(conv.target_id),
+            "target_type": str(conv.target_type),
+        },
     )
 
     # Persist new user + assistant messages (skip tool messages — internal detail)

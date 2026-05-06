@@ -222,7 +222,7 @@ Celery 队列和 Docker Compose 服务对应关系：
 
 | 服务 | 队列 | 作用 |
 | --- | --- | --- |
-| `worker-llm` | `llm` | 剧本解析、长剧本 Map-Reduce、分镜脚本生成 |
+| `worker-llm` | `llm` | 剧本综合规划、分镜片段规划/细化、对话 Agent |
 | `worker-image` | `image` | 资产图片、兼容性分镜剧照接口 |
 | `worker-video` | `video` | 分镜视频 |
 | `worker-merge` | `merge` | 整集视频拼接 |
@@ -283,7 +283,11 @@ ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker
 `docs/workflow-spec.md` 是目标工作流规范，当前代码已经实现主链路，但仍有差距：
 
 - 已实现：项目/用户隔离、剧本上传、原文索引、分集和资产记录、资产图、分镜视频、合片、任务记录、进度轮询、代码侧提示词配置、制品对话入口。
-- 解析链路正在向 `ProductionBlueprint` 过渡：分集蓝图、每集资产需求、人物圣经、人物阶段资产、场景/道具圣经和蓝图校验结果先作为中间真相层保存，再派生现有 `Episode` / `Asset`，以兼容当前前端。
+- 解析链路已经收敛为“原文索引 + 单次综合 JSONL 规划 + 后端归并派生”：`ScriptIndexer` 保留原文块和行号，`ScriptProductionPlanAgent` 一次输出 series / episodes / asset registry / ignore / warning 行，后端再回填 `Episode.script_excerpt` 并派生 `ProductionBlueprint`、`Episode`、`Asset`。
+- 这不是串行多 Agent 解析；多模块解析目前只作为后续演进选项，需等真实项目验证单次综合解析的瓶颈后再拆。
+- LLM 调用已写入 `llm_call_records`，可按 `scope`、项目、分集、镜头追踪输入/输出字符、token 用量和耗时。
+- 视频生成前 `ShotPromptAgent` 的最终提示词已加输入 hash 缓存；镜头、资产引用、台词和敏感词黑名单未变化时复用 `submitted_prompt`，避免重复调用 LLM。
+- 分镜片段细化阶段优先只传当前片段 `key_asset_ids` 对应资产，LLM 未给片段资产 id 时才回退本集候选资产。
 - 部分实现：短期版片段元数据、资产按需生成、连续性注入、参考图策略、敏感词重试、审核状态机。
 - 未完全实现：独立 beat/片段实体、镜头级资产绑定 schema、自动缺失资产检查、提交前校验器、片段预览、TTS 配音任务、视频生成百分比透传、任务恢复监控、队列满时的 queued 状态全链路。
 
@@ -293,7 +297,7 @@ ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker
 
 优先级建议：
 
-1. `ScriptAnalysisAgent`：新增独立剧本解析层，写入 `ProductionBlueprint.script_analysis`，包含人物表、人物关系、主线/副线、关键节点、分集切点候选、角色状态变化线和原稿风险点。它只做理解，不拆镜头。
+1. `ScriptAnalysisAgent`：暂不作为默认解析链路；如果真实长剧本继续暴露人物关系、角色状态线或资产阶段误判，再新增独立剧本理解层，写入 `ProductionBlueprint.script_analysis`。它只做理解，不拆镜头。
 2. `BeatPlanningAgent`：将片段/beat 做成正式阶段和可审核数据。每集先拆片段，再拆镜头；片段字段至少包含 `beat_id`、功能、场景、人物、开头状态、结尾落点、转场方式、片段级资产需求。
 3. 资产结构细化：当前 `Asset` 可继续作为前端卡片兼容层，但蓝图层应逐步拆出 `CharacterCore`、`CharacterLook`、`ScenePackage`、`SceneView`、`PropPackage`、`KeyframeRequirement`。
 4. 镜头资产绑定升级：`ShotAssetBinding` 不应长期只有 `asset_id / asset_name`，需要增加 `character_id`、`look_id`、`scene_id`、`scene_view_id`、`role_in_shot`、`speaker/listener`、`keyframe_id`、`tail_frame_policy`。
@@ -313,6 +317,6 @@ ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker
 ## 已知代码风险
 
 - `backend/app/routers/conversations.py` 中同一组 conversation 路由重复定义了一遍。当前 router 仍有全局登录依赖，但后半段缺少项目归属校验，后续应清理重复代码，只保留带 owner 校验的版本。
-- `llm_service.chat_json()` 仍可能把 LLM 的非法 JSON 原样抛出 `Unterminated string...`。需要进一步做截断检测、JSON 修复和更清晰的错误日志。
+- `llm_service.chat_json()` 已有截断检测、JSON 修复和调用审计；下一步需要补 schema 校验、调用统计页和失败样例聚合。
 - 提示词当前由 `backend/app/prompts/llm_prompts.py` 代码常量提供，`PromptConfig` 数据库模型和 `seed_data.py` 属于残留/预留结构；在线编辑、版本回滚当前不生效。
 - 后端测试依赖需要在本机安装完整；当前测试依赖缺失时会出现 `ModuleNotFoundError: motor`。
