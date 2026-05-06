@@ -416,11 +416,13 @@ function Phase2({
   episodes,
   setEpisodes,
   onNext,
+  onBackToScript,
 }: {
   projectId: string;
   episodes: EpisodeDraft[];
   setEpisodes: (eps: EpisodeDraft[]) => void;
   onNext: () => void;
+  onBackToScript: () => void;
 }) {
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -811,6 +813,9 @@ function Phase2({
 
       <div className="sticky-action-bar">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Button variant="outline" onClick={onBackToScript} disabled={submitting}>
+            <ChevronLeft className="w-4 h-4" />重新上传剧本
+          </Button>
           <Button variant="outline" onClick={() => setAgentOpen(true)} className="flex items-center gap-1.5">
             <MessageCircle className="w-4 h-4" />返工修改
           </Button>
@@ -1574,7 +1579,19 @@ function AssetGroupCard({
   );
 }
 
-export function Phase3({ projectId, onFinish, manageMode = false }: { projectId: string; onFinish: () => void; manageMode?: boolean }) {
+export function Phase3({
+  projectId,
+  onFinish,
+  manageMode = false,
+  onBackToPlan,
+  onBackToScript,
+}: {
+  projectId: string;
+  onFinish: () => void;
+  manageMode?: boolean;
+  onBackToPlan?: () => void;
+  onBackToScript?: () => void;
+}) {
   const [tab, setTab] = useState("character");
   const [assets, setAssets] = useState<ApiAsset[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -1728,6 +1745,30 @@ export function Phase3({ projectId, onFinish, manageMode = false }: { projectId:
             <h2 className="text-2xl font-black text-text sm:text-3xl">图片确认</h2>
           </div>
           <div className="flex flex-col gap-2 shrink-0 sm:flex-row sm:flex-wrap sm:items-center">
+            {!manageMode && onBackToPlan && (
+              <Button
+                size="default"
+                className="w-full sm:w-auto"
+                onClick={onBackToPlan}
+                disabled={submitting || batchGenerating}
+                variant="outline"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                返回分集与资产
+              </Button>
+            )}
+            {!manageMode && onBackToScript && (
+              <Button
+                size="default"
+                className="w-full sm:w-auto"
+                onClick={onBackToScript}
+                disabled={submitting || batchGenerating}
+                variant="outline"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                重新上传剧本
+              </Button>
+            )}
             <Button
               size="default"
               className="w-full sm:w-auto"
@@ -1944,6 +1985,14 @@ export default function NewProjectScreen({
     setPhase(p);
   };
 
+  const restartFromScriptUpload = () => {
+    setUploadedFile(null);
+    setTaskRecordId("");
+    setEpisodes([]);
+    setMaxReached(1);
+    setPhase(1);
+  };
+
   // 根据 init_status 恢复到正确的步骤
   useEffect(() => {
     async function resolvePhase() {
@@ -2042,10 +2091,16 @@ export default function NewProjectScreen({
             episodes={episodes}
             setEpisodes={setEpisodes}
             onNext={() => advanceTo(3)}
+            onBackToScript={restartFromScriptUpload}
           />
         )}
         {phase === 3 && (
-          <Phase3 projectId={project.id} onFinish={handleFinish} />
+          <Phase3
+            projectId={project.id}
+            onFinish={handleFinish}
+            onBackToPlan={() => advanceTo(2)}
+            onBackToScript={restartFromScriptUpload}
+          />
         )}
       </div>
     </div>

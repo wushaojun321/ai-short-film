@@ -39,6 +39,52 @@ const shotStateCfg: Record<ShotState, {
   planned:       { label: "待生成",    variant: "outline" },
 };
 
+type ShotGroup = {
+  key: string;
+  label: string;
+  segmentCode?: string;
+  segmentName?: string;
+  segmentFunction?: string;
+  items: Array<{ shot: Shot; index: number }>;
+};
+
+function shotNumberLabel(index: number) {
+  return `镜头${index + 1}`;
+}
+
+function buildShotGroups(shots: Shot[]): ShotGroup[] {
+  const groups: ShotGroup[] = [];
+  const groupMap = new Map<string, ShotGroup>();
+
+  shots.forEach((shot, index) => {
+    const segmentCode = shot.segmentCode?.trim();
+    const segmentName = shot.segmentName?.trim();
+    const key = segmentCode || segmentName || "ungrouped";
+    let group = groupMap.get(key);
+    if (!group) {
+      group = {
+        key,
+        label: segmentName || segmentCode || "未分段片段",
+        segmentCode,
+        segmentName,
+        segmentFunction: shot.segmentFunction,
+        items: [],
+      };
+      groupMap.set(key, group);
+      groups.push(group);
+    }
+    if (!group.segmentFunction && shot.segmentFunction) group.segmentFunction = shot.segmentFunction;
+    group.items.push({ shot, index });
+  });
+
+  return groups;
+}
+
+function segmentTitle(group: ShotGroup, groupIndex: number) {
+  const name = group.segmentName || group.segmentCode || group.label;
+  return `片段${groupIndex + 1}${name && name !== "未分段片段" ? ` · ${name}` : ""}`;
+}
+
 // ─── 顶部审批操作栏 ──────────────────────────────────────────
 
 interface ApprovalBarProps {
@@ -156,6 +202,7 @@ function StepScript({
 }: { episode: EpisodeDetail; projectId: string; isPast?: boolean }) {
   const shots = episode.shots;
   const generated = shots.length > 0;
+  const shotGroups = buildShotGroups(shots);
 
   // 派生：所有 shot 都是 approved 时，脚本已通过
   const allShotsApproved = shots.length > 0 && shots.every((s) => s.state === "approved");
@@ -254,6 +301,12 @@ function StepScript({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [promptShot]);
 
+  const promptShotIndex = promptShot ? shots.findIndex((s) => s.id === promptShot.id) : -1;
+  const promptShotLabel = promptShotIndex >= 0 ? shotNumberLabel(promptShotIndex) : "镜头";
+  const agentShot = agentTarget ? shots.find((s) => s.id === agentTarget) : undefined;
+  const agentShotIndex = agentShot ? shots.findIndex((s) => s.id === agentShot.id) : -1;
+  const agentShotLabel = agentShotIndex >= 0 ? shotNumberLabel(agentShotIndex) : "镜头";
+
   const handleSaveScriptPrompt = async () => {
     if (!promptShot) return;
     setSavingScriptPrompt(true);
@@ -330,128 +383,134 @@ function StepScript({
         regenerating={generating}
       />
 
-      <div className="space-y-3">
-        {shots.map((shot, idx) => {
-          const cfg = shotStateCfg[shot.state];
-          const isEditing = editingId === shot.id;
-
-          return (
-            <div
-              key={shot.id}
-              className={cn(
-                "media-card p-4",
-                approved ? "border-brand/30 bg-brand/5" : "border-line",
+      <div className="space-y-4">
+        {shotGroups.map((group, groupIdx) => (
+          <section key={group.key} className="rounded-2xl border border-line/80 bg-panel/60 p-3">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-2.5 py-1 text-xs font-semibold text-brand">
+                <Layers className="w-3 h-3" />{segmentTitle(group, groupIdx)}
+              </span>
+              {group.segmentFunction && (
+                <span className="rounded-full bg-soft px-2 py-1 text-xs text-sub">{group.segmentFunction}</span>
               )}
-            >
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-soft flex items-center justify-center text-xs font-semibold text-sub shrink-0 ring-1 ring-line/80">
-                  {idx + 1}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-2">
-                    <span className="text-sm font-medium text-text">镜头 {shot.shotCode}</span>
-                    <Badge variant={approved ? "success" : cfg.variant}>
-                      {approved ? "已通过" : cfg.label}
-                    </Badge>
-                    {shot.segmentName && (
-                      <span className="inline-flex items-center gap-1 text-xs text-sub bg-soft px-2 py-0.5 rounded-full">
-                        <Layers className="w-3 h-3" />{shot.segmentName}
-                      </span>
-                    )}
-                    {shot.segmentFunction && (
-                      <span className="text-xs text-sub bg-soft px-2 py-0.5 rounded-full">
-                        {shot.segmentFunction}
-                      </span>
-                    )}
-                    {shot.shotFunction && (
-                      <span className="text-xs text-brand bg-brand-soft px-2 py-0.5 rounded-full">
-                        {shot.shotFunction}
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1 text-xs text-muted">
-                      <Clock className="w-3 h-3" />{shot.duration}s
-                    </span>
-                    <span className="text-xs text-muted">{shot.version}</span>
-                  </div>
+              <span className="text-xs text-muted">{group.items.length} 个镜头</span>
+            </div>
+            <div className="space-y-3">
+              {group.items.map(({ shot, index }) => {
+                const cfg = shotStateCfg[shot.state];
+                const isEditing = editingId === shot.id;
 
-                  {isEditing ? (
-                    <div className="space-y-2">
-                      <Textarea
-                        value={editText}
-                        onChange={(e) => setEditText(e.target.value)}
-                        rows={3}
-                        className="text-xs"
-                        autoFocus
-                      />
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={() => handleSaveEdit(shot.id)}>
-                          <Check className="w-3.5 h-3.5" />保存
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
-                          取消
-                        </Button>
+                return (
+                  <div
+                    key={shot.id}
+                    className={cn(
+                      "media-card p-4",
+                      approved ? "border-brand/30 bg-brand/5" : "border-line",
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-soft flex items-center justify-center text-xs font-black text-text shrink-0 ring-1 ring-line/80">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-2">
+                          <span className="text-sm font-semibold text-text">{shotNumberLabel(index)}</span>
+                          {shot.shotCode && <span className="text-xs text-muted">原编号 {shot.shotCode}</span>}
+                          <Badge variant={approved ? "success" : cfg.variant}>
+                            {approved ? "已通过" : cfg.label}
+                          </Badge>
+                          {shot.shotFunction && (
+                            <span className="text-xs text-brand bg-brand-soft px-2 py-0.5 rounded-full">
+                              {shot.shotFunction}
+                            </span>
+                          )}
+                          <span className="flex items-center gap-1 text-xs text-muted">
+                            <Clock className="w-3 h-3" />{shot.duration}s
+                          </span>
+                          <span className="text-xs text-muted">{shot.version}</span>
+                        </div>
+
+                        {isEditing ? (
+                          <div className="space-y-2">
+                            <Textarea
+                              value={editText}
+                              onChange={(e) => setEditText(e.target.value)}
+                              rows={3}
+                              className="text-xs"
+                              autoFocus
+                            />
+                            <div className="flex gap-2">
+                              <Button size="sm" onClick={() => handleSaveEdit(shot.id)}>
+                                <Check className="w-3.5 h-3.5" />保存
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
+                                取消
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="group/desc flex items-start gap-2">
+                            <p className="text-xs text-sub leading-relaxed flex-1">{shot.description}</p>
+                            <button
+                              onClick={() => setPromptShot(shot)}
+                              className="shrink-0 p-1.5 rounded-lg border border-line bg-panel text-muted transition-colors hover:bg-soft hover:text-brand"
+                              title="查看完整提交提示词"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleStartEdit(shot)}
+                              className="shrink-0 p-1.5 rounded-lg border border-line bg-panel text-muted transition-colors hover:bg-soft hover:text-brand"
+                              title="编辑描述"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setAgentTarget(shot.id)}
+                              className="shrink-0 p-1.5 rounded-lg border border-line bg-panel text-muted transition-colors hover:bg-soft hover:text-brand"
+                              title="AI 修改"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+
+                        {shot.assets.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {shot.assets.map((a) => (
+                              <span key={a} className="flex items-center gap-1 text-xs bg-soft text-sub px-2 py-0.5 rounded-full">
+                                <Tag className="w-2.5 h-2.5" />{a}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {shot.dialogues.length > 0 && (
+                          <div className="mt-2 flex flex-col gap-1">
+                            {shot.dialogues.map((line, i) => (
+                              <div key={i} className="px-2 py-1.5 bg-soft rounded text-xs text-text leading-relaxed border-l-2 border-brand/40">
+                                {line.speaker && <span className="font-medium text-brand mr-1">{line.speaker}：</span>}
+                                {line.text}
+                                {(line.emotion || line.delivery || line.action || line.expression) && (
+                                  <div className="mt-1 text-[11px] leading-relaxed text-muted">
+                                    {line.emotion && <span>情绪：{line.emotion}；</span>}
+                                    {line.delivery && <span>语气：{line.delivery}；</span>}
+                                    {line.action && <span>动作：{line.action}；</span>}
+                                    {line.expression && <span>表情：{line.expression}</span>}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
-                  ) : (
-                    <div className="group/desc flex items-start gap-2">
-                      <p className="text-xs text-sub leading-relaxed flex-1">{shot.description}</p>
-                      <button
-                        onClick={() => setPromptShot(shot)}
-                        className="shrink-0 p-1.5 rounded-lg border border-line bg-panel text-muted transition-colors hover:bg-soft hover:text-brand"
-                        title="查看完整提交提示词"
-                      >
-                        <FileText className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleStartEdit(shot)}
-                        className="shrink-0 p-1.5 rounded-lg border border-line bg-panel text-muted transition-colors hover:bg-soft hover:text-brand"
-                        title="编辑描述"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => setAgentTarget(shot.id)}
-                        className="shrink-0 p-1.5 rounded-lg border border-line bg-panel text-muted transition-colors hover:bg-soft hover:text-brand"
-                        title="AI 修改"
-                      >
-                        <MessageCircle className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  )}
-
-                  {shot.assets.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {shot.assets.map((a) => (
-                        <span key={a} className="flex items-center gap-1 text-xs bg-soft text-sub px-2 py-0.5 rounded-full">
-                          <Tag className="w-2.5 h-2.5" />{a}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {shot.dialogues.length > 0 && (
-                    <div className="mt-2 flex flex-col gap-1">
-                      {shot.dialogues.map((line, i) => (
-                        <div key={i} className="px-2 py-1.5 bg-soft rounded text-xs text-text leading-relaxed border-l-2 border-brand/40">
-                          {line.speaker && <span className="font-medium text-brand mr-1">{line.speaker}：</span>}
-                          {line.text}
-                          {(line.emotion || line.delivery || line.action || line.expression) && (
-                            <div className="mt-1 text-[11px] leading-relaxed text-muted">
-                              {line.emotion && <span>情绪：{line.emotion}；</span>}
-                              {line.delivery && <span>语气：{line.delivery}；</span>}
-                              {line.action && <span>动作：{line.action}；</span>}
-                              {line.expression && <span>表情：{line.expression}</span>}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </section>
+        ))}
       </div>
 
       {/* 打回重新生成 — AgentDialog，AI 工具调用触发 Celery 任务，状态由轮询驱动 */}
@@ -467,7 +526,7 @@ function StepScript({
       <Sheet
         open={!!promptShot}
         onClose={() => setPromptShot(null)}
-        title={`镜头 ${promptShot?.shotCode ?? ""} · 完整提交提示词`}
+        title={`${promptShotLabel} · 完整提交提示词`}
       >
         <div className="space-y-3">
           <Textarea
@@ -495,7 +554,7 @@ function StepScript({
           targetId={episode.id}
           projectId={projectId}
           title="AI 修改 · 镜头描述"
-          initialPrompt={`请修改镜头 ${shots.find((s) => s.id === agentTarget)?.shotCode} 的描述：${shots.find((s) => s.id === agentTarget)?.description}`}
+          initialPrompt={`请修改${agentShotLabel}的描述：${agentShot?.description ?? ""}`}
         />
       )}
     </div>
@@ -520,6 +579,7 @@ function StepVideos({
 }: { episode: EpisodeDetail; projectId: string; isPast?: boolean }) {
   const { cosUrl } = useCos();
   const shots = episode.shots;
+  const shotGroups = buildShotGroups(shots);
   const [selected, setSelected] = useState(0);
 
   // 派生（视频审批：只有有 videoUrl 的 shot 才算在审批范围内）
@@ -558,10 +618,14 @@ function StepVideos({
   const missingVideoCount = shots.filter((s) => !s.videoUrl).length;
   const hasUngenerated = missingVideoCount > 0;
   const shot = shots[selected] ?? shots[0];
+  const selectedShotLabel = shot ? shotNumberLabel(selected) : "镜头";
   const submittedPrompt = shot?.submittedPrompt;
   const shotBusy = !!shot && (loadingIds.has(shot.id) || shot.state === "rendering");
   const shotApproved = !!shot && (isPast || (!!shot.videoUrl && shot.state === "approved"));
   const shotVersions = shot?.versions ?? [];
+  const agentShot = agentTarget ? shots.find((s) => s.id === agentTarget) : undefined;
+  const agentShotIndex = agentShot ? shots.findIndex((s) => s.id === agentShot.id) : -1;
+  const agentShotLabel = agentShotIndex >= 0 ? shotNumberLabel(agentShotIndex) : "镜头";
 
   useEffect(() => {
     if (!promptSheetOpen) return;
@@ -639,8 +703,10 @@ function StepVideos({
     setError(null);
     try {
       const target = shots.find((s) => s.id === shotId);
+      const targetIndex = target ? shots.findIndex((s) => s.id === target.id) : -1;
+      const targetLabel = targetIndex >= 0 ? shotNumberLabel(targetIndex) : "镜头";
       const response = await generateAPI.shotVideo(shotId);
-      watchVideoTask(response, { label: `镜头 ${target?.shotCode ?? ""} 视频生成`.trim(), shotId });
+      watchVideoTask(response, { label: `${targetLabel}视频生成`, shotId });
     } catch (e: unknown) {
       setError(errorMessage(e, "重新生成失败"));
       setLoadingIds((prev) => { const n = new Set(prev); n.delete(shotId); return n; });
@@ -746,8 +812,11 @@ function StepVideos({
               <div className="min-w-0">
                 <div className="mb-3 flex items-center justify-between rounded-xl border border-line bg-elev px-3 py-2">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-text">镜头 {shot.shotCode}</p>
-                    <p className="text-xs text-muted">{shot.segmentName || "未分段"} · {shot.duration}s</p>
+                    <p className="text-sm font-semibold text-text">{selectedShotLabel}</p>
+                    <p className="text-xs text-muted">
+                      {shot.segmentName || shot.segmentCode || "未分段"} · {shot.duration}s
+                      {shot.shotCode ? ` · 原编号 ${shot.shotCode}` : ""}
+                    </p>
                   </div>
                   <Badge variant={shotBusy ? "warning" : shotApproved || shot.videoUrl ? "success" : "outline"}>
                     {shotBusy ? "生成中" : shotApproved ? "已通过" : shot.videoUrl ? "已生成" : "待生成"}
@@ -835,54 +904,68 @@ function StepVideos({
         {/* 底部横向镜头列表 */}
         <div className="page-panel px-3 py-2">
           <div className="mb-1.5 flex items-center justify-between">
-            <span className="text-xs font-medium text-sub">镜头列表</span>
+            <span className="text-xs font-medium text-sub">镜头列表 · 按片段分组</span>
             <span className="text-xs text-muted">
               {selected + 1} / {shots.length}
             </span>
           </div>
-          <div className="flex snap-x gap-2 overflow-x-auto pb-1">
-            {shots.map((s, idx) => {
-              const isApproved = isPast || (!!s.videoUrl && s.state === "approved");
-              const isComplete = !!s.videoUrl;
-              const isGenerating = loadingIds.has(s.id) || s.state === "rendering";
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => setSelected(idx)}
-                  className={cn(
-                    "min-w-[136px] max-w-[136px] snap-start rounded-xl border p-2 text-left transition-all sm:min-w-[150px] sm:max-w-[150px]",
-                    selected === idx ? "border-brand bg-brand-soft shadow-sm" : "border-line bg-panel hover:bg-soft"
+          <div className="flex snap-x gap-3 overflow-x-auto pb-1">
+            {shotGroups.map((group, groupIdx) => (
+              <div key={group.key} className="shrink-0 snap-start">
+                <div className="mb-1.5 flex items-center gap-2 px-1">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-soft px-2 py-0.5 text-[11px] font-semibold text-sub">
+                    <Layers className="h-3 w-3" />{segmentTitle(group, groupIdx)}
+                  </span>
+                  {group.segmentFunction && (
+                    <span className="max-w-[140px] truncate text-[11px] text-muted">{group.segmentFunction}</span>
                   )}
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="w-9 h-12 rounded-lg bg-soft flex items-center justify-center border border-line overflow-hidden shrink-0">
-                      {isGenerating ? (
-                        <Loader2 className="w-4 h-4 text-warn animate-spin" />
-                      ) : s.videoUrl ? (
-                        <Play className="w-3.5 h-3.5 text-success" />
-                      ) : (
-                        <Film className="w-4 h-4 text-line" />
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs font-medium text-text truncate">镜头 {s.shotCode}</div>
-                      <div className="text-xs text-muted mt-0.5">{s.duration}s</div>
-                    </div>
-                    <div className="ml-auto shrink-0">
-                      {isGenerating ? (
-                        <div className="mt-0.5 h-3 w-3 rounded-full bg-warn shadow-[0_0_0_3px_rgba(245,158,11,0.18)] animate-pulse shrink-0" />
-                      ) : isApproved ? (
-                        <CheckCircle2 className="mt-0.5 h-5 w-5 text-success shrink-0" />
-                      ) : isComplete ? (
-                        <div className="mt-0.5 h-3 w-3 rounded-full bg-success shadow-[0_0_0_3px_rgba(52,211,153,0.16)] shrink-0" />
-                      ) : (
-                        <div className="mt-0.5 h-3 w-3 rounded-full bg-line shrink-0" />
-                      )}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+                </div>
+                <div className="flex gap-2">
+                  {group.items.map(({ shot: s, index: idx }) => {
+                    const isApproved = isPast || (!!s.videoUrl && s.state === "approved");
+                    const isComplete = !!s.videoUrl;
+                    const isGenerating = loadingIds.has(s.id) || s.state === "rendering";
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => setSelected(idx)}
+                        className={cn(
+                          "min-w-[136px] max-w-[136px] rounded-xl border p-2 text-left transition-all sm:min-w-[150px] sm:max-w-[150px]",
+                          selected === idx ? "border-brand bg-brand-soft shadow-sm" : "border-line bg-panel hover:bg-soft"
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-9 h-12 rounded-lg bg-soft flex items-center justify-center border border-line overflow-hidden shrink-0">
+                            {isGenerating ? (
+                              <Loader2 className="w-4 h-4 text-warn animate-spin" />
+                            ) : s.videoUrl ? (
+                              <Play className="w-3.5 h-3.5 text-success" />
+                            ) : (
+                              <Film className="w-4 h-4 text-line" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold text-text truncate">{shotNumberLabel(idx)}</div>
+                            <div className="text-xs text-muted mt-0.5">{s.duration}s</div>
+                          </div>
+                          <div className="ml-auto shrink-0">
+                            {isGenerating ? (
+                              <div className="mt-0.5 h-3 w-3 rounded-full bg-warn shadow-[0_0_0_3px_rgba(245,158,11,0.18)] animate-pulse shrink-0" />
+                            ) : isApproved ? (
+                              <CheckCircle2 className="mt-0.5 h-5 w-5 text-success shrink-0" />
+                            ) : isComplete ? (
+                              <div className="mt-0.5 h-3 w-3 rounded-full bg-success shadow-[0_0_0_3px_rgba(52,211,153,0.16)] shrink-0" />
+                            ) : (
+                              <div className="mt-0.5 h-3 w-3 rounded-full bg-line shrink-0" />
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -890,7 +973,7 @@ function StepVideos({
       <Sheet
         open={promptSheetOpen}
         onClose={() => setPromptSheetOpen(false)}
-        title={`镜头 ${shot?.shotCode ?? ""} · 最终提交提示词`}
+        title={`${selectedShotLabel} · 最终提交提示词`}
       >
         <div className="space-y-3">
           <Textarea
@@ -912,7 +995,7 @@ function StepVideos({
       <Sheet
         open={historySheetOpen}
         onClose={() => setHistorySheetOpen(false)}
-        title={`镜头 ${shot?.shotCode ?? ""} · 历史版本回选`}
+        title={`${selectedShotLabel} · 历史版本回选`}
         width="sm:w-[720px]"
       >
         <div className="space-y-4">
@@ -980,7 +1063,7 @@ function StepVideos({
           targetId={agentTarget}
           projectId={projectId}
           title="AI 修改 · 镜头视频"
-          initialPrompt={shots.find((s) => s.id === agentTarget)?.prompt || shots.find((s) => s.id === agentTarget)?.description}
+          initialPrompt={`${agentShotLabel}：${agentShot?.prompt || agentShot?.description || ""}`}
         />
       )}
     </div>
