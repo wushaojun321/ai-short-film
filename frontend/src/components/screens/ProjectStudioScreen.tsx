@@ -34,6 +34,7 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
     stepParam && STEP_ORDER.includes(stepParam)
       ? stepParam
       : activeEpisode?.currentStep ?? "storyboard_script";
+  const activeShotId = searchParams.get("shot");
   const sourceLineRange = activeEpisode?.sourceStartLine && activeEpisode?.sourceEndLine
     ? `L${activeEpisode.sourceStartLine}-${activeEpisode.sourceEndLine}`
     : "未索引";
@@ -140,6 +141,9 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
         projectId={project.id}
         episodes={episodes}
         activeEpisodeId={activeEpisode.id}
+        activeEpisode={activeEpisode}
+        activeStep={activeStep}
+        activeShotId={activeShotId}
       />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-visible lg:overflow-hidden">

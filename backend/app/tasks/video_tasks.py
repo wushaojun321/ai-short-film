@@ -64,6 +64,7 @@ async def _gen_shot_video_chain_async(celery_id: str, shot_ids: list[str], chain
     record = await TaskRecord.find_one(TaskRecord.celery_task_id == celery_id)
     total = len(shot_ids)
     completed = 0
+    failed: list[dict[str, str]] = []
     current_index = 0
 
     try:
@@ -83,7 +84,7 @@ async def _gen_shot_video_chain_async(celery_id: str, shot_ids: list[str], chain
                 completed += 1
                 if record:
                     await record.set({
-                        "progress": 5 + int(completed / max(total, 1) * 90),
+                        "progress": 5 + int((idx + 1) / max(total, 1) * 90),
                         "logs": (record.logs or []) + [f"[video-chain] {shot.shot_code} 已有视频，跳过"],
                     })
                 continue
@@ -94,20 +95,38 @@ async def _gen_shot_video_chain_async(celery_id: str, shot_ids: list[str], chain
                     "logs": (record.logs or []) + [f"[video-chain] 开始生成 {shot.shot_code}（{idx + 1}/{total}）"],
                 })
 
-            await _gen_shot_video_async(celery_id, shot_id, manage_record=False)
-            completed += 1
+            followup_log = f"[video-chain] {shot.shot_code} 生成完成，下一镜可引用本镜尾帧"
+            try:
+                await _gen_shot_video_async(celery_id, shot_id, manage_record=False)
+                completed += 1
+            except Exception as e:
+                error_text = str(e) or "未知错误"
+                followup_log = f"[video-chain][warn] {shot.shot_code} 生成失败，已标记异常并继续后续镜头：{error_text}"
+                failed.append({
+                    "shot_id": shot_id,
+                    "shot_code": shot.shot_code,
+                    "error": error_text,
+                })
+                logger.exception("Shot video generation failed in chain, continue next shot: %s", shot_id)
 
             if record:
                 await record.set({
-                    "progress": 5 + int(completed / max(total, 1) * 90),
-                    "logs": (record.logs or []) + [f"[video-chain] {shot.shot_code} 生成完成，下一镜可引用本镜尾帧"],
+                    "progress": 5 + int((idx + 1) / max(total, 1) * 90),
+                    "logs": (record.logs or []) + [followup_log],
                 })
 
-        await finish_task_record(celery_id, result={"shots": completed, "shot_ids": shot_ids, "chain_label": chain_label})
-        return {"shots": completed, "shot_ids": shot_ids, "chain_label": chain_label}
+        result = {
+            "shots": completed,
+            "shot_ids": shot_ids,
+            "chain_label": chain_label,
+            "failed": len(failed),
+            "failed_shots": failed,
+        }
+        await finish_task_record(celery_id, result=result)
+        return result
 
     except Exception as e:
-        # 当前镜头会由 _gen_shot_video_async 回滚；这里负责把尚未执行的排队镜头从 rendering 释放出来。
+        # 基础设施级异常才会到这里；把尚未执行的排队镜头标记为异常，避免前端一直显示生成中。
         for pending_id in shot_ids[current_index + 1:]:
             try:
                 pending = await Shot.get(PydanticObjectId(pending_id))
@@ -117,7 +136,12 @@ async def _gen_shot_video_chain_async(celery_id: str, shot_ids: list[str], chain
                     and pending.state == ShotState.rendering
                     and not pending.video_url
                 ):
-                    await pending.set({"state": ShotState.asset_ready})
+                    await pending.set({
+                        "state": ShotState.review_failed,
+                        "review_comment": f"视频生成链异常中断：{str(e) or '未知错误'}",
+                        "continuity_dirty": True,
+                        "continuity_dirty_reason": "视频生成链异常中断，需要检查后重新生成。",
+                    })
             except Exception:
                 logger.exception("Failed to reset pending shot after chain failure: %s", pending_id)
         await finish_task_record(celery_id, error=str(e))
@@ -194,8 +218,12 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
         if not shot:
             raise ValueError("Shot not found")
 
-        # Mark as rendering immediately so frontend shows loading
-        await shot.set({"state": ShotState.rendering, "generation_task_id": celery_id})
+        # Mark as rendering immediately so frontend shows loading, and clear previous generation warning.
+        await shot.set({
+            "state": ShotState.rendering,
+            "generation_task_id": celery_id,
+            "review_comment": "",
+        })
 
         record = await TaskRecord.find_one(TaskRecord.celery_task_id == celery_id) if manage_record else None
         if record:
@@ -419,6 +447,7 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
             "submitted_prompt_cached_at": datetime.utcnow() if submitted_prompt_input_hash else None,
             "continuity_dirty": bool(reference_context.warnings),
             "continuity_dirty_reason": "；".join(reference_context.warnings) if reference_context.warnings else "",
+            "review_comment": "",
             "version": version_label,
             "versions": shot.versions + [new_version],
         }
@@ -444,7 +473,13 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
         try:
             shot = await Shot.get(PydanticObjectId(shot_id))
             if shot:
-                await shot.set({"state": ShotState.asset_ready})
+                error_text = str(e) or "未知错误"
+                await shot.set({
+                    "state": ShotState.review_failed,
+                    "review_comment": f"视频生成失败：{error_text}",
+                    "continuity_dirty": True,
+                    "continuity_dirty_reason": "视频生成任务异常，需要检查提示词、资产引用或重新生成。",
+                })
         except Exception:
             pass
         if manage_record:

@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   CheckCircle2, RefreshCw, Loader2, Play, Volume2,
-  Film, Layers, Clock, Tag, Edit3, Check, FileText, MessageCircle, History, RotateCcw,
+  Film, Layers, Clock, Tag, Edit3, Check, FileText, MessageCircle, History, RotateCcw, AlertTriangle,
 } from "lucide-react";
 import AgentDialog from "@/components/AgentDialog";
 import { Sheet } from "@/components/ui/sheet";
@@ -11,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { EpisodeStep, EpisodeDetail, Shot, ShotState, getStepIndex } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { generateAPI, shotAPI, episodeAPI, type ApiGenResponse } from "@/lib/api";
+import { buildShotGroups, segmentTitle, shotNumberLabel } from "@/lib/shot-groups";
 import { useCos } from "@/lib/CosContext";
 
 interface StepContentProps {
@@ -38,52 +40,6 @@ const shotStateCfg: Record<ShotState, {
   generating:    { label: "图片生成中", variant: "secondary" },
   planned:       { label: "待生成",    variant: "outline" },
 };
-
-type ShotGroup = {
-  key: string;
-  label: string;
-  segmentCode?: string;
-  segmentName?: string;
-  segmentFunction?: string;
-  items: Array<{ shot: Shot; index: number }>;
-};
-
-function shotNumberLabel(index: number) {
-  return `镜头${index + 1}`;
-}
-
-function buildShotGroups(shots: Shot[]): ShotGroup[] {
-  const groups: ShotGroup[] = [];
-  const groupMap = new Map<string, ShotGroup>();
-
-  shots.forEach((shot, index) => {
-    const segmentCode = shot.segmentCode?.trim();
-    const segmentName = shot.segmentName?.trim();
-    const key = segmentCode || segmentName || "ungrouped";
-    let group = groupMap.get(key);
-    if (!group) {
-      group = {
-        key,
-        label: segmentName || segmentCode || "未分段片段",
-        segmentCode,
-        segmentName,
-        segmentFunction: shot.segmentFunction,
-        items: [],
-      };
-      groupMap.set(key, group);
-      groups.push(group);
-    }
-    if (!group.segmentFunction && shot.segmentFunction) group.segmentFunction = shot.segmentFunction;
-    group.items.push({ shot, index });
-  });
-
-  return groups;
-}
-
-function segmentTitle(group: ShotGroup, groupIndex: number) {
-  const name = group.segmentName || group.segmentCode || group.label;
-  return `片段${groupIndex + 1}${name && name !== "未分段片段" ? ` · ${name}` : ""}`;
-}
 
 // ─── 顶部审批操作栏 ──────────────────────────────────────────
 
@@ -580,13 +536,25 @@ function errorMessage(err: unknown, fallback: string): string {
   return err instanceof Error && err.message ? err.message : fallback;
 }
 
+function isShotWarning(shot?: Shot): boolean {
+  if (!shot) return false;
+  return !shot.videoUrl && (shot.state === "review_failed" || !!shot.continuityDirty);
+}
+
+function shotWarningText(shot?: Shot): string {
+  return shot?.reviewComment
+    || shot?.continuityDirtyReason
+    || "该镜头生成异常，需要检查提示词、资产引用后重新生成。";
+}
+
 function StepVideos({
   episode, projectId, isPast,
 }: { episode: EpisodeDetail; projectId: string; isPast?: boolean }) {
   const { cosUrl } = useCos();
+  const [searchParams] = useSearchParams();
   const shots = episode.shots;
-  const shotGroups = buildShotGroups(shots);
-  const [selected, setSelected] = useState(0);
+  const shotParam = searchParams.get("shot");
+  const selected = Math.max(0, shots.findIndex((s) => s.id === shotParam));
 
   // 派生（视频审批：只有有 videoUrl 的 shot 才算在审批范围内）
   const videoShots = shots.filter((s) => s.videoUrl);
@@ -604,6 +572,8 @@ function StepVideos({
   const [approving, setApproving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [watchedVideoTasks, setWatchedVideoTasks] = useState<WatchedVideoTask[]>([]);
+  const [ensureAllActive, setEnsureAllActive] = useState(false);
+  const autoEnqueueRef = useRef(false);
 
   // 由后端 running_tasks 派生，刷新后状态自动恢复
   const batchGenerating = episode.runningTasks.includes("gen_shot_video");
@@ -622,30 +592,109 @@ function StepVideos({
   }, [shots]);
 
   const missingVideoCount = shots.filter((s) => !s.videoUrl).length;
+  const warningShotCount = shots.filter((s) => !s.videoUrl && isShotWarning(s)).length;
+  const pendingMissingCount = Math.max(0, missingVideoCount - warningShotCount);
   const hasUngenerated = missingVideoCount > 0;
   const shot = shots[selected] ?? shots[0];
   const selectedShotLabel = shot ? shotNumberLabel(selected) : "镜头";
   const submittedPrompt = shot?.submittedPrompt;
   const shotBusy = !!shot && (loadingIds.has(shot.id) || shot.state === "rendering");
+  const shotWarn = isShotWarning(shot);
   const shotApproved = !!shot && (isPast || (!!shot.videoUrl && shot.state === "approved"));
   const shotVersions = shot?.versions ?? [];
   const agentShot = agentTarget ? shots.find((s) => s.id === agentTarget) : undefined;
   const agentShotIndex = agentShot ? shots.findIndex((s) => s.id === agentShot.id) : -1;
   const agentShotLabel = agentShotIndex >= 0 ? shotNumberLabel(agentShotIndex) : "镜头";
 
+  const getBatchTargets = useCallback((includeWarningShots: boolean) => {
+    return shots.filter((s) => {
+      if (s.videoUrl || loadingIds.has(s.id) || s.state === "rendering") return false;
+      if (!includeWarningShots && isShotWarning(s)) return false;
+      return true;
+    });
+  }, [loadingIds, shots]);
+  const activeVideoWork = batchGenerating
+    || watchedVideoTasks.length > 0
+    || loadingIds.size > 0
+    || shots.some((s) => s.state === "rendering");
+
   useEffect(() => {
     if (!promptSheetOpen) return;
     setVideoPromptDraft(submittedPrompt || shot?.prompt || "");
   }, [promptSheetOpen, submittedPrompt, shot?.prompt, shot?.id]);
 
-  const watchVideoTask = (response: ApiGenResponse, task: Omit<WatchedVideoTask, "recordId">) => {
+  const watchVideoTask = useCallback((response: ApiGenResponse, task: Omit<WatchedVideoTask, "recordId">) => {
     const recordId = response.record_id;
     if (!recordId) return;
     setWatchedVideoTasks((prev) => {
       if (prev.some((item) => item.recordId === recordId)) return prev;
       return [...prev, { ...task, recordId }];
     });
-  };
+  }, []);
+
+  const enqueueVideoTargets = useCallback(async (targets: Shot[], mode: "manual" | "auto") => {
+    if (targets.length === 0) return 0;
+    setLoadingIds((prev) => new Set([...prev, ...targets.map((s) => s.id)]));
+    try {
+      const response = await generateAPI.episodeShotVideos(episode.id);
+      const taskRefs = (response.records ?? []).filter((item) => item.record_id);
+      const queuedShotIds = new Set<string>();
+
+      if (taskRefs.length > 0) {
+        taskRefs.forEach((item) => {
+          const chainShotIds = item.shot_ids?.length ? item.shot_ids : (item.shot_id ? [item.shot_id] : []);
+          chainShotIds.forEach((id) => queuedShotIds.add(id));
+          const targetShot = shots.find((s) => s.id === chainShotIds[0]);
+          const targetIndex = targetShot ? shots.findIndex((s) => s.id === targetShot.id) : -1;
+          const targetLabel = item.chain
+            ? `${item.segment_code || item.shot_code || "片段"}视频生成`
+            : (targetIndex >= 0 ? `${shotNumberLabel(targetIndex)}视频生成` : `${item.shot_code || "镜头"}视频生成`);
+          watchVideoTask(
+            { task_id: item.task_id, record_id: item.record_id },
+            chainShotIds.length > 1
+              ? { label: targetLabel, shotIds: chainShotIds }
+              : { label: targetLabel, shotId: chainShotIds[0] }
+          );
+        });
+      } else if (response.record_id) {
+        targets.forEach((s) => queuedShotIds.add(s.id));
+        watchVideoTask(response, { label: "批量视频生成", shotIds: targets.map((s) => s.id) });
+      }
+
+      const queuedCount = response.queued ?? queuedShotIds.size ?? taskRefs.length;
+      if (queuedCount === 0) {
+        const reason = response.reason || "没有新的镜头入队，可能已有镜头正在生成或已生成。";
+        setError(mode === "auto" ? `持续补齐暂停：${reason}` : reason);
+        setLoadingIds((prev) => {
+          const next = new Set(prev);
+          targets.forEach((s) => next.delete(s.id));
+          return next;
+        });
+        setEnsureAllActive(false);
+        return 0;
+      }
+
+      if (queuedShotIds.size > 0) {
+        setLoadingIds((prev) => {
+          const next = new Set(prev);
+          targets.forEach((s) => {
+            if (!queuedShotIds.has(s.id)) next.delete(s.id);
+          });
+          return next;
+        });
+      }
+      return queuedCount;
+    } catch (e: unknown) {
+      setError(errorMessage(e, mode === "auto" ? "持续补齐失败" : "批量生成失败"));
+      setLoadingIds((prev) => {
+        const next = new Set(prev);
+        targets.forEach((s) => next.delete(s.id));
+        return next;
+      });
+      if (mode === "auto") setEnsureAllActive(false);
+      return 0;
+    }
+  }, [episode.id, shots, watchVideoTask]);
 
   useEffect(() => {
     if (watchedVideoTasks.length === 0) return;
@@ -668,6 +717,10 @@ function StepVideos({
             });
             settled.add(task.recordId);
           } else if (record.status === "success" || record.status === "cancelled") {
+            const failedCount = Number(record.result?.failed ?? 0);
+            if (record.status === "success" && failedCount > 0) {
+              setError(`${task.label}完成，但 ${failedCount} 个镜头生成异常，已在镜头列表标记警告。`);
+            }
             settled.add(task.recordId);
           }
         } catch (err: unknown) {
@@ -687,43 +740,40 @@ function StepVideos({
     };
   }, [watchedVideoTasks]);
 
-  const handleBatchGenerate = async () => {
-    const targets = shots.filter((s) => !s.videoUrl && !loadingIds.has(s.id) && s.state !== "rendering");
-    if (targets.length === 0) return;
-    setError(null);
-    setLoadingIds((prev) => new Set([...prev, ...targets.map((s) => s.id)]));
-    try {
-      const response = await generateAPI.episodeShotVideos(episode.id);
-      const taskRefs = (response.records ?? []).filter((item) => item.record_id);
-      if (taskRefs.length > 0) {
-        taskRefs.forEach((item) => {
-          const chainShotIds = item.shot_ids?.length ? item.shot_ids : (item.shot_id ? [item.shot_id] : []);
-          const targetShot = shots.find((s) => s.id === chainShotIds[0]);
-          const targetIndex = targetShot ? shots.findIndex((s) => s.id === targetShot.id) : -1;
-          const targetLabel = item.chain
-            ? `${item.segment_code || item.shot_code || "片段"}视频生成`
-            : (targetIndex >= 0 ? `${shotNumberLabel(targetIndex)}视频生成` : `${item.shot_code || "镜头"}视频生成`);
-          watchVideoTask(
-            { task_id: item.task_id, record_id: item.record_id },
-            chainShotIds.length > 1
-              ? { label: targetLabel, shotIds: chainShotIds }
-              : { label: targetLabel, shotId: chainShotIds[0] }
-          );
-        });
-      } else {
-        watchVideoTask(response, { label: "批量视频生成", shotIds: targets.map((s) => s.id) });
+  useEffect(() => {
+    if (!ensureAllActive) return;
+
+    const targets = getBatchTargets(false);
+    if (targets.length === 0) {
+      if (!activeVideoWork) {
+        setEnsureAllActive(false);
+        if (warningShotCount > 0) {
+          setError(`已补齐可继续生成的镜头，${warningShotCount} 个镜头生成异常，请查看警告标识后单独处理。`);
+        }
       }
-      if ((response.queued ?? taskRefs.length) === 0) {
-        setError(response.reason || "没有新的镜头入队，可能已有镜头正在生成或已生成。");
-      }
-    } catch (e: unknown) {
-      setError(errorMessage(e, "批量生成失败"));
-      setLoadingIds((prev) => {
-        const next = new Set(prev);
-        targets.forEach((s) => next.delete(s.id));
-        return next;
-      });
+      return;
     }
+
+    if (activeVideoWork || autoEnqueueRef.current) return;
+    autoEnqueueRef.current = true;
+    const timer = window.setTimeout(() => {
+      enqueueVideoTargets(targets, "auto").finally(() => {
+        autoEnqueueRef.current = false;
+      });
+    }, 800);
+
+    return () => {
+      window.clearTimeout(timer);
+      autoEnqueueRef.current = false;
+    };
+  }, [activeVideoWork, enqueueVideoTargets, ensureAllActive, getBatchTargets, warningShotCount]);
+
+  const handleBatchGenerate = async () => {
+    const targets = getBatchTargets(true);
+    if (targets.length === 0) return;
+    setEnsureAllActive(true);
+    setError(null);
+    await enqueueVideoTargets(targets, "manual");
   };
 
   const handleRegen = async (shotId: string) => {
@@ -804,10 +854,13 @@ function StepVideos({
       {hasUngenerated && (
         <div className="status-banner status-banner-info flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-xs text-sub">
-            {missingVideoCount} 个分镜尚未生成视频
+            {ensureAllActive
+              ? `正在持续补齐本集镜头，剩余 ${pendingMissingCount} 个待生成`
+              : `${missingVideoCount} 个分镜尚未生成视频`}
+            {warningShotCount > 0 ? ` · ${warningShotCount} 个异常` : ""}
           </span>
-          <Button size="sm" className="w-full sm:w-auto" onClick={handleBatchGenerate} disabled={batchGenerating}>
-            {batchGenerating ? (
+          <Button size="sm" className="w-full sm:w-auto" onClick={handleBatchGenerate} disabled={activeVideoWork || ensureAllActive}>
+            {activeVideoWork || ensureAllActive ? (
               <><Loader2 className="w-3.5 h-3.5 animate-spin" />生成中… {episode.taskProgress["gen_shot_video"] ? `${episode.taskProgress["gen_shot_video"]}%` : ""}</>
             ) : (
               <><Play className="w-3.5 h-3.5" />生成所有镜头</>
@@ -846,8 +899,8 @@ function StepVideos({
                       {shot.shotCode ? ` · 原编号 ${shot.shotCode}` : ""}
                     </p>
                   </div>
-                  <Badge variant={shotBusy ? "warning" : shotApproved || shot.videoUrl ? "success" : "outline"} className="shrink-0">
-                    {shotBusy ? "生成中" : shotApproved ? "已通过" : shot.videoUrl ? "已生成" : "待生成"}
+                  <Badge variant={shotBusy || shotWarn ? "warning" : shotApproved || shot.videoUrl ? "success" : "outline"} className="shrink-0">
+                    {shotBusy ? "生成中" : shotWarn ? "异常" : shotApproved ? "已通过" : shot.videoUrl ? "已生成" : "待生成"}
                   </Badge>
                 </div>
                 <div className="relative mx-auto mb-3 flex aspect-[9/16] w-full max-w-[300px] items-center justify-center overflow-hidden rounded-2xl border border-line bg-black shadow-lg sm:max-w-[360px] lg:h-[clamp(320px,46vh,560px)] lg:w-auto lg:max-w-full">
@@ -870,7 +923,11 @@ function StepVideos({
                       已通过
                     </div>
                   )}
-                  {shot.continuityDirty && shot.videoUrl && (
+                  {shotWarn ? (
+                    <div className="pointer-events-none absolute left-2 top-2 flex items-center gap-1 rounded-full bg-warn/95 px-2 py-1 text-[11px] font-medium text-white shadow-sm">
+                      <AlertTriangle className="h-3 w-3" />生成异常
+                    </div>
+                  ) : shot.continuityDirty && shot.videoUrl && (
                     <div className="pointer-events-none absolute left-2 top-2 rounded-full bg-warn/95 px-2 py-1 text-[11px] font-medium text-white shadow-sm">
                       连续性需刷新
                     </div>
@@ -878,9 +935,9 @@ function StepVideos({
                 </div>
 
                 <p className="rounded-xl bg-elev px-3 py-2 text-xs text-sub text-center leading-relaxed line-clamp-2">{shot.description}</p>
-                {shot.continuityDirty && (
+                {(shotWarn || shot.continuityDirty) && (
                   <p className="mt-2 rounded-xl border border-warn/20 bg-warn-soft px-3 py-2 text-xs text-warn">
-                    {shot.continuityDirtyReason || "依赖的上一镜尾帧已变化，建议重新生成本镜头。"}
+                    {shotWarn ? shotWarningText(shot) : (shot.continuityDirtyReason || "依赖的上一镜尾帧已变化，建议重新生成本镜头。")}
                   </p>
                 )}
               </div>
@@ -929,73 +986,6 @@ function StepVideos({
           </div>
         )}
 
-        {/* 底部横向镜头列表 */}
-        <div className="page-panel px-3 py-2">
-          <div className="mb-1.5 flex items-center justify-between">
-            <span className="text-xs font-medium text-sub">镜头列表 · 按片段分组</span>
-            <span className="text-xs text-muted">
-              {selected + 1} / {shots.length}
-            </span>
-          </div>
-          <div className="scroll-shadow-x flex snap-x gap-3 overflow-x-auto pb-1">
-            {shotGroups.map((group, groupIdx) => (
-              <div key={group.key} className="shrink-0 snap-start">
-                <div className="mb-1.5 flex items-center gap-2 px-1">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-soft px-2 py-0.5 text-[11px] font-semibold text-sub">
-                    <Layers className="h-3 w-3" />{segmentTitle(group, groupIdx)}
-                  </span>
-                  {group.segmentFunction && (
-                    <span className="max-w-[140px] truncate text-[11px] text-muted">{group.segmentFunction}</span>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  {group.items.map(({ shot: s, index: idx }) => {
-                    const isApproved = isPast || (!!s.videoUrl && s.state === "approved");
-                    const isComplete = !!s.videoUrl;
-                    const isGenerating = loadingIds.has(s.id) || s.state === "rendering";
-                    return (
-                      <button
-                        key={s.id}
-                        onClick={() => setSelected(idx)}
-                        className={cn(
-                          "min-h-[68px] min-w-[136px] max-w-[136px] rounded-xl border p-2 text-left transition-all active:scale-[0.99] sm:min-w-[150px] sm:max-w-[150px]",
-                          selected === idx ? "border-brand bg-brand-soft shadow-sm" : "border-line bg-panel hover:bg-soft"
-                        )}
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className="w-9 h-12 rounded-lg bg-soft flex items-center justify-center border border-line overflow-hidden shrink-0">
-                            {isGenerating ? (
-                              <Loader2 className="w-4 h-4 text-warn animate-spin" />
-                            ) : s.videoUrl ? (
-                              <Play className="w-3.5 h-3.5 text-success" />
-                            ) : (
-                              <Film className="w-4 h-4 text-line" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-xs font-semibold text-text truncate">{shotNumberLabel(idx)}</div>
-                            <div className="text-xs text-muted mt-0.5">{s.duration}s</div>
-                          </div>
-                          <div className="ml-auto shrink-0">
-                            {isGenerating ? (
-                              <div className="mt-0.5 h-3 w-3 rounded-full bg-warn shadow-[0_0_0_3px_rgba(245,158,11,0.18)] animate-pulse shrink-0" />
-                            ) : isApproved ? (
-                              <CheckCircle2 className="mt-0.5 h-5 w-5 text-success shrink-0" />
-                            ) : isComplete ? (
-                              <div className="mt-0.5 h-3 w-3 rounded-full bg-success shadow-[0_0_0_3px_rgba(52,211,153,0.16)] shrink-0" />
-                            ) : (
-                              <div className="mt-0.5 h-3 w-3 rounded-full bg-line shrink-0" />
-                            )}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
 
       <Sheet
