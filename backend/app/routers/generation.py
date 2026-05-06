@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 from beanie import PydanticObjectId
 from app.models.project import Project
 from app.models.episode import Episode
-from app.models.shot import Shot
+from app.models.shot import Shot, ShotState
 from app.models.asset import Asset
 from app.models.task_record import TaskRecord, TaskStatus
 from app.schemas.project import ParseScriptRequest
@@ -318,6 +318,20 @@ async def enqueue_merge(episode_id: PydanticObjectId, current_user=Depends(get_c
     project = await Project.get(episode.project_id)
     if not project or project.owner_id != current_user.id:
         raise HTTPException(404, "Episode not found")
+
+    shots = await Shot.find(Shot.episode_id == episode.id).sort("+order").to_list()
+    if not shots:
+        raise HTTPException(400, "当前分集还没有分镜，无法合并")
+    missing_videos = [shot.shot_code for shot in shots if not shot.video_url]
+    unapproved = [shot.shot_code for shot in shots if shot.state != ShotState.approved]
+    if missing_videos:
+        preview = "、".join(missing_videos[:5])
+        more = f" 等 {len(missing_videos)} 个" if len(missing_videos) > 5 else ""
+        raise HTTPException(400, f"还有镜头未生成视频：{preview}{more}")
+    if unapproved:
+        preview = "、".join(unapproved[:5])
+        more = f" 等 {len(unapproved)} 个" if len(unapproved) > 5 else ""
+        raise HTTPException(400, f"还有镜头未审批通过：{preview}{more}")
 
     from app.tasks.merge_tasks import merge_episode_task
     from datetime import datetime

@@ -21,6 +21,13 @@ function episodeDetailEqual(a: EpisodeDetail, b: EpisodeDetail) {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+function resolveCurrentStep(episode?: EpisodeDetail): EpisodeStep {
+  if (!episode) return "storyboard_script";
+  if (episode.currentStep !== "done" || episode.finalVideoUrl) return episode.currentStep;
+  const unresolvedShots = episode.shots.length === 0 || episode.shots.some((shot) => !shot.videoUrl || shot.state !== "approved");
+  return unresolvedShots ? "storyboard_videos" : "merge";
+}
+
 export default function ProjectStudioScreen({ project, onProjectUpdate }: ProjectStudioScreenProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -31,10 +38,11 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
   const episodeId = searchParams.get("episode") ?? episodes[0]?.id;
   const stepParam = searchParams.get("step") as EpisodeStep | null;
   const activeEpisode = episodes.find((e) => e.id === episodeId) ?? episodes[0];
+  const effectiveCurrentStep = resolveCurrentStep(activeEpisode);
   const activeStep: EpisodeStep =
     stepParam && STEP_ORDER.includes(stepParam)
       ? stepParam
-      : activeEpisode?.currentStep ?? "storyboard_script";
+      : effectiveCurrentStep;
   const activeShotId = searchParams.get("shot");
   const sourceLineRange = activeEpisode?.sourceStartLine && activeEpisode?.sourceEndLine
     ? `L${activeEpisode.sourceStartLine}-${activeEpisode.sourceEndLine}`
@@ -50,7 +58,7 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
         const defaultEp = eps.find((e) => e.status === "in_progress") ?? eps[0];
         const params = new URLSearchParams(searchParams);
         params.set("episode", defaultEp.id);
-        params.set("step", defaultEp.currentStep);
+        params.set("step", resolveCurrentStep(defaultEp));
         setSearchParams(params, { replace: true });
       }
     });
@@ -135,6 +143,13 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
   const displayDurationLabel = shotTotalDuration > 0 ? "分镜总时长" : "预估时长";
   const displayDurationText = `${Math.floor(displayDuration / 60)}:${(displayDuration % 60).toString().padStart(2, "0")}`;
   const isVideoStep = activeStep === "storyboard_videos";
+  const activeEpisodeForStep = activeEpisode.currentStep === effectiveCurrentStep
+    ? activeEpisode
+    : {
+        ...activeEpisode,
+        currentStep: effectiveCurrentStep,
+        status: activeEpisode.finalVideoUrl ? activeEpisode.status : "in_progress" as const,
+      };
 
   return (
     <div className="flex min-h-[calc(100dvh-64px)] flex-col lg:h-[calc(100vh-64px)] lg:flex-row">
@@ -156,7 +171,7 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
         <EpisodeStepBar
           projectId={project.id}
           episodeId={activeEpisode.id}
-          currentStep={activeEpisode.currentStep}
+          currentStep={effectiveCurrentStep}
           activeStep={activeStep}
         />
 
@@ -238,7 +253,7 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
 
             <StepContent
               step={activeStep}
-              episode={activeEpisode}
+              episode={activeEpisodeForStep}
               projectId={project.id}
             />
           </div>

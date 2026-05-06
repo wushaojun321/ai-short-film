@@ -1202,7 +1202,7 @@ function StepDubbing({ episode, projectId, isPast }: { episode: EpisodeDetail; p
   const handleSkip = async () => {
     setAdvancing(true);
     try {
-      await episodeAPI.advanceStep(projectId, episode.id);
+      await episodeAPI.setStep(projectId, episode.id, "merge");
     } finally {
       setAdvancing(false);
     }
@@ -1234,7 +1234,7 @@ function StepMerge({
   episode, projectId, isPast,
 }: { episode: EpisodeDetail; projectId: string; isPast?: boolean }) {
   // 派生：finalVideoUrl 存在说明合并完成
-  const done = isPast || !!episode.finalVideoUrl;
+  const done = !!episode.finalVideoUrl;
   // 由后端 running_tasks 派生，刷新后状态自动恢复
   const merging = episode.runningTasks.includes("merge_episode");
 
@@ -1284,6 +1284,14 @@ function StepMerge({
   const totalDuration = episode.shots.reduce((s, sh) => s + sh.duration, 0);
   const m = Math.floor(totalDuration / 60);
   const sec = totalDuration % 60;
+  const missingVideoCount = episode.shots.filter((shot) => !shot.videoUrl).length;
+  const unapprovedCount = episode.shots.filter((shot) => shot.videoUrl && shot.state !== "approved").length;
+  const canMerge = episode.shots.length > 0 && missingVideoCount === 0 && unapprovedCount === 0;
+  const mergeBlockedText = missingVideoCount > 0
+    ? `还有 ${missingVideoCount} 个镜头未生成视频，生成完成后才能合并。`
+    : unapprovedCount > 0
+      ? `还有 ${unapprovedCount} 个镜头未审批通过，审批完成后才能合并。`
+      : "当前分集还没有分镜，无法合并。";
 
   return (
     <div className="page-panel max-w-md mx-auto p-8">
@@ -1317,8 +1325,17 @@ function StepMerge({
           <p className="text-xs text-center text-muted">合并中 {progress}%</p>
         </div>
       ) : (
-        <div className="flex justify-center">
-          <Button onClick={handleMerge}>开始合并</Button>
+        <div className="space-y-4">
+          {!canMerge && (
+            <div className="rounded-xl border border-warn/20 bg-warn-soft px-3 py-2 text-center">
+              <p className="text-xs text-warn">{mergeBlockedText}</p>
+            </div>
+          )}
+          <div className="flex justify-center">
+            <Button onClick={handleMerge} disabled={!canMerge}>
+              开始合并
+            </Button>
+          </div>
         </div>
       )}
     </div>
@@ -1327,19 +1344,41 @@ function StepMerge({
 
 // ─── Step 6：完成 ────────────────────────────────────────────
 
-function StepDone({ episode }: { episode: EpisodeDetail }) {
+function StepDone({ episode, projectId }: { episode: EpisodeDetail; projectId: string }) {
   const { cosUrl } = useCos();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const totalDuration = episode.shots.reduce((s, sh) => s + sh.duration, 0);
   const m = Math.floor(totalDuration / 60);
   const sec = totalDuration % 60;
+  const unresolvedShots = episode.shots.filter((shot) => !shot.videoUrl || shot.state !== "approved").length;
+  const repairStep: EpisodeStep = unresolvedShots > 0 ? "storyboard_videos" : "merge";
+
+  const goToRepairStep = () => {
+    const params = new URLSearchParams(searchParams);
+    params.set("episode", episode.id);
+    params.set("step", repairStep);
+    navigate(`/projects/${projectId}?${params.toString()}`);
+  };
 
   return (
     <div className="page-panel max-w-md mx-auto p-8 text-center">
-      <CheckCircle2 className="w-16 h-16 text-brand mx-auto mb-4" />
+      {episode.finalVideoUrl ? (
+        <CheckCircle2 className="w-16 h-16 text-brand mx-auto mb-4" />
+      ) : (
+        <AlertTriangle className="w-16 h-16 text-warn mx-auto mb-4" />
+      )}
       <h3 className="text-xl font-semibold text-text mb-1">
-        第 {episode.number} 集制作完成
+        {episode.finalVideoUrl ? `第 ${episode.number} 集制作完成` : `第 ${episode.number} 集成片缺失`}
       </h3>
-      <p className="text-sm text-sub mb-6">{episode.title}</p>
+      <p className="text-sm text-sub mb-6">
+        {episode.finalVideoUrl
+          ? episode.title
+          : unresolvedShots > 0
+            ? `${episode.title} · 还有 ${unresolvedShots} 个镜头未生成或未审批`
+            : `${episode.title} · 需要重新合并成片`
+        }
+      </p>
 
       <div className="grid grid-cols-3 gap-4 mb-8">
         <div className="metric-tile">
@@ -1364,15 +1403,19 @@ function StepDone({ episode }: { episode: EpisodeDetail }) {
         <div className="aspect-[9/16] max-w-[160px] mx-auto bg-soft rounded-2xl border border-line flex items-center justify-center mb-6">
           <div className="text-center">
             <Play className="w-8 h-8 text-muted mx-auto mb-1" />
-            <p className="text-xs text-muted">成片预览</p>
+            <p className="text-xs text-muted">暂无成片</p>
           </div>
         </div>
       )}
 
-      {episode.finalVideoUrl && (
+      {episode.finalVideoUrl ? (
         <a href={cosUrl(episode.finalVideoUrl)} download target="_blank" rel="noreferrer">
           <Button>下载成片</Button>
         </a>
+      ) : (
+        <Button onClick={goToRepairStep}>
+          {unresolvedShots > 0 ? "返回分镜视频" : "返回合并"}
+        </Button>
       )}
     </div>
   );
@@ -1388,7 +1431,7 @@ export default function StepContent({ step, episode, projectId }: StepContentPro
     storyboard_videos: <StepVideos episode={episode} projectId={projectId} isPast={isPast} />,
     dubbing:           <StepDubbing episode={episode} projectId={projectId} isPast={isPast} />,
     merge:             <StepMerge episode={episode} projectId={projectId} isPast={isPast} />,
-    done:              <StepDone episode={episode} />,
+    done:              <StepDone episode={episode} projectId={projectId} />,
   };
 
   return (
