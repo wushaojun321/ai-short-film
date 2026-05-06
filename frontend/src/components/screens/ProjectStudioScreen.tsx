@@ -1,5 +1,5 @@
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Images, FileText } from "lucide-react";
 import EpisodeSidebar from "@/components/EpisodeSidebar";
 import EpisodeStepBar from "@/components/EpisodeStepBar";
@@ -14,6 +14,10 @@ import { cn } from "@/lib/utils";
 interface ProjectStudioScreenProps {
   project: Project;
   onProjectUpdate: () => void;
+}
+
+function episodeDetailEqual(a: EpisodeDetail, b: EpisodeDetail) {
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 export default function ProjectStudioScreen({ project, onProjectUpdate }: ProjectStudioScreenProps) {
@@ -33,9 +37,6 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
   const sourceLineRange = activeEpisode?.sourceStartLine && activeEpisode?.sourceEndLine
     ? `L${activeEpisode.sourceStartLine}-${activeEpisode.sourceEndLine}`
     : "未索引";
-
-  // 记录上次 currentStep，防止轮询循环写 URL
-  const lastCurrentStepRef = useRef<string | null>(null);
 
   // ── 初始加载 ──────────────────────────────────────────────────
   useEffect(() => {
@@ -59,16 +60,20 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
     const poll = async () => {
       try {
         const data = await episodeAPI.list(project.id);
-        setEpisodes((prev) =>
-          data.map((raw) => {
+        setEpisodes((prev) => {
+          let changed = prev.length !== data.length;
+          const next = data.map((raw) => {
             const transformed = transformEpisode(raw);
             const existing = prev.find((e) => e.id === transformed.id);
             // 保留当前集已加载的 shots 和 runningTasks，避免列表接口覆盖为空
-            return existing
+            const merged = existing
               ? { ...transformed, shots: existing.shots, runningTasks: existing.runningTasks, taskProgress: existing.taskProgress }
               : transformed;
-          })
-        );
+            if (!existing || !episodeDetailEqual(existing, merged)) changed = true;
+            return merged;
+          });
+          return changed ? next : prev;
+        });
       } catch {
         // 静默失败，不影响使用
       }
@@ -80,29 +85,28 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
   // ── 当前集全量轮询（3s，含 shots）─────────────────────────────
   useEffect(() => {
     if (!episodeId) return;
-    lastCurrentStepRef.current = null;
 
     const poll = async () => {
       try {
         const raw = await episodeAPI.get(project.id, episodeId, { include_shots: true });
         const updated = transformEpisode(raw);
 
-        setEpisodes((prev) =>
-          prev.map((e) => (e.id === updated.id ? updated : e))
-        );
+        setEpisodes((prev) => {
+          let found = false;
+          let changed = false;
+          const next = prev.map((e) => {
+            if (e.id !== updated.id) return e;
+            found = true;
+            if (episodeDetailEqual(e, updated)) return e;
+            changed = true;
+            return updated;
+          });
+          if (!found) return [...prev, updated];
+          return changed ? next : prev;
+        });
 
-        // currentStep 推进时自动跳转到最新步骤
-        if (updated.currentStep !== lastCurrentStepRef.current) {
-          lastCurrentStepRef.current = updated.currentStep;
-          setSearchParams(
-            (prev) => {
-              const p = new URLSearchParams(prev);
-              p.set("step", updated.currentStep);
-              return p;
-            },
-            { replace: true }
-          );
-        }
+        // 轮询只同步服务端数据，不再改 URL 里的 step。
+        // 用户点击哪个标签，就停留在哪个标签，避免后台任务推进时页面自动跳转。
       } catch {
         // 静默失败
       }

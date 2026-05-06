@@ -20,7 +20,6 @@ export default function EpisodeStepBar({
   const [searchParams] = useSearchParams();
 
   const currentIdx = getStepIndex(currentStep);
-  const activeIdx = getStepIndex(activeStep);
 
   const handleStepClick = (step: EpisodeStep) => {
     const stepIdx = getStepIndex(step);
