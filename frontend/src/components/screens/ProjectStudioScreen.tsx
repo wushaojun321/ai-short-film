@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Images, FileText } from "lucide-react";
 import EpisodeSidebar from "@/components/EpisodeSidebar";
 import EpisodeStepBar from "@/components/EpisodeStepBar";
+import ShotSidebar from "@/components/ShotSidebar";
 import StepContent from "@/components/StepContent";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
@@ -141,10 +142,15 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
         projectId={project.id}
         episodes={episodes}
         activeEpisodeId={activeEpisode.id}
-        activeEpisode={activeEpisode}
-        activeStep={activeStep}
-        activeShotId={activeShotId}
       />
+
+      {isVideoStep && activeEpisode.shots.length > 0 && (
+        <ShotSidebar
+          projectId={project.id}
+          episode={activeEpisode}
+          activeShotId={activeShotId}
+        />
+      )}
 
       <div className="flex min-w-0 flex-1 flex-col overflow-visible lg:overflow-hidden">
         <EpisodeStepBar
