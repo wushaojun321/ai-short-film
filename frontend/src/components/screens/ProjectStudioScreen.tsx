@@ -18,7 +18,36 @@ interface ProjectStudioScreenProps {
 }
 
 function episodeDetailEqual(a: EpisodeDetail, b: EpisodeDetail) {
-  return JSON.stringify(a) === JSON.stringify(b);
+  return episodeDetailFingerprint(a) === episodeDetailFingerprint(b);
+}
+
+function episodeDetailFingerprint(episode: EpisodeDetail) {
+  const shotState = episode.shots.map((shot) => [
+    shot.id,
+    shot.order,
+    shot.duration,
+    shot.state,
+    shot.videoUrl ?? "",
+    shot.version,
+    shot.reviewComment ?? "",
+    shot.continuityDirty ? "1" : "0",
+    shot.continuityDirtyReason ?? "",
+    shot.description,
+    shot.assets.join(","),
+    shot.dialogues.length,
+    shot.versionCount ?? shot.versions?.length ?? 0,
+  ].join("~")).join("^");
+  return [
+    episode.id,
+    episode.number,
+    episode.title,
+    episode.status,
+    episode.currentStep,
+    episode.finalVideoUrl ?? "",
+    episode.runningTasks.join(","),
+    JSON.stringify(episode.taskProgress),
+    shotState,
+  ].join("|");
 }
 
 function resolveCurrentStep(episode?: EpisodeDetail): EpisodeStep {
@@ -47,6 +76,10 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
   const sourceLineRange = activeEpisode?.sourceStartLine && activeEpisode?.sourceEndLine
     ? `L${activeEpisode.sourceStartLine}-${activeEpisode.sourceEndLine}`
     : "未索引";
+  const currentEpisodeHasWork = !!activeEpisode && (
+    activeEpisode.runningTasks.length > 0
+    || activeEpisode.shots.some((shot) => shot.state === "rendering" || shot.state === "generating")
+  );
 
   // ── 初始加载 ──────────────────────────────────────────────────
   useEffect(() => {
@@ -88,7 +121,7 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
         // 静默失败，不影响使用
       }
     };
-    const id = setInterval(poll, 5000);
+    const id = setInterval(poll, 15000);
     return () => clearInterval(id);
   }, [project.id]);
 
@@ -98,7 +131,8 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
 
     const poll = async () => {
       try {
-        const raw = await episodeAPI.get(project.id, episodeId, { include_shots: true });
+        if (document.hidden) return;
+        const raw = await episodeAPI.get(project.id, episodeId, { include_shots: true, shots_view: "summary" });
         const updated = transformEpisode(raw);
 
         setEpisodes((prev) => {
@@ -123,10 +157,10 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
     };
 
     poll(); // 立即执行一次
-    const id = setInterval(poll, 3000);
+    const id = setInterval(poll, currentEpisodeHasWork ? 3000 : 15000);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.id, episodeId]);
+  }, [project.id, episodeId, currentEpisodeHasWork]);
 
   if (loading) {
     return (

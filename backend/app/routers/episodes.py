@@ -10,6 +10,47 @@ from app.deps import get_current_user, get_owned_project
 router = APIRouter(prefix="/projects/{project_id}/episodes", tags=["episodes"], dependencies=[Depends(get_current_user)])
 
 
+def _shot_summary(shot: Shot) -> dict:
+    return {
+        "_id": str(shot.id),
+        "project_id": str(shot.project_id),
+        "episode_id": str(shot.episode_id),
+        "shot_code": shot.shot_code,
+        "order": shot.order,
+        "duration": shot.duration,
+        "segment_code": shot.segment_code,
+        "segment_name": shot.segment_name,
+        "segment_function": shot.segment_function,
+        "shot_function": shot.shot_function,
+        "transition_in": shot.transition_in,
+        "transition_out": shot.transition_out,
+        "transition_type": shot.transition_type,
+        "start_state": shot.start_state,
+        "end_state": shot.end_state,
+        "screen_direction": shot.screen_direction,
+        "continuity_notes": shot.continuity_notes,
+        "use_prev_last_frame": shot.use_prev_last_frame,
+        "depends_on_last_frame_shot_id": str(shot.depends_on_last_frame_shot_id) if shot.depends_on_last_frame_shot_id else None,
+        "continuity_dirty": shot.continuity_dirty,
+        "continuity_dirty_reason": shot.continuity_dirty_reason,
+        "description": shot.description,
+        "dialogues": [line.model_dump(mode="json") for line in shot.dialogues],
+        "required_assets": [item.model_dump(mode="json") for item in shot.required_assets],
+        "state": shot.state,
+        "version": shot.version,
+        "image_url": shot.image_url,
+        "video_url": shot.video_url,
+        "audio_url": shot.audio_url,
+        "last_frame_url": shot.last_frame_url,
+        "versions": [],
+        "version_count": len(shot.versions or []),
+        "review_comment": shot.review_comment,
+        "generation_task_id": shot.generation_task_id,
+        "created_at": shot.created_at,
+        "updated_at": shot.updated_at,
+    }
+
+
 @router.get("")
 async def list_episodes(project: Project = Depends(get_owned_project)):
     return await episode_service.list_episodes(project.id)
@@ -24,6 +65,7 @@ async def create_episode(data: EpisodeCreate, project: Project = Depends(get_own
 async def get_episode(
     episode_id: PydanticObjectId,
     include_shots: bool = Query(False),
+    shots_view: str = Query("full", pattern="^(full|summary)$"),
     project: Project = Depends(get_owned_project),
 ):
     episode = await episode_service.get_episode(episode_id)
@@ -37,7 +79,10 @@ async def get_episode(
             {"status": {"$in": ["pending", "running"]}},
         ).to_list()
         data = episode.model_dump(by_alias=True, mode="json")
-        data["shots"] = [s.model_dump(by_alias=True, mode="json") for s in shots]
+        data["shots"] = [
+            _shot_summary(s) if shots_view == "summary" else s.model_dump(by_alias=True, mode="json")
+            for s in shots
+        ]
         data["running_tasks"] = [
             {"task_type": t.task_type, "status": t.status, "progress": t.progress or 0}
             for t in running_tasks

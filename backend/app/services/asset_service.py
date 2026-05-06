@@ -83,6 +83,40 @@ async def list_assets(project_id: PydanticObjectId) -> list[Asset]:
     return await _refresh_list_submitted_prompts(assets)
 
 
+async def list_asset_summaries(project_id: PydanticObjectId) -> list[dict]:
+    assets = await Asset.find(Asset.project_id == project_id).to_list()
+    return [
+        {
+            "_id": str(asset.id),
+            "project_id": str(asset.project_id),
+            "name": asset.name,
+            "asset_type": asset.asset_type,
+            "status": asset.status,
+            "prompt": asset.prompt,
+            "voice_profile": asset.voice_profile,
+            "character_name": asset.character_name,
+            "asset_package": asset.asset_package,
+            "face_identity": asset.face_identity,
+            "distinctive_traits": asset.distinctive_traits,
+            "avoid_similar_to": asset.avoid_similar_to,
+            "look_lock": asset.look_lock,
+            "scene_scope": asset.scene_scope,
+            "appearance_stage": asset.appearance_stage,
+            "view_requirements": asset.view_requirements,
+            "preview_url": asset.preview_url,
+            "view_urls": asset.view_urls,
+            "provider_preview_url": asset.provider_preview_url,
+            "provider_view_urls": asset.provider_view_urls,
+            "versions": [],
+            "version_count": len(asset.versions or []),
+            "generation_task_id": asset.generation_task_id,
+            "created_at": asset.created_at,
+            "updated_at": asset.updated_at,
+        }
+        for asset in assets
+    ]
+
+
 async def refresh_asset_submitted_prompts(asset: Asset, *, force: bool = True) -> Asset:
     all_assets = await Asset.find(Asset.project_id == asset.project_id).to_list()
     return await _refresh_submitted_prompts(asset, all_assets, force=force)

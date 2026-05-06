@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { EpisodeStep, EpisodeDetail, Shot, ShotState, getStepIndex } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { generateAPI, shotAPI, episodeAPI, type ApiGenResponse } from "@/lib/api";
+import { transformShot } from "@/lib/transforms";
 import { buildShotGroups, segmentTitle, shotNumberLabel } from "@/lib/shot-groups";
 import { useCos } from "@/lib/CosContext";
 
@@ -143,7 +144,7 @@ function LazyVideo({ src, className }: { src: string; className?: string }) {
         </div>
       )}
       <video
-        key={key} src={src} controls
+        key={key} src={src} controls preload="metadata"
         className={cn(className, !loaded && "opacity-0")}
         onLoadedData={() => setLoaded(true)}
         onError={() => setErrored(true)}
@@ -174,6 +175,7 @@ function StepScript({
   const [promptShot, setPromptShot] = useState<Shot | null>(null);
   const [scriptPromptDraft, setScriptPromptDraft] = useState("");
   const [savingScriptPrompt, setSavingScriptPrompt] = useState(false);
+  const [loadingPromptDetail, setLoadingPromptDetail] = useState(false);
 
   // 由后端 running_tasks 派生，刷新后状态自动恢复
   const generating = episode.runningTasks.includes("gen_shot_script");
@@ -190,6 +192,19 @@ function StepScript({
   const handleStartEdit = (shot: Shot) => {
     setEditingId(shot.id);
     setEditText(shot.description);
+  };
+
+  const handleOpenScriptPrompt = async (shot: Shot) => {
+    setPromptShot(shot);
+    setLoadingPromptDetail(true);
+    try {
+      const raw = await shotAPI.get(projectId, episode.id, shot.id);
+      setPromptShot(transformShot(raw));
+    } catch {
+      // 保留 summary 数据构建的提示词兜底，不阻塞查看。
+    } finally {
+      setLoadingPromptDetail(false);
+    }
   };
 
   const handleSaveEdit = async (id: string) => {
@@ -410,7 +425,7 @@ function StepScript({
                             <p className="text-xs text-sub leading-relaxed flex-1">{shot.description}</p>
                             <div className="flex shrink-0 items-center gap-2 sm:gap-1.5">
                               <button
-                                onClick={() => setPromptShot(shot)}
+                                onClick={() => handleOpenScriptPrompt(shot)}
                                 className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-line bg-panel text-muted transition-colors hover:bg-soft hover:text-brand sm:h-8 sm:w-8"
                                 title="查看完整提交提示词"
                                 aria-label="查看完整提交提示词"
@@ -491,6 +506,11 @@ function StepScript({
         title={`${promptShotLabel} · 完整提交提示词`}
       >
         <div className="space-y-3">
+          {loadingPromptDetail && (
+            <div className="rounded-xl border border-line bg-soft px-3 py-2 text-xs text-muted">
+              正在加载完整提示词…
+            </div>
+          )}
           <Textarea
             value={scriptPromptDraft}
             onChange={(e) => setScriptPromptDraft(e.target.value)}
@@ -568,6 +588,10 @@ function StepVideos({
   const [scriptSheetOpen, setScriptSheetOpen] = useState(false);
   const [promptSheetOpen, setPromptSheetOpen] = useState(false);
   const [historySheetOpen, setHistorySheetOpen] = useState(false);
+  const [promptShotDetail, setPromptShotDetail] = useState<Shot | null>(null);
+  const [historyShotDetail, setHistoryShotDetail] = useState<Shot | null>(null);
+  const [loadingPromptDetail, setLoadingPromptDetail] = useState(false);
+  const [loadingHistoryDetail, setLoadingHistoryDetail] = useState(false);
   const [videoPromptDraft, setVideoPromptDraft] = useState("");
   const [savingVideoPrompt, setSavingVideoPrompt] = useState(false);
   const [restoringVersion, setRestoringVersion] = useState<string | null>(null);
@@ -598,12 +622,15 @@ function StepVideos({
   const pendingMissingCount = Math.max(0, missingVideoCount - warningShotCount);
   const hasUngenerated = missingVideoCount > 0;
   const shot = shots[selected] ?? shots[0];
+  const promptSourceShot = promptShotDetail?.id === shot?.id ? promptShotDetail : shot;
+  const historySourceShot = historyShotDetail?.id === shot?.id ? historyShotDetail : shot;
   const selectedShotLabel = shot ? shotNumberLabel(selected) : "镜头";
-  const submittedPrompt = shot?.submittedPrompt;
+  const submittedPrompt = promptSourceShot?.submittedPrompt;
   const shotBusy = !!shot && (loadingIds.has(shot.id) || shot.state === "rendering");
   const shotWarn = isShotWarning(shot);
   const shotApproved = !!shot && (isPast || (!!shot.videoUrl && shot.state === "approved"));
-  const shotVersions = shot?.versions ?? [];
+  const shotVersions = historySourceShot?.versions ?? [];
+  const shotVersionCount = shot?.versionCount ?? shotVersions.length;
   const agentShot = agentTarget ? shots.find((s) => s.id === agentTarget) : undefined;
   const agentShotIndex = agentShot ? shots.findIndex((s) => s.id === agentShot.id) : -1;
   const agentShotLabel = agentShotIndex >= 0 ? shotNumberLabel(agentShotIndex) : "镜头";
@@ -632,9 +659,48 @@ function StepVideos({
     : "本集镜头视频已全部生成";
 
   useEffect(() => {
+    setPromptShotDetail(null);
+    setHistoryShotDetail(null);
+    setLoadingPromptDetail(false);
+    setLoadingHistoryDetail(false);
+  }, [shot?.id]);
+
+  const loadFullShot = useCallback(async (target: Shot) => {
+    const raw = await shotAPI.get(projectId, episode.id, target.id);
+    return transformShot(raw);
+  }, [episode.id, projectId]);
+
+  const handleOpenVideoPrompt = async () => {
+    if (!shot) return;
+    setPromptSheetOpen(true);
+    setLoadingPromptDetail(true);
+    try {
+      setPromptShotDetail(await loadFullShot(shot));
+    } catch {
+      // summary 数据仍可作为基础提示词兜底。
+    } finally {
+      setLoadingPromptDetail(false);
+    }
+  };
+
+  const handleOpenHistory = async () => {
+    if (!shot) return;
+    setHistorySheetOpen(true);
+    if ((shot.versionCount ?? 0) <= (shot.versions?.length ?? 0)) return;
+    setLoadingHistoryDetail(true);
+    try {
+      setHistoryShotDetail(await loadFullShot(shot));
+    } catch (e: unknown) {
+      setError(errorMessage(e, "加载历史版本失败"));
+    } finally {
+      setLoadingHistoryDetail(false);
+    }
+  };
+
+  useEffect(() => {
     if (!promptSheetOpen) return;
-    setVideoPromptDraft(submittedPrompt || shot?.prompt || "");
-  }, [promptSheetOpen, submittedPrompt, shot?.prompt, shot?.id]);
+    setVideoPromptDraft(submittedPrompt || promptSourceShot?.prompt || "");
+  }, [promptSheetOpen, submittedPrompt, promptSourceShot?.prompt, promptSourceShot?.id]);
 
   const watchVideoTask = useCallback((response: ApiGenResponse, task: Omit<WatchedVideoTask, "recordId">) => {
     const recordId = response.record_id;
@@ -1038,10 +1104,11 @@ function StepVideos({
               <div className="lg:pt-[44px]">
                 <div className="rounded-2xl border border-line bg-panel/90 p-2 shadow-xs">
                   <button
-                    onClick={() => setPromptSheetOpen(true)}
+                    onClick={handleOpenVideoPrompt}
                     className="mb-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-line px-2 py-1.5 text-xs text-muted transition-colors hover:border-brand/30 hover:bg-brand-soft hover:text-brand"
                   >
-                    <FileText className="w-3.5 h-3.5" />编辑最终提交提示词
+                    {loadingPromptDetail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                    编辑最终提交提示词
                   </button>
 
                   {!shotBusy ? (
@@ -1061,7 +1128,7 @@ function StepVideos({
                       <Button size="sm" variant="outline" onClick={() => setAgentTarget(shot.id)}>
                         <MessageCircle className="w-3.5 h-3.5" />AI 修改
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => setHistorySheetOpen(true)} disabled={shotVersions.length === 0}>
+                      <Button size="sm" variant="outline" onClick={handleOpenHistory} disabled={shotVersionCount === 0}>
                         <History className="w-3.5 h-3.5" />历史
                       </Button>
                       <Button size="sm" className="col-span-2" onClick={() => handleApprove(shot.id)} disabled={!shot.videoUrl || shotApproved}>
@@ -1100,6 +1167,11 @@ function StepVideos({
         title={`${selectedShotLabel} · 最终提交提示词`}
       >
         <div className="space-y-3">
+          {loadingPromptDetail && (
+            <div className="rounded-xl border border-line bg-soft px-3 py-2 text-xs text-muted">
+              正在加载完整提示词…
+            </div>
+          )}
           <Textarea
             value={videoPromptDraft}
             onChange={(e) => setVideoPromptDraft(e.target.value)}
@@ -1123,6 +1195,11 @@ function StepVideos({
         width="sm:w-[720px]"
       >
         <div className="space-y-4">
+          {loadingHistoryDetail && (
+            <div className="rounded-xl border border-line bg-soft px-3 py-2 text-xs text-muted">
+              正在加载历史版本…
+            </div>
+          )}
           {shot?.videoUrl && (
             <div className="rounded-xl border border-line bg-elev p-3">
               <div className="mb-2 flex items-center justify-between">
@@ -1173,7 +1250,7 @@ function StepVideos({
                 );
               })}
             </div>
-          ) : (
+          ) : loadingHistoryDetail ? null : (
             <div className="empty-state-panel">暂无历史版本。重新生成后会自动记录。</div>
           )}
         </div>
@@ -1407,6 +1484,7 @@ function StepDone({ episode, projectId }: { episode: EpisodeDetail; projectId: s
           </div>
         </div>
       )}
+
 
       {episode.finalVideoUrl ? (
         <a href={cosUrl(episode.finalVideoUrl)} download target="_blank" rel="noreferrer">

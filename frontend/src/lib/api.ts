@@ -126,6 +126,7 @@ export interface ApiEpisode {
   updated_at: string;
 }
 
+
 export interface ApiShotDialogueLine {
   speaker: string;
   text: string;
@@ -181,6 +182,7 @@ export interface ApiShot {
   audio_url?: string;
   last_frame_url?: string;
   versions?: ApiShotVersion[];
+  version_count?: number;
   review_comment: string;
   generation_task_id?: string;
 }
@@ -215,7 +217,10 @@ export interface ApiAsset {
   submitted_prompts?: Record<string, string>;
   preview_url?: string;
   view_urls?: Record<string, string>;
+  provider_preview_url?: string;
+  provider_view_urls?: Record<string, string>;
   versions: ApiAssetVersion[];
+  version_count?: number;
   generation_task_id?: string;
   created_at: string;
   updated_at: string;
@@ -305,7 +310,7 @@ export const episodeAPI = {
   list: (projectId: string): Promise<ApiEpisode[]> =>
     client.get(`/projects/${projectId}/episodes`),
 
-  get: (projectId: string, episodeId: string, opts?: { include_shots?: boolean }): Promise<ApiEpisode> =>
+  get: (projectId: string, episodeId: string, opts?: { include_shots?: boolean; shots_view?: "full" | "summary" }): Promise<ApiEpisode> =>
     client.get(`/projects/${projectId}/episodes/${episodeId}`, { params: opts }),
   update: (projectId: string, episodeId: string, data: Partial<ApiEpisode>): Promise<ApiEpisode> =>
     client.patch(`/projects/${projectId}/episodes/${episodeId}`, data),
@@ -351,8 +356,8 @@ export const shotAPI = {
 // ─── Asset API ────────────────────────────────────────────────
 
 export const assetAPI = {
-  list: (projectId: string): Promise<ApiAsset[]> =>
-    client.get(`/projects/${projectId}/assets`),
+  list: (projectId: string, opts?: { view?: "full" | "summary" }): Promise<ApiAsset[]> =>
+    client.get(`/projects/${projectId}/assets`, { params: opts }),
 
   get: (projectId: string, assetId: string): Promise<ApiAsset> =>
     client.get(`/projects/${projectId}/assets/${assetId}`),

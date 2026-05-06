@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from beanie import PydanticObjectId
 from app.models.project import Project
 from app.schemas.asset import AssetCreate, AssetUpdate
@@ -9,7 +9,12 @@ router = APIRouter(prefix="/projects/{project_id}/assets", tags=["assets"], depe
 
 
 @router.get("")
-async def list_assets(project: Project = Depends(get_owned_project)):
+async def list_assets(
+    view: str = Query("full", pattern="^(full|summary)$"),
+    project: Project = Depends(get_owned_project),
+):
+    if view == "summary":
+        return await asset_service.list_asset_summaries(project.id)
     return await asset_service.list_assets(project.id)
 
 

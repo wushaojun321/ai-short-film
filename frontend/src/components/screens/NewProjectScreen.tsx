@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Upload, FileText, ChevronLeft, ChevronRight, Check, Loader2,
@@ -457,7 +457,7 @@ function Phase2({
     try {
       const [epList, assetList] = await Promise.all([
         episodeAPI.list(projectId),
-        assetAPI.list(projectId),
+        assetAPI.list(projectId, { view: "summary" }),
       ]);
       setApiEpisodes(epList);
       // 同步 EpisodeDraft 列表（以 DB 为准）
@@ -1020,6 +1020,8 @@ function AssetCard({
   const [generating, setGenerating] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [detailAsset, setDetailAsset] = useState<ApiAsset | null>(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [restoringVersion, setRestoringVersion] = useState<string | null>(null);
   const [activeLightboxItems, setActiveLightboxItems] = useState<AssetLightboxItem[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -1033,7 +1035,9 @@ function AssetCard({
   const hasCharacterViews = CHARACTER_VIEW_META.some((view) => Boolean(asset.view_urls?.[view.key]));
   const status: AssetStatus = ASSET_STATUS_ZH[asset.status] ?? "缺失";
   const promptPreview = getAssetDisplayPrompt(asset);
-  const assetVersions = asset.versions ?? [];
+  const historyAsset = detailAsset?.id === asset.id ? detailAsset : asset;
+  const assetVersions = historyAsset.versions ?? [];
+  const versionCount = historyAsset.version_count ?? asset.version_count ?? assetVersions.length;
   const localLightboxItems = getAssetLightboxItems(asset);
   const sharedLightboxItems = lightboxItems?.length ? lightboxItems : localLightboxItems;
   const currentLightboxItem = lightboxIndex === null ? null : activeLightboxItems[lightboxIndex];
@@ -1078,6 +1082,24 @@ function AssetCard({
       setRestoringVersion(null);
     }
   };
+
+  const handleOpenHistory = async () => {
+    setHistoryOpen(true);
+    if (versionCount <= assetVersions.length) return;
+    setLoadingHistory(true);
+    try {
+      setDetailAsset(await assetAPI.get(projectId, asset.id));
+    } catch {
+      // 保留 summary 状态，弹窗中显示空历史兜底。
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    setDetailAsset(null);
+    setLoadingHistory(false);
+  }, [asset.id, asset.updated_at]);
 
   const openLightbox = (url: string, label: string, source: AssetLightboxItem[] = sharedLightboxItems) => {
     const items = source.length > 0 ? source : [{ url, label }];
@@ -1125,7 +1147,7 @@ function AssetCard({
         title={currentViewUrl ? `点击查看大图` : `点击生成`}
       >
         {currentViewUrl ? (
-          <img src={cosUrl(currentViewUrl)} alt={`${asset.name}-${currentView.label}`} className="w-full h-full object-contain" />
+          <img src={cosUrl(currentViewUrl)} alt={`${asset.name}-${currentView.label}`} loading="lazy" decoding="async" className="w-full h-full object-contain" />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-muted">
             <ImagePlus className="w-5 h-5" />
@@ -1197,6 +1219,8 @@ function AssetCard({
           <img
             src={cosUrl(previewUrl)}
             alt={asset.name}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-contain cursor-zoom-in"
             onClick={() => openLightbox(previewUrl, asset.name)}
           />
@@ -1256,11 +1280,11 @@ function AssetCard({
       </Button>
       <Button
         size="sm" variant="outline" className="w-8 h-8 p-0"
-        onClick={() => setHistoryOpen(true)}
-        disabled={assetVersions.length === 0}
-        title={assetVersions.length === 0 ? "暂无历史版本" : "历史版本"}
+        onClick={handleOpenHistory}
+        disabled={versionCount === 0}
+        title={versionCount === 0 ? "暂无历史版本" : "历史版本"}
       >
-        <History className="w-3.5 h-3.5" />
+        {loadingHistory ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <History className="w-3.5 h-3.5" />}
       </Button>
       {asset.status !== "approved" && !isGenerating && isReady && (
         <Button
@@ -1278,18 +1302,23 @@ function AssetCard({
     <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
       <DialogContent className="sm:max-w-5xl">
         <DialogHeader>
-          <DialogTitle>{asset.name} · 历史版本回选</DialogTitle>
+          <DialogTitle>{historyAsset.name} · 历史版本回选</DialogTitle>
           <DialogDescription>对比多次生成结果，选择一个历史版本回写到当前资产。</DialogDescription>
         </DialogHeader>
+        {loadingHistory && (
+          <div className="rounded-xl border border-line bg-soft px-3 py-2 text-xs text-muted">
+            正在加载历史版本…
+          </div>
+        )}
         {assetVersions.length > 0 ? (
           <div className="grid max-h-[70vh] grid-cols-1 gap-3 overflow-y-auto pr-1 md:grid-cols-2 lg:grid-cols-3">
             {assetVersions.slice().reverse().map((item) => {
-              const isCurrent = item.url === asset.preview_url || Object.values(asset.view_urls ?? {}).includes(item.url);
+              const isCurrent = item.url === historyAsset.preview_url || Object.values(historyAsset.view_urls ?? {}).includes(item.url);
               const versionLightboxItems = assetVersions
                 .filter((version) => Boolean(version.url))
                 .map((version) => ({
                   url: version.url,
-                  label: `${asset.name} · ${version.version}${version.note ? ` · ${version.note}` : ""}`,
+                  label: `${historyAsset.name} · ${version.version}${version.note ? ` · ${version.note}` : ""}`,
                 }));
               return (
                 <div key={item.version} className="rounded-xl border border-line bg-panel p-3">
@@ -1305,10 +1334,10 @@ function AssetCard({
                   <button
                     type="button"
                     className="h-44 w-full overflow-hidden rounded-lg border border-line bg-soft"
-                    onClick={() => openLightbox(item.url, `${asset.name} · ${item.version}`, versionLightboxItems)}
+                    onClick={() => openLightbox(item.url, `${historyAsset.name} · ${item.version}`, versionLightboxItems)}
                     title="点击放大预览"
                   >
-                    <img src={cosUrl(item.url)} alt={`${asset.name}-${item.version}`} className="h-full w-full object-contain" />
+                    <img src={cosUrl(item.url)} alt={`${historyAsset.name}-${item.version}`} loading="lazy" decoding="async" className="h-full w-full object-contain" />
                   </button>
                   <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-sub">{item.prompt || "（暂无提示词）"}</p>
                   <div className="mt-3 flex justify-end">
@@ -1328,7 +1357,7 @@ function AssetCard({
               );
             })}
           </div>
-        ) : (
+        ) : loadingHistory ? null : (
           <div className="empty-state-panel">暂无历史版本。重新生成后会自动记录。</div>
         )}
         <DialogFooter>
@@ -1360,6 +1389,7 @@ function AssetCard({
         <img
           src={cosUrl(currentLightboxItem.url)}
           alt={currentLightboxItem.label}
+          decoding="async"
           className="max-h-[86vh] max-w-[92vw] rounded-lg object-contain shadow-2xl"
         />
         <div className="rounded-full bg-black/45 px-3 py-1 text-xs text-white/85">
@@ -1508,6 +1538,8 @@ function AssetGroupCard({
             <img
               src={cosUrl(previewUrl)}
               alt={previewAsset?.name || group.label}
+              loading="lazy"
+              decoding="async"
               className="w-full h-full object-contain"
             />
           ) : (
@@ -1528,7 +1560,7 @@ function AssetGroupCard({
                 return (
                   <div key={view.key} className="h-12 rounded-md overflow-hidden border border-white/70 bg-black/25">
                     {url ? (
-                      <img src={cosUrl(url)} alt={view.label} className="w-full h-full object-contain" />
+                      <img src={cosUrl(url)} alt={view.label} loading="lazy" decoding="async" className="w-full h-full object-contain" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-[10px] text-white/70">{view.label}</div>
                     )}
@@ -1611,7 +1643,7 @@ export function Phase3({
   const [pollKey, setPollKey] = useState(0);
 
   const loadAssets = async () => {
-    const list = await assetAPI.list(projectId);
+    const list = await assetAPI.list(projectId, { view: "summary" });
     setAssets(list);
     return list;
   };
@@ -1646,27 +1678,46 @@ export function Phase3({
     setAssetPromptMode(promptAsset && getAssetSubmittedPrompt(promptAsset) ? "final" : "base");
   }, [promptAsset]);
 
-  const tabs = [...new Set(assets.map((a) => a.asset_type))].filter((t) => ["character", "scene", "prop"].includes(t));
-  const filteredAssets = assets.filter((a) => matchesAssetFilter(a, assetFilter));
-  const currentGroups = buildAssetGroups(filteredAssets.filter((a) => a.asset_type === tab));
-  const pendingCount = assets.filter((a) => a.status !== "approved").length;
-  const generatingCount = assets.filter((a) => a.status === "generating" || a.status === "queued").length;
-  const needGenerateCount = assets.filter((a) =>
-    !isAssetImageReady(a) && a.status !== "generating" && a.status !== "queued"
-  ).length;
-  const readyToConfirmCount = assets.filter((a) => isAssetImageReady(a) && a.status !== "approved").length;
-  const approvedCount = assets.filter((a) => a.status === "approved").length;
-  const characterGroupCount = buildAssetGroups(assets.filter((a) => a.asset_type === "character")).length;
-  const characterAssetCount = assets.filter((a) => a.asset_type === "character").length;
-  const sceneAssetCount = assets.filter((a) => a.asset_type === "scene").length;
-  const propAssetCount = assets.filter((a) => a.asset_type === "prop").length;
-  const filterCounts: Record<AssetFilter, number> = {
-    all: assets.length,
-    need_generate: assets.filter((a) => matchesAssetFilter(a, "need_generate")).length,
-    generating: assets.filter((a) => matchesAssetFilter(a, "generating")).length,
-    pending_confirm: assets.filter((a) => matchesAssetFilter(a, "pending_confirm")).length,
-    approved: assets.filter((a) => matchesAssetFilter(a, "approved")).length,
-  };
+  const assetView = useMemo(() => {
+    const tabs = [...new Set(assets.map((a) => a.asset_type))].filter((t) => ["character", "scene", "prop"].includes(t));
+    const filteredAssets = assets.filter((a) => matchesAssetFilter(a, assetFilter));
+    return {
+      tabs,
+      currentGroups: buildAssetGroups(filteredAssets.filter((a) => a.asset_type === tab)),
+      pendingCount: assets.filter((a) => a.status !== "approved").length,
+      generatingCount: assets.filter((a) => a.status === "generating" || a.status === "queued").length,
+      needGenerateCount: assets.filter((a) =>
+        !isAssetImageReady(a) && a.status !== "generating" && a.status !== "queued"
+      ).length,
+      readyToConfirmCount: assets.filter((a) => isAssetImageReady(a) && a.status !== "approved").length,
+      approvedCount: assets.filter((a) => a.status === "approved").length,
+      characterGroupCount: buildAssetGroups(assets.filter((a) => a.asset_type === "character")).length,
+      characterAssetCount: assets.filter((a) => a.asset_type === "character").length,
+      sceneAssetCount: assets.filter((a) => a.asset_type === "scene").length,
+      propAssetCount: assets.filter((a) => a.asset_type === "prop").length,
+      filterCounts: {
+        all: assets.length,
+        need_generate: assets.filter((a) => matchesAssetFilter(a, "need_generate")).length,
+        generating: assets.filter((a) => matchesAssetFilter(a, "generating")).length,
+        pending_confirm: assets.filter((a) => matchesAssetFilter(a, "pending_confirm")).length,
+        approved: assets.filter((a) => matchesAssetFilter(a, "approved")).length,
+      } satisfies Record<AssetFilter, number>,
+    };
+  }, [assetFilter, assets, tab]);
+  const {
+    tabs,
+    currentGroups,
+    pendingCount,
+    generatingCount,
+    needGenerateCount,
+    readyToConfirmCount,
+    approvedCount,
+    characterGroupCount,
+    characterAssetCount,
+    sceneAssetCount,
+    propAssetCount,
+    filterCounts,
+  } = assetView;
   const promptAssetFinalPrompt = promptAsset ? getAssetSubmittedPrompt(promptAsset) : "";
   const promptAssetTextareaValue = assetPromptMode === "final" ? promptAssetFinalPrompt : assetPromptDraft;
 
@@ -1715,6 +1766,17 @@ export function Phase3({
       setError(err instanceof Error ? err.message : "保存资产提示词失败");
     } finally {
       setSavingAssetPrompt(false);
+    }
+  };
+
+  const handleViewAssetPrompt = async (asset: ApiAsset) => {
+    setPromptAsset(asset);
+    try {
+      const full = await assetAPI.get(projectId, asset.id);
+      setPromptAsset(full);
+      setAssets((prev) => prev.map((item) => item.id === full.id ? full : item));
+    } catch {
+      // summary 里的基础提示词仍可兜底展示。
     }
   };
 
@@ -1858,7 +1920,7 @@ export function Phase3({
                       asset={asset}
                       projectId={projectId}
                       lightboxItems={getAssetGroupLightboxItems(group)}
-                      onViewPrompt={setPromptAsset}
+                      onViewPrompt={handleViewAssetPrompt}
                       onUpdate={() => setPollKey((k) => k + 1)}
                     />
                   ))

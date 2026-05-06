@@ -90,6 +90,7 @@ export interface Shot {
   prompt?: string;
   submittedPrompt?: string;
   reviewComment?: string;
+  versionCount?: number;
   versions?: Array<{
     version: string;
     videoUrl: string;
