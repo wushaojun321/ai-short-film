@@ -697,12 +697,17 @@ function StepVideos({
       const taskRefs = (response.records ?? []).filter((item) => item.record_id);
       if (taskRefs.length > 0) {
         taskRefs.forEach((item) => {
-          const targetShot = shots.find((s) => s.id === item.shot_id);
+          const chainShotIds = item.shot_ids?.length ? item.shot_ids : (item.shot_id ? [item.shot_id] : []);
+          const targetShot = shots.find((s) => s.id === chainShotIds[0]);
           const targetIndex = targetShot ? shots.findIndex((s) => s.id === targetShot.id) : -1;
-          const targetLabel = targetIndex >= 0 ? shotNumberLabel(targetIndex) : (item.shot_code || "镜头");
+          const targetLabel = item.chain
+            ? `${item.segment_code || item.shot_code || "片段"}视频生成`
+            : (targetIndex >= 0 ? `${shotNumberLabel(targetIndex)}视频生成` : `${item.shot_code || "镜头"}视频生成`);
           watchVideoTask(
             { task_id: item.task_id, record_id: item.record_id },
-            { label: `${targetLabel}视频生成`, shotId: item.shot_id }
+            chainShotIds.length > 1
+              ? { label: targetLabel, shotIds: chainShotIds }
+              : { label: targetLabel, shotId: chainShotIds[0] }
           );
         });
       } else {

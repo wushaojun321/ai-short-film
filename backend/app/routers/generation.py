@@ -180,76 +180,122 @@ async def enqueue_episode_shot_videos(episode_id: PydanticObjectId, current_user
         raise HTTPException(404, "Episode not found")
 
     from app.models.shot import ShotState
-    from app.tasks.video_tasks import gen_shot_video_task
+    from app.tasks.video_tasks import gen_shot_video_chain_task
     from datetime import datetime
 
     shots = await Shot.find(Shot.episode_id == episode.id).sort("+order").to_list()
     records: list[dict] = []
     queued = 0
+    queued_chains = 0
     skipped = 0
+    active_target_ids: set[str] = set()
+    active_celery_ids: set[str] = set()
 
+    active_records = await TaskRecord.find(
+        TaskRecord.episode_id == episode.id,
+        TaskRecord.task_type == "gen_shot_video",
+        {"status": {"$in": ["pending", "running"]}},
+    ).to_list()
+    for active in active_records:
+        active_celery_ids.add(active.celery_task_id)
+        if active.target_id:
+            active_target_ids.add(str(active.target_id))
+
+    # Segment boundaries are the concurrency boundaries: segments run in parallel,
+    # while shots inside one segment run sequentially to preserve last-frame continuity.
+    segments: list[tuple[str, list[Shot]]] = []
     for shot in shots:
-        if shot.video_url:
+        segment_key = shot.segment_code or "__episode__"
+        if not segments or segments[-1][0] != segment_key:
+            segments.append((segment_key, []))
+        segments[-1][1].append(shot)
+
+    for segment_key, segment_shots in segments:
+        chain: list[Shot] = []
+        blocked_by_active_previous = False
+
+        for shot in segment_shots:
+            if shot.video_url:
+                continue
+
+            shot_has_active_record = (
+                str(shot.id) in active_target_ids
+                or (shot.generation_task_id in active_celery_ids if shot.generation_task_id else False)
+            )
+            shot_is_active = shot_has_active_record or (
+                shot.state == ShotState.rendering
+                and shot.generation_task_id in active_celery_ids
+            )
+            if shot_is_active:
+                records.append({
+                    "task_id": shot.generation_task_id,
+                    "record_id": None,
+                    "shot_id": str(shot.id),
+                    "shot_code": shot.shot_code,
+                    "segment_code": shot.segment_code,
+                    "queued": False,
+                    "reason": "already running",
+                })
+                blocked_by_active_previous = True
+                skipped += 1
+                continue
+
+            if blocked_by_active_previous:
+                records.append({
+                    "task_id": None,
+                    "record_id": None,
+                    "shot_id": str(shot.id),
+                    "shot_code": shot.shot_code,
+                    "segment_code": shot.segment_code,
+                    "queued": False,
+                    "reason": "waiting for previous shot in segment",
+                })
+                skipped += 1
+                continue
+
+            chain.append(shot)
+
+        if not chain:
             skipped += 1
             continue
 
-        active_records = await TaskRecord.find(
-            TaskRecord.target_id == shot.id,
-            TaskRecord.task_type == "gen_shot_video",
-            {"status": {"$in": ["pending", "running"]}},
-        ).sort("-created_at").limit(1).to_list()
-        if active_records:
-            active = active_records[0]
-            records.append({
-                "task_id": active.celery_task_id,
-                "record_id": str(active.id),
-                "shot_id": str(shot.id),
-                "shot_code": shot.shot_code,
-                "queued": False,
-                "reason": "already running",
+        segment_label = chain[0].segment_code or f"EP{episode.number:02d}"
+        task = gen_shot_video_chain_task.delay([str(shot.id) for shot in chain], segment_label)
+        for shot in chain:
+            await shot.set({
+                "state": ShotState.rendering,
+                "generation_task_id": task.id,
             })
-            skipped += 1
-            continue
-
-        # 兼容旧的整集串行任务：当前正在 rendering 的镜头可能已经被旧任务接管，
-        # 不再重复排队，其余镜头可以继续逐个入队以使用 video worker 并发。
-        if shot.state == ShotState.rendering:
-            records.append({
-                "task_id": shot.generation_task_id,
-                "record_id": None,
-                "shot_id": str(shot.id),
-                "shot_code": shot.shot_code,
-                "queued": False,
-                "reason": "already rendering",
-            })
-            skipped += 1
-            continue
-
-        task = gen_shot_video_task.delay(str(shot.id))
-        await shot.set({
-            "state": ShotState.rendering,
-            "generation_task_id": task.id,
-        })
         record = TaskRecord(
             celery_task_id=task.id,
             task_type="gen_shot_video",
             project_id=episode.project_id,
             episode_id=episode.id,
-            target_id=shot.id,
+            target_id=chain[0].id,
             status=TaskStatus.running,
             progress=0,
-            logs=[f"[video] 已加入批量生成队列：{shot.shot_code}"],
+            logs=[
+                (
+                    f"[video-chain] 已加入片段链队列：{segment_label}，"
+                    f"{len(chain)} 个镜头将按顺序生成并传递上一镜尾帧"
+                )
+            ],
             started_at=datetime.utcnow(),
         )
         await record.insert()
         records.append({
             "task_id": task.id,
             "record_id": str(record.id),
-            "shot_id": str(shot.id),
-            "shot_code": shot.shot_code,
+            "shot_id": str(chain[0].id),
+            "shot_ids": [str(shot.id) for shot in chain],
+            "shot_code": chain[0].shot_code,
+            "shot_codes": [shot.shot_code for shot in chain],
+            "segment_code": chain[0].segment_code,
             "queued": True,
+            "chain": True,
         })
-        queued += 1
+        queued += len(chain)
+        queued_chains += 1
 
     first_record = next((item for item in records if item.get("record_id")), None)
     return {
@@ -257,6 +303,7 @@ async def enqueue_episode_shot_videos(episode_id: PydanticObjectId, current_user
         "record_id": first_record["record_id"] if first_record else None,
         "records": records,
         "queued": queued,
+        "queued_chains": queued_chains,
         "skipped": skipped,
     }
 

@@ -46,6 +46,84 @@ def gen_episode_videos_task(self, episode_id: str):
     return run_async(_gen_episode_videos_async(self.request.id, episode_id))
 
 
+@celery_app.task(bind=True, name="app.tasks.video.gen_shot_video_chain", queue="video")
+def gen_shot_video_chain_task(self, shot_ids: list[str], chain_label: str = ""):
+    """Generate a contiguous shot chain sequentially so each shot can use the previous last frame."""
+    return run_async(_gen_shot_video_chain_async(self.request.id, shot_ids, chain_label))
+
+
+async def _gen_shot_video_chain_async(celery_id: str, shot_ids: list[str], chain_label: str = ""):
+    from app.database import init_db
+    await init_db()
+
+    from beanie import PydanticObjectId
+    from app.models.shot import Shot, ShotState
+    from app.models.task_record import TaskRecord
+    from app.tasks.base import finish_task_record
+
+    record = await TaskRecord.find_one(TaskRecord.celery_task_id == celery_id)
+    total = len(shot_ids)
+    completed = 0
+    current_index = 0
+
+    try:
+        if record:
+            label = chain_label or "未命名片段"
+            await record.set({
+                "progress": 5,
+                "logs": [f"[video-chain] 片段链开始：{label}，共 {total} 个镜头；片段内按顺序生成，后镜头等待上一镜尾帧"],
+            })
+
+        for idx, shot_id in enumerate(shot_ids):
+            current_index = idx
+            shot = await Shot.get(PydanticObjectId(shot_id))
+            if not shot:
+                raise ValueError(f"Shot not found: {shot_id}")
+            if shot.video_url:
+                completed += 1
+                if record:
+                    await record.set({
+                        "progress": 5 + int(completed / max(total, 1) * 90),
+                        "logs": (record.logs or []) + [f"[video-chain] {shot.shot_code} 已有视频，跳过"],
+                    })
+                continue
+
+            if record:
+                await record.set({
+                    "progress": 5 + int(idx / max(total, 1) * 90),
+                    "logs": (record.logs or []) + [f"[video-chain] 开始生成 {shot.shot_code}（{idx + 1}/{total}）"],
+                })
+
+            await _gen_shot_video_async(celery_id, shot_id, manage_record=False)
+            completed += 1
+
+            if record:
+                await record.set({
+                    "progress": 5 + int(completed / max(total, 1) * 90),
+                    "logs": (record.logs or []) + [f"[video-chain] {shot.shot_code} 生成完成，下一镜可引用本镜尾帧"],
+                })
+
+        await finish_task_record(celery_id, result={"shots": completed, "shot_ids": shot_ids, "chain_label": chain_label})
+        return {"shots": completed, "shot_ids": shot_ids, "chain_label": chain_label}
+
+    except Exception as e:
+        # 当前镜头会由 _gen_shot_video_async 回滚；这里负责把尚未执行的排队镜头从 rendering 释放出来。
+        for pending_id in shot_ids[current_index + 1:]:
+            try:
+                pending = await Shot.get(PydanticObjectId(pending_id))
+                if (
+                    pending
+                    and pending.generation_task_id == celery_id
+                    and pending.state == ShotState.rendering
+                    and not pending.video_url
+                ):
+                    await pending.set({"state": ShotState.asset_ready})
+            except Exception:
+                logger.exception("Failed to reset pending shot after chain failure: %s", pending_id)
+        await finish_task_record(celery_id, error=str(e))
+        raise
+
+
 async def _gen_episode_videos_async(celery_id: str, episode_id: str):
     from app.database import init_db
     await init_db()

@@ -225,7 +225,11 @@ export interface ApiGenTaskRef {
   task_id?: string | null;
   record_id?: string | null;
   shot_id?: string;
+  shot_ids?: string[];
   shot_code?: string;
+  shot_codes?: string[];
+  segment_code?: string;
+  chain?: boolean;
   queued?: boolean;
   reason?: string;
 }
@@ -236,6 +240,7 @@ export interface ApiGenResponse {
   record_id?: string | null;
   records?: ApiGenTaskRef[];
   queued?: number;
+  queued_chains?: number;
   skipped?: number;
   reason?: string;
 }
