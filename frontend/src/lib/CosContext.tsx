@@ -11,10 +11,28 @@
  * 实现：getObjectUrl 是异步回调，使用 Map 缓存签名结果，
  * 完成后通过 setState 触发组件重渲染拿到签名 URL。
  */
-import COS from "cos-js-sdk-v5";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { stsAPI, type StsToken } from "@/lib/api";
 import { useAuth } from "@/lib/AuthContext";
+
+type CosCredentials = {
+  TmpSecretId: string;
+  TmpSecretKey: string;
+  SecurityToken: string;
+  StartTime: number;
+  ExpiredTime: number;
+};
+
+type CosClient = {
+  getObjectUrl: (
+    options: { Bucket: string; Region: string; Key: string; Sign: boolean; Expires: number },
+    callback: (err?: unknown, data?: { Url?: string }) => void,
+  ) => void;
+};
+
+type CosConstructor = new (options: {
+  getAuthorization: (options: unknown, callback: (credentials: CosCredentials) => void) => void;
+}) => CosClient;
 
 interface CosContextValue {
   cosUrl: (url: string | null | undefined) => string;
@@ -28,16 +46,21 @@ const CosContext = createContext<CosContextValue>({
 
 export function CosProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  const cosRef = useRef<InstanceType<typeof COS> | null>(null);
+  const cosRef = useRef<CosClient | null>(null);
   const tokenRef = useRef<StsToken | null>(null);
+  const userRef = useRef(user);
+  const initPromiseRef = useRef<Promise<void> | null>(null);
   const [ready, setReady] = useState(false);
   // 签名 URL 缓存：原始 URL → 签名 URL
   const [signedCache, setSignedCache] = useState<Map<string, string>>(new Map());
   // 正在请求签名的 URL 集合，避免重复发起
   const pendingRef = useRef<Set<string>>(new Set());
 
-  const initCos = (token: StsToken) => {
+  const initCos = useCallback(async (token: StsToken, shouldAbort: () => boolean = () => false) => {
     tokenRef.current = token;
+    const module = await import("cos-js-sdk-v5");
+    if (shouldAbort()) return;
+    const COS = (module.default ?? module) as CosConstructor;
     cosRef.current = new COS({
       getAuthorization(_options, callback) {
         const t = tokenRef.current!;
@@ -51,22 +74,29 @@ export function CosProvider({ children }: { children: React.ReactNode }) {
       },
     });
     setReady(true);
-  };
+  }, []);
 
-  // 初次加载
   useEffect(() => {
+    userRef.current = user;
     if (!user) {
       cosRef.current = null;
       tokenRef.current = null;
+      initPromiseRef.current = null;
       setReady(false);
       setSignedCache(new Map());
       pendingRef.current.clear();
-      return;
     }
-    stsAPI.getToken()
-      .then(initCos)
-      .catch((e) => console.warn("[COS] STS 获取失败，图片可能无法显示:", e));
   }, [user]);
+
+  const ensureCos = useCallback(() => {
+    if (!userRef.current || cosRef.current || initPromiseRef.current) return;
+    initPromiseRef.current = stsAPI.getToken()
+      .then((token) => initCos(token, () => !userRef.current))
+      .catch((e) => console.warn("[COS] STS 获取失败，图片可能无法显示:", e))
+      .finally(() => {
+        initPromiseRef.current = null;
+      });
+  }, [initCos]);
 
   // 在 token 过期前 5 分钟自动刷新，并清空缓存让图片重新签名
   useEffect(() => {
@@ -75,14 +105,14 @@ export function CosProvider({ children }: { children: React.ReactNode }) {
     if (msLeft <= 0) return;
     const timer = setTimeout(() => {
       stsAPI.getToken().then((token) => {
-        initCos(token);
+        initCos(token, () => !userRef.current);
         // 清空签名缓存，触发重新签名
         setSignedCache(new Map());
         pendingRef.current.clear();
       }).catch(console.warn);
     }, msLeft);
     return () => clearTimeout(timer);
-  }, [ready]);
+  }, [initCos, ready]);
 
   const cosUrl = useCallback((url: string | null | undefined): string => {
     if (!url) return "";
@@ -92,8 +122,11 @@ export function CosProvider({ children }: { children: React.ReactNode }) {
     // 已有缓存直接返回
     if (signedCache.has(url)) return signedCache.get(url)!;
 
-    // COS 还未 ready，先返回原始 URL
-    if (!cosRef.current) return url;
+    // COS 还未 ready，先返回原始 URL，并按需加载 COS SDK / STS。
+    if (!cosRef.current) {
+      ensureCos();
+      return url;
+    }
 
     // 避免重复发起签名请求
     if (pendingRef.current.has(url)) return url;
@@ -112,9 +145,10 @@ export function CosProvider({ children }: { children: React.ReactNode }) {
         (_err, data) => {
           pendingRef.current.delete(url);
           if (data?.Url) {
+            const signedUrl = data.Url;
             setSignedCache((prev) => {
               const next = new Map(prev);
-              next.set(url, data.Url);
+              next.set(url, signedUrl);
               return next;
             });
           }
@@ -126,7 +160,7 @@ export function CosProvider({ children }: { children: React.ReactNode }) {
 
     // 本次调用返回原始 URL，签名完成后 setState 触发重渲染
     return url;
-  }, [signedCache]);
+  }, [ensureCos, signedCache]);
 
   return (
     <CosContext.Provider value={{ cosUrl, ready }}>

@@ -1,11 +1,22 @@
 import { useParams, Navigate, useSearchParams } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { projectAPI } from "@/lib/api";
 import { transformProject } from "@/lib/transforms";
 import type { Project } from "@/lib/data";
-import ProjectStudioScreen from "@/components/screens/ProjectStudioScreen";
-import NewProjectScreen from "@/components/screens/NewProjectScreen";
-import { Phase3 } from "@/components/screens/NewProjectScreen";
+
+const ProjectStudioScreen = lazy(() => import("@/components/screens/ProjectStudioScreen"));
+const NewProjectScreen = lazy(() => import("@/components/screens/NewProjectScreen"));
+const Phase3 = lazy(() =>
+  import("@/components/screens/NewProjectScreen").then((module) => ({ default: module.Phase3 }))
+);
+
+function DetailFallback() {
+  return (
+    <div className="min-h-[calc(100dvh-64px)] flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
 export default function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -34,7 +45,11 @@ export default function ProjectDetailPage() {
   if (notFound || !project) return <Navigate to="/projects" replace />;
 
   if (project.initStatus !== "initialized") {
-    return <NewProjectScreen project={project} onProjectUpdate={reload} />;
+    return (
+      <Suspense fallback={<DetailFallback />}>
+        <NewProjectScreen project={project} onProjectUpdate={reload} />
+      </Suspense>
+    );
   }
 
   // 已初始化，但用户点击了「资产库」入口
@@ -47,19 +62,25 @@ export default function ProjectDetailPage() {
             <h1 className="break-words text-2xl font-black text-text sm:text-4xl">{project.title} · 资产库</h1>
             <p className="text-base text-sub mt-2">查看、重新生成和确认项目资产图片。</p>
           </div>
-          <Phase3
-            projectId={projectId}
-            manageMode={true}
-            onFinish={() => {
-              const params = new URLSearchParams(searchParams);
-              params.delete("view");
-              setSearchParams(params, { replace: true });
-            }}
-          />
+          <Suspense fallback={<DetailFallback />}>
+            <Phase3
+              projectId={projectId}
+              manageMode={true}
+              onFinish={() => {
+                const params = new URLSearchParams(searchParams);
+                params.delete("view");
+                setSearchParams(params, { replace: true });
+              }}
+            />
+          </Suspense>
         </div>
       </div>
     );
   }
 
-  return <ProjectStudioScreen project={project} onProjectUpdate={reload} />;
+  return (
+    <Suspense fallback={<DetailFallback />}>
+      <ProjectStudioScreen project={project} onProjectUpdate={reload} />
+    </Suspense>
+  );
 }
