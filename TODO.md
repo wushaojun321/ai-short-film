@@ -19,6 +19,8 @@
 15. Agent 对话已限制最近 10 轮上下文，并压缩项目级资产快照，避免长对话反复投喂资产提示词。
 16. 分镜片段细化已按 `key_asset_ids` 收缩资产索引，LLM 未输出片段资产时才回退本集候选资产。
 17. 人物资产三视图继续保持纯文本独立生成，但解析和最终提示词新增 `distinctive_traits`、`avoid_similar_to`、`look_lock`，用于锁定同一阶段发型/服装/配饰并拉开不同角色面部差异。
+18. 会话路由重复定义已清理，只保留带项目归属校验的 `/conversations` 接口实现。
+19. 剧本解析已拆成明确模块：`ParseOrchestrator`、`ScriptContextPackBuilder`、`ProductionBlueprintPlanner`、`BlueprintSchemaValidator`、`EpisodeMaterialBuilder`、`ContinuitySeedBuilder`、`AssetRegistryBuilder`、`ParseReportBuilder`；外部任务名和 API 保持不变。
 
 ## 待处理
 
@@ -33,7 +35,7 @@
 9. 队列满时统一进入 `queued` 状态；当前资产已支持，视频还主要是 `rendering`。
 10. 视频生成过程中前端百分比进度未完整透传；火山接口百分比需要写入 `TaskRecord.progress`。
 11. TTS 配音任务尚未实现，当前只是保留 `dubbing` 步骤和 `audio_url` 字段。
-12. 清理 `backend/app/routers/conversations.py` 的重复路由定义。
+12. 继续把解析旧 helper 从 `backend/app/tasks/llm_tasks.py` 迁移到 `backend/app/parsing/`，等分镜链路完成复用替换后再删除旧兼容函数。
 13. 视频生成前增加确定性 `ShotPreflightValidator`，优先本地检查台词、资产、转场、上一镜尾帧，只有脏镜头才交给 LLM 修复。
 
 ## 待真实项目测试后再优化

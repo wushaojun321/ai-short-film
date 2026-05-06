@@ -24,6 +24,7 @@ AI 辅助短剧（竖屏 9:16）从剧本到分集、资产、分镜、剧照、
 - **对象存储**：COS/S3 风格存储，STS 临时密钥用于前端访问
 - **外部生成**：OpenRouter LLM、Seedream 图像、Seedance 视频
 - **核心文档**：`docs/workflow-spec.md`
+- **解析模块契约**：`docs/parse-workflow-spec.md`
 - **后端说明**：`docs/backend-plan.md`
 - **提示词调试**：`docs/prompt-debug.md`
 - **火山 API 文档**：`docs/volcano/`
@@ -104,6 +105,22 @@ ai-short-film/
 ```
 
 注意：解析任务会创建 `Episode` 和 `Asset` 记录，但资产图片由 `worker-image` 后续生成，不是解析阶段一次性全部出图。
+
+解析阶段当前已经拆成模块化主链路：
+
+```
+parse_script_task
+  → ParseOrchestrator
+  → ScriptContextPackBuilder
+  → ProductionBlueprintPlanner
+  → BlueprintSchemaValidator
+  → EpisodeMaterialBuilder
+  → ContinuitySeedBuilder
+  → AssetRegistryBuilder
+  → ParseReportBuilder
+```
+
+解析阶段只有 `ProductionBlueprintPlanner` 读取轻量 `script_index` 并调用 LLM。其他模块只读取 `ProductionBlueprint` 和 `ScriptBlock` 做确定性派生，避免分集、资产、连续性模块重复投喂完整剧本。
 
 ## 单集制作流程
 

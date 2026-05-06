@@ -40,6 +40,16 @@
 10. 每生成一批镜头先做片段预览。
 11. 通过后再合成整集。
 
+### 2.1.0 解析阶段模块边界
+
+解析阶段已经拆成明确模块，详细契约见 `docs/parse-workflow-spec.md`。当前原则是：
+
+- 只有 `ProductionBlueprintPlanner` 作为全局 LLM 读取轻量 `script_index`。
+- `ScriptIndexer / ScriptContextPackBuilder` 负责原文索引和唯一上下文包。
+- `EpisodeMaterialBuilder` 只根据 block range 回填原文，不使用 LLM 摘要。
+- `AssetRegistryBuilder` 只从蓝图资产注册表派生资产，不重新读取完整剧本。
+- `ContinuitySeedBuilder` 只归一化连续性种子，不修分镜、不新增剧情。
+
 ### 2.1.1 待真实项目测试后固化的蓝图层
 
 当前项目正在把解析阶段收敛到 `ProductionBlueprint` 中间真相层。该层的目标是把“剧情理解”和“制作执行”分开：
