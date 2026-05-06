@@ -250,6 +250,9 @@ export interface ApiTaskRecord {
   project_id?: string;
   episode_id?: string;
   task_type: string;
+  provider?: string;
+  provider_task_id?: string;
+  provider_task_ids?: string[];
   target_id?: string;
   status: string;
   progress: number;

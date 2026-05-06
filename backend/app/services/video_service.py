@@ -71,10 +71,31 @@ def generate_video_sync(
     generate_audio: bool = True,
     return_last_frame: bool = True,
 ) -> dict:
-    """Synchronous video generation with polling (for Celery tasks).
-    
-    Returns: {"video_url": str, "last_frame_url": str|None, "task_id": str}
-    """
+    """Synchronous video generation with polling (for Celery tasks)."""
+    task_id = create_video_task_sync(
+        prompt=prompt,
+        first_frame_url=first_frame_url,
+        reference_images=reference_images,
+        ratio=ratio,
+        duration=duration,
+        resolution=resolution,
+        generate_audio=generate_audio,
+        return_last_frame=return_last_frame,
+    )
+    return poll_video_task_sync(task_id)
+
+
+def create_video_task_sync(
+    prompt: str,
+    first_frame_url: str | None = None,
+    reference_images: list[str] | None = None,
+    ratio: str = "9:16",
+    duration: int = 5,
+    resolution: str = "720p",
+    generate_audio: bool = True,
+    return_last_frame: bool = True,
+) -> str:
+    """Create a Seedance task and return the provider task id immediately."""
     client = get_ark_client()
     content, has_images = build_video_content(prompt, first_frame_url, reference_images)
 
@@ -98,7 +119,16 @@ def generate_video_sync(
         **extra_params,
     )
     task_id = create_result.id
+    logger.info("[VIDEO TASK CREATED] provider=seedance task_id=%s", task_id)
+    return task_id
 
+
+def poll_video_task_sync(task_id: str) -> dict:
+    """Poll a Seedance task until it settles.
+
+    Returns: {"video_url": str, "last_frame_url": str|None, "task_id": str}
+    """
+    client = get_ark_client()
     elapsed = 0
     while elapsed < POLL_TIMEOUT:
         time.sleep(POLL_INTERVAL)
@@ -106,6 +136,10 @@ def generate_video_sync(
 
         result = client.content_generation.tasks.get(task_id=task_id)
         status = result.status
+        logger.info(
+            "[VIDEO TASK POLL] provider=seedance task_id=%s status=%s elapsed=%ss",
+            task_id, status, elapsed,
+        )
 
         if status == "succeeded":
             video_url = result.content.video_url

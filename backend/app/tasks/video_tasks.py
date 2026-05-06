@@ -97,7 +97,7 @@ async def _gen_shot_video_chain_async(celery_id: str, shot_ids: list[str], chain
 
             followup_log = f"[video-chain] {shot.shot_code} 生成完成，下一镜可引用本镜尾帧"
             try:
-                await _gen_shot_video_async(celery_id, shot_id, manage_record=False)
+                await _gen_shot_video_async(celery_id, shot_id, manage_record=False, progress_record=record)
                 completed += 1
             except Exception as e:
                 error_text = str(e) or "未知错误"
@@ -186,7 +186,7 @@ async def _gen_episode_videos_async(celery_id: str, episode_id: str):
                     "progress": 5 + int(idx / total * 90),
                     "logs": (record.logs or []) + [f"[video] 开始生成 {shot.shot_code}（{idx + 1}/{total}）"],
                 })
-            await _gen_shot_video_async(celery_id, str(shot.id), manage_record=False)
+            await _gen_shot_video_async(celery_id, str(shot.id), manage_record=False, progress_record=record)
             if record:
                 await record.set({
                     "progress": 5 + int((idx + 1) / total * 90),
@@ -201,7 +201,12 @@ async def _gen_episode_videos_async(celery_id: str, episode_id: str):
         raise
 
 
-async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: bool = True):
+async def _gen_shot_video_async(
+    celery_id: str,
+    shot_id: str,
+    manage_record: bool = True,
+    progress_record=None,
+):
     from app.database import init_db
     await init_db()
 
@@ -225,7 +230,10 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
             "review_comment": "",
         })
 
-        record = await TaskRecord.find_one(TaskRecord.celery_task_id == celery_id) if manage_record else None
+        record = (
+            await TaskRecord.find_one(TaskRecord.celery_task_id == celery_id)
+            if manage_record else progress_record
+        )
         if record:
             await record.set({"progress": 5})
 
@@ -390,10 +398,10 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
             )
 
             try:
-                loop = asyncio.get_event_loop()
-                result = await loop.run_in_executor(
+                loop = asyncio.get_running_loop()
+                provider_task_id = await loop.run_in_executor(
                     None,
-                    lambda vp=submitted_prompt: video_service.generate_video_sync(
+                    lambda vp=submitted_prompt: video_service.create_video_task_sync(
                         prompt=vp,
                         reference_images=reference_context.reference_images if reference_context.reference_images else None,
                         ratio="9:16",
@@ -401,6 +409,20 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
                         resolution="720p",
                         return_last_frame=True,
                     ),
+                )
+                if record:
+                    provider_task_ids = list(record.provider_task_ids or [])
+                    if provider_task_id not in provider_task_ids:
+                        provider_task_ids.append(provider_task_id)
+                    await record.set({
+                        "provider": "seedance",
+                        "provider_task_id": provider_task_id,
+                        "provider_task_ids": provider_task_ids,
+                        "logs": (record.logs or []) + [f"[seedance] 已创建平台任务：{provider_task_id}"],
+                    })
+                result = await loop.run_in_executor(
+                    None,
+                    lambda task_id=provider_task_id: video_service.poll_video_task_sync(task_id),
                 )
                 break  # 成功，退出重试循环
             except Exception as gen_err:
@@ -466,7 +488,11 @@ async def _gen_shot_video_async(celery_id: str, shot_id: str, manage_record: boo
                     })
 
         if manage_record:
-            await finish_task_record(celery_id, result={"video_url": video_url, "last_frame_url": last_frame_url})
+            await finish_task_record(celery_id, result={
+                "video_url": video_url,
+                "last_frame_url": last_frame_url,
+                "provider_task_id": result.get("task_id") if result else None,
+            })
         return {"video_url": video_url}
 
     except Exception as e:

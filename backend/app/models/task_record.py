@@ -16,6 +16,9 @@ class TaskStatus(str, Enum):
 class TaskRecord(Document):
     celery_task_id: str
     task_type: str
+    provider: Optional[str] = None
+    provider_task_id: Optional[str] = None
+    provider_task_ids: list[str] = Field(default_factory=list)
     project_id: Optional[PydanticObjectId] = None
     episode_id: Optional[PydanticObjectId] = None
     target_id: Optional[PydanticObjectId] = None
