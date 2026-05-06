@@ -29,10 +29,10 @@
 - JWT 登录/邀请码注册，所有业务路由默认需要 Bearer token。
 - 项目按 `owner_id` 做用户隔离。
 - 剧本上传、解析任务、分集确认、资产确认。
-- 长剧本解析 Map-Reduce：超过 `10000` 字先走 `script_map` 分段摘要，再走 `script_parse` 总解析。
+- 剧本解析已改为低 token 综合规划链路：`ScriptIndexer` 原文索引 + `ParseOrchestrator` + `ScriptProductionPlanAgent` JSONL 蓝图 + 后端原文回填和资产归并。
 - `TaskRecord` 记录异步任务状态、进度、日志和结果。
 - Celery 队列：`llm`、`image`、`video`、`merge`。
-- 资产图片、分镜剧照、分镜视频、整集合并任务。
+- 资产图片、兼容性分镜剧照接口、单镜视频、按片段链式批量视频、整集合并任务。
 - 提示词已迁移为代码侧常量：`prompt_service.render()` 直接读取 `app.prompts.DEFAULT_PROMPTS`，不再查询 MongoDB 的 `prompt_configs`。
 - Conversation + Agent 工具调用入口。
 - `/generate/tasks/{record_id}/progress` SSE 端点和 `/tasks/{record_id}` 普通轮询端点；当前前端主要使用普通轮询。
@@ -45,8 +45,8 @@
 - 队列满时统一 `queued` 状态。
 - 任务恢复监控。
 - 视频生成前自动缺失资产检查。
-- `chat_json` 对 LLM 非法 JSON 的修复和截断诊断。
-- `conversations.py` 中重复路由定义需要清理。
+- LLM schema 校验、调用统计页和失败样例聚合。
+- Seedance 请求包持久化，完整保存每次真实提交的视频 prompt、参考图、ratio、duration、模型名等。
 
 ---
 
@@ -351,7 +351,7 @@ class PromptConfigScope(str, Enum):
     shot_video_edit       = "shot_video_edit"        # 视频多轮修改
     dubbing_gen           = "dubbing_gen"            # 配音生成
     series_overview_edit  = "series_overview_edit"   # 剧集总览多轮修改
-    script_map            = "script_map"             # 长剧本 Map 阶段摘要
+    script_map            = "script_map"             # 历史兼容：旧长剧本 Map 阶段摘要
 
 class PromptConfig(Document):
     scope: PromptConfigScope
@@ -446,14 +446,14 @@ async def render(scope: PromptConfigScope, variables: dict) -> tuple[str, str, d
 
 | scope | 用途 | 关键变量 |
 |-------|------|---------|
-| `script_parse` | 剧本整体解析，提取世界观/人物/情节线 | `script_text`, `target_episodes`（目标最低集数）, `min_duration`, `parse_notes` |
-| `episode_split` | 将剧本拆分为不少于 N 集，输出结构化 JSON | `script_text`, `series_context`, `target_episodes`（目标最低集数） |
+| `script_parse` | 剧本综合规划，输出 JSONL 蓝图行并驱动原文回填 | `script_index`, `target_episodes`（目标最低集数）, `min_duration`, `parse_notes` |
+| `episode_split` | 历史/预留 scope；当前默认解析链路不再串行调用 | `script_text`, `series_context`, `target_episodes`（目标最低集数） |
 | `continuity_extract` | 从剧本中提取跨集连续性约束 | `episode_script`, `prev_episode_ending` |
 | `shot_script_gen` | 为单集生成完整分镜脚本 | `episode_script`, `continuity_notes`, `asset_list`, `series_style` |
 | `shot_script_edit` | 多轮对话修改分镜脚本 | `current_script`, `user_instruction` |
 | `asset_prompt_gen` | 为角色/场景/道具生成 Seedream 提示词 | `asset_description`, `style_guide`, `negative_prompt_rules` |
 | `asset_prompt_edit` | 多轮修改资产提示词 | `current_prompt`, `asset_name`, `user_feedback` |
-| `shot_image_gen` | 生成发给 Seedream 的最终提示词 | `shot_description`, `required_assets_prompts`, `continuity_notes`, `style_guide` |
+| `shot_image_gen` | 兼容性分镜剧照提示词；当前主流程不强制生成分镜剧照 | `shot_description`, `required_assets_prompts`, `continuity_notes`, `style_guide` |
 | `shot_video_gen` | 生成发给 Seedance 的镜头提示词 | `shot_description`, `character_prompts`, `scene_prompt`, `camera_motion`, `dialogue` |
 | `dubbing_gen` | 生成配音指令 | `dialogue_lines`, `character_voice_profiles` |
 | `series_overview_edit` | 多轮修改剧集总览/世界观提示词 | `current_overview`, `user_instruction` |
@@ -475,7 +475,7 @@ async def render(scope: PromptConfigScope, variables: dict) -> tuple[str, str, d
 ### 4.2 会话上下文构建规则
 
 ```
-[系统提示词 (来自 PromptConfig)]
+[系统提示词 (来自代码侧 DEFAULT_PROMPTS)]
   + 当前制品内容快照
   + 历史 N 轮消息（默认保留最近 10 轮，防止超 token）
   + 用户最新消息
@@ -577,6 +577,8 @@ DELETE /api/v1/projects/{project_id}/episodes/{episode_id}/shots/{shot_id}
 POST   /api/v1/projects/{project_id}/episodes/{episode_id}/shots/{shot_id}/review
   body: {"approved": true, "comment": "..."}
 POST   /api/v1/projects/{project_id}/episodes/{episode_id}/shots/batch-review
+POST   /api/v1/generate/shots/{shot_id}/video                         # 单镜视频生成
+POST   /api/v1/generate/episodes/{episode_id}/shot-videos              # 本集镜头批量生成，后端按片段链调度
 ```
 
 ### 5.4 Assets（资产）
@@ -702,6 +704,17 @@ def gen_shot_video_task(self, shot_id: str):
     5. 更新 Shot.state = "rendered"
     """
     ...
+
+@celery_app.task(bind=True, name="app.tasks.video.gen_shot_video_chain", queue="video")
+def gen_shot_video_chain_task(self, shot_ids: list[str], chain_label: str = ""):
+    """
+    生成一个连续片段内的多个镜头：
+    1. 按 shot_ids 顺序逐镜生成
+    2. 每个镜头仍读取角色/场景/道具资产引用
+    3. 上一镜生成完成后保存 last_frame_url，下一镜可作为连续性辅助引用
+    4. 任一镜失败时，后续尚未执行的镜头从 rendering 回退到 asset_ready
+    """
+    ...
 ```
 
 ```python
@@ -732,7 +745,15 @@ def merge_episode_task(self, episode_id: str):
 
 ### 6.4 批量任务策略
 
-当前没有后端 batch task；批量生成由前端遍历多个镜头/资产，逐个调用生成接口，Celery 再按队列并发处理。后续如果要做真正的批量任务，可以再引入 `group/chord` 和批量 TaskRecord。
+当前视频批量生成已经有后端 batch 入口：
+
+- `POST /api/v1/generate/episodes/{episode_id}/shot-videos` 会读取本集镜头，按连续 `segment_code` 拆成片段链。
+- 每个片段链创建一个 `gen_shot_video_chain_task` 和一个 `TaskRecord(task_type="gen_shot_video")`。
+- `worker-video -c 10` 的并发单位是片段链，不是同一集内的单个镜头。
+- 同一片段链内按镜头顺序执行，后一镜等待前一镜保存 `last_frame_url` 后再提交，保证尾帧连续性有数据可用。
+- 返回的 `records[]` 包含 `shot_ids`、`shot_codes`、`segment_code`、`chain`、`queued`，前端据此把链内镜头标记为生成中。
+
+资产图片批量仍以资产维度触发；视频链式批量不使用 Celery `group/chord`，是显式任务内顺序执行，便于维护上一镜尾帧依赖。
 
 ---
 
@@ -787,7 +808,7 @@ backend/
 │   │   ├── __init__.py
 │   │   ├── llm_tasks.py           # LLM 调用任务
 │   │   ├── image_tasks.py         # 图像生成任务
-│   │   ├── video_tasks.py         # 视频生成任务
+│   │   ├── video_tasks.py         # 单镜头 + 片段链式视频生成任务
 │   │   ├── merge_tasks.py         # 视频合并任务
 │   │   └── base.py                # 任务辅助函数
 │   │
@@ -830,11 +851,11 @@ backend/
 - [x] 搭建 Celery + Redis，定义 `llm`、`image`、`video`、`merge` 队列
 - [x] `TaskRecord` + 任务状态查询 API
 - [x] 实现 `llm_tasks.py`：`parse_script_task`、`gen_shot_script_task`
-- [x] 实现长剧本 Map-Reduce 解析
+- [x] 实现低 token 剧本解析：原文索引、单次 JSONL 蓝图规划、后端原文回填
 - [x] 实现 `image_tasks.py`：`gen_asset_image_task`、`gen_shot_image_task`
-- [x] 实现 `video_tasks.py`：`gen_shot_video_task`
+- [x] 实现 `video_tasks.py`：`gen_shot_video_task`、`gen_shot_video_chain_task`
 - [x] 实现 `merge_tasks.py`：`merge_episode_task`
-- [~] 批量生成：当前前端逐个触发，未做后端 batch task
+- [x] 分镜视频批量生成：后端按片段创建链式任务，片段之间并发、片段内顺序生成
 - [~] SSE 任务进度推送：已有 `/generate/tasks/{record_id}/progress`，前端主要用轮询
 
 ### Phase 3：多轮会话机制
@@ -891,8 +912,8 @@ backend/
 
 **方案**：
 - 当前使用 OpenAI/OpenRouter `response_format={"type": "json_object"}` + prompt 严格约束。
-- 后续应补 `finish_reason == "length"` 截断检测、JSON 修复重试、错误上下文日志。
-- 可以再评估是否引入 Pydantic schema 校验或 `instructor`，但当前代码尚未真正使用它来约束输出。
+- 当前已做 LLM 截断检测、JSON 修复重试和调用审计；解析链路改用 JSONL 蓝图以降低大 JSON 截断概率。
+- 后续应补更完整的 Pydantic schema 校验、失败样例聚合和调用统计页。
 
 ### 难点 3：视频生成的长耗时 + 超时
 
@@ -928,7 +949,7 @@ backend/
 
 **已落地方案**：
 - 新增 `ScriptBlock` / `script_blocks` 集合，解析开始先做确定性原文索引。
-- `parse_script_task` 内部拆为全剧规划、分集范围规划、原文回填、资产解析。
-- `Episode.script_excerpt` 由后端根据 `source_block_ranges` 从原文块拼回，不再信任 LLM 重写正文。
+- `parse_script_task` 入口不变，内部由 `ParseOrchestrator` 串联 `ScriptContextPackBuilder`、`ProductionBlueprintPlanner`、`BlueprintSchemaValidator`、`EpisodeMaterialBuilder`、`AssetRegistryBuilder` 等模块。
+- `ScriptProductionPlanAgent` 一次输出 series / episode / character / scene / prop 等 JSONL 蓝图行，后端再按 block 范围回填 `Episode.script_excerpt`，不再信任 LLM 重写正文。
 - `Episode` 保存 `source_block_ids`、原文起止行、`dialogue_count` 和 `source_integrity`，用于排查分集材料质量。
 - 旧项目不自动迁移；重新解析或新项目才使用新链路。

@@ -11,8 +11,8 @@
 2. **图像提示词（Seedream）** — 用于生成资产图片和分镜剧照
 3. **视频提示词（Seedance）** — 用于生成分镜视频
 
-每次生成时，系统会先用 LLM 将剧本描述优化为英文提示词，再发给对应 API。
-调试流程：在界面触发生成 → 从日志拿到实际发送的提示词 → 根据效果反馈给 AI 调整。
+当前要求保留中文写实电影风格，不再统一把提示词翻译成英文。部分环节会先由 LLM 优化/结构化最终提交提示词，资产图片提示词则主要由确定性 builder 生成。
+调试流程：在界面触发生成 → 从日志或制品详情拿到实际提交提示词 → 根据效果反馈给 AI 调整。
 
 ---
 
@@ -24,8 +24,8 @@
 |------|----------|
 | 剧本解析 | 项目初始化阶段 → 上传剧本 → 点击「解析剧本」 |
 | 资产图片 | 项目初始化阶段 → 资产审核 → 点击单个资产的「重新生成」 |
-| 分镜剧照 | 单集制作 → Step 2「生成分镜剧照」→ 点击单镜「生成」或「批量生成」 |
-| 分镜视频 | 单集制作 → Step 4「生成分镜视频」→ 点击单镜「生成」或「批量生成」 |
+| 分镜剧照 | 兼容接口保留，当前主流程不展示为必经步骤 |
+| 分镜视频 | 单集制作 → Step 2「分镜视频」→ 单镜「生成视频」或顶部「生成所有镜头」 |
 
 ---
 
@@ -52,18 +52,19 @@ docker compose logs -f worker-video
 ```
 [init] 项目加载完成：xxx
 [init] 剧本长度：xxxx 字，目标最低集数：x
-[map-reduce] 剧本超过阈值时会显示分段解析日志
+[index] 原文索引完成：xxx 个块
+[blueprint] 综合规划完成
 [prompt] Prompt 渲染完成，发送 LLM 请求…
 [error] Unterminated string starting at: line ...   # LLM 返回的 JSON 非法或被截断
 ```
 
-如果使用低风险 demo 剧本仍出现 `Unterminated string...`，优先判断为 LLM 返回 JSON 不稳定、输出过长或运行中的 `worker-llm` 仍是旧镜像，不要继续只改剧本文本。
+如果使用低风险 demo 剧本仍出现 `Unterminated string...` 或 `LLM JSON response was truncated...`，优先判断为 LLM 输出结构异常、max_tokens/输出结构不合适，或运行中的 `worker-llm` 仍是旧镜像，不要继续只改剧本文本。
 
 **资产图片（Seedream）：**
 ```
 [ASSET IMAGE PROMPT] asset_id=xxx asset=角色名 attempt=1/3
 --- PROMPT START ---
-<实际发给 Seedream 的英文提示词>
+<实际发给 Seedream 的提示词>
 --- PROMPT END ---
 [IMAGE PROMPT] model=xxx size=2048x2048 watermark=False
 --- PROMPT START ---
@@ -75,15 +76,15 @@ docker compose logs -f worker-video
 ```
 [SHOT IMAGE PROMPT] shot_id=xxx shot=EP01-S03 attempt=1/3
 --- PROMPT START ---
-<实际发给 Seedream 的英文提示词>
+<实际发给 Seedream 的提示词>
 --- PROMPT END ---
 ```
 
 **分镜视频（Seedance）：**
 ```
-[SHOT VIDEO PROMPT] shot_id=xxx shot=EP01-S03 attempt=1/3 first_frame=True ref_images=2
+[SHOT VIDEO PROMPT] shot_id=xxx shot=EP01-S03 attempt=1/3 ref_images=2
 --- PROMPT START ---
-<实际发给 Seedance 的英文提示词>
+<实际发给 Seedance 的提示词>
 --- PROMPT END ---
 [VIDEO PROMPT] model=xxx ratio=9:16 duration=5s resolution=720p has_images=True
 --- PROMPT START ---
@@ -99,6 +100,9 @@ docker compose logs worker-image 2>&1 | grep -A 5 'PROMPT START'
 
 # 只看视频提示词
 docker compose logs worker-video 2>&1 | grep -A 5 'PROMPT START'
+
+# 跟踪批量视频片段链
+docker compose logs -f worker-video 2>&1 | grep -E 'video-chain|SHOT VIDEO PROMPT|last_frame'
 
 # 最近 200 行日志（排查最新一次生成）
 docker compose logs --tail=200 worker-image
@@ -133,7 +137,7 @@ LLM 提示词模板当前存在代码文件 `backend/app/prompts/llm_prompts.py`
 | `shot_video_gen` | 分镜视频的 LLM 优化 prompt 模板 |
 | `shot_script_gen` | 分镜脚本生成模板 |
 | `script_parse` | 剧本解析模板 |
-| `script_map` | 长剧本 Map-Reduce 的分段摘要模板 |
+| `script_map` | 历史兼容模板；当前默认解析链路不再使用 Map-Reduce 压缩正文 |
 
 查看当前所有代码侧配置（需先登录获取 token）：
 
@@ -169,6 +173,23 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 1. 对比不同镜头的提示词
 2. 告知 AI：「角色A在镜头1的提示词是 `xxx`，在镜头2是 `yyy`，两者描述不一致，请修改 `shot_image_gen` 以更好地沿用资产描述」
 
+### 场景 4：批量视频生成连贯性差
+
+1. 点击顶部「生成所有镜头」
+2. 在 `worker-video` 中查看 `[video-chain]` 日志，确认是否按片段链顺序生成
+3. 检查后一镜的 `SHOT VIDEO PROMPT` 是否包含上一镜尾帧辅助说明，以及当前镜头的角色/场景资产引用
+4. 如果后一镜没有可用尾帧，检查上一镜是否生成了 `last_frame_url`
+
+```bash
+docker compose logs --tail=300 worker-video | grep -E 'video-chain|SHOT VIDEO PROMPT|last_frame'
+
+docker compose exec mongodb mongosh ai_short_film --quiet
+db.shots.find(
+  {episode_id:ObjectId("替换为 episode_id")},
+  {shot_code:1,segment_code:1,state:1,last_frame_url:1,generation_task_id:1}
+).sort({order:1})
+```
+
 ---
 
 ## 快速命令备忘
@@ -182,9 +203,12 @@ docker compose logs -f worker-image 2>&1 | grep -E 'PROMPT|--- PROMPT'
 # 实时跟踪视频生成提示词
 docker compose logs -f worker-video 2>&1 | grep -E 'PROMPT|--- PROMPT'
 
+# 实时跟踪片段链批量生成
+docker compose logs -f worker-video 2>&1 | grep -E 'video-chain|SHOT VIDEO PROMPT|last_frame'
+
 # 查看所有 worker 日志
 docker compose logs -f worker-image worker-video worker-llm
 
 # 确认 worker-llm 容器内是否是最新代码
-docker compose exec worker-llm grep -n "chat_json\|script_map\|max_tokens" /app/app/services/llm_service.py /app/app/tasks/llm_tasks.py
+docker compose exec worker-llm grep -n "ParseOrchestrator\|ScriptProductionPlanAgent\|max_tokens" /app/app/parsing/*.py /app/app/tasks/llm_tasks.py
 ```

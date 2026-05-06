@@ -21,6 +21,7 @@
 17. 人物资产三视图继续保持纯文本独立生成，但解析和最终提示词新增 `distinctive_traits`、`avoid_similar_to`、`look_lock`，用于锁定同一阶段发型/服装/配饰并拉开不同角色面部差异。
 18. 会话路由重复定义已清理，只保留带项目归属校验的 `/conversations` 接口实现。
 19. 剧本解析已拆成明确模块：`ParseOrchestrator`、`ScriptContextPackBuilder`、`ProductionBlueprintPlanner`、`BlueprintSchemaValidator`、`EpisodeMaterialBuilder`、`ContinuitySeedBuilder`、`AssetRegistryBuilder`、`ParseReportBuilder`；外部任务名和 API 保持不变。
+20. 分镜视频批量生成已改为片段链式调度：顶部「生成所有镜头」会按连续 `segment_code` 拆成多个链式任务，片段之间并发，片段内按镜头顺序生成并传递上一镜 `last_frame_url`。
 
 ## 待处理
 
@@ -29,10 +30,10 @@
 3. LLM 结构化输出仍需加固：在已有截断检测、JSON 修复和调用审计基础上，继续补 schema 校验和可视化调用统计页。
 4. 资产解析第二阶段：给资产增加适用集数 / block 范围 / 场景阶段绑定，避免镜头选错人物造型资产。
 5. 分镜输入增强：把本集原文起止行、对白数量、相关阶段资产、上一集结尾连续性状态传入 `gen_shot_script_task`。
-6. 继续用真实项目回归资产生图风格，观察“超现实电影质感”是否仍偏卡通，并按失败样例继续收紧负向约束。
+6. 继续用真实项目回归资产生图风格，观察“写实电影质感”是否仍偏卡通，并按失败样例继续收紧负向约束。
 7. 重启之后继续监控图片、视频生成进度，不要断；需要任务恢复/补偿机制。
-8. 图片并发已调整为 20、视频并发已调整为 10；继续观察三方服务限流、机器资源和失败重试情况。
-9. 队列满时统一进入 `queued` 状态；当前资产已支持，视频还主要是 `rendering`。
+8. 图片并发已调整为 20、视频 worker 并发为 10；当前视频批量入口按片段链并发，不再等同于“同一集所有镜头同时并发”。
+9. 队列满时统一进入 `queued` 状态；当前资产已支持，视频批量链路用 `TaskRecord` 表示排队/执行进度，但 Shot 状态仍主要是 `rendering`。
 10. 视频生成过程中前端百分比进度未完整透传；火山接口百分比需要写入 `TaskRecord.progress`。
 11. TTS 配音任务尚未实现，当前只是保留 `dubbing` 步骤和 `audio_url` 字段。
 12. 继续把解析旧 helper 从 `backend/app/tasks/llm_tasks.py` 迁移到 `backend/app/parsing/`，等分镜链路完成复用替换后再删除旧兼容函数。

@@ -11,6 +11,7 @@ AI 辅助短剧（竖屏 9:16）从剧本到分集、资产、分镜、剧照、
 - 生成任务拆成独立 Celery 队列：LLM、图像、视频、合片。
 - 初始化阶段先解析分集和资产需求，创建资产记录；资产图片不再强制一次性全量生成，当前界面支持进入图片确认阶段后按需/批量生成。
 - 人物资产保持三张独立纯文本生图：面部、全身、侧面。`face_identity` 锁同一角色面部，`distinctive_traits` / `avoid_similar_to` 拉开不同角色差异，`look_lock` 锁同一阶段发型、服装、配饰、伤势和道具。
+- 分镜视频批量入口已改为片段链式调度：同一片段内按镜头顺序生成，后一镜可引用前一镜 `last_frame_url`；不同片段链可由 `worker-video` 并发执行。
 
 ## 技术栈
 
@@ -128,7 +129,7 @@ parse_script_task
 
 ```
 1. 分镜脚本      → worker-llm 先拆片段，再生成 Shot 列表、台词、资产绑定
-2. 分镜视频      → worker-video 生成视频，页面内完成视频审核
+2. 分镜视频      → worker-video 生成视频；单镜可独立生成，批量入口按片段链并发、片段内顺序生成
 3. 配音          → 类型和步骤保留，实际 TTS 任务尚未落地
 4. 合并成片      → worker-merge 使用 ffmpeg 拼接 approved 镜头
 5. 完成          → 展示 final_video_url
@@ -209,6 +210,7 @@ POST   /api/v1/generate/episodes/{episode_id}/shot-script
 POST   /api/v1/generate/assets/{asset_id}/image
 POST   /api/v1/generate/shots/{shot_id}/image
 POST   /api/v1/generate/shots/{shot_id}/video
+POST   /api/v1/generate/episodes/{episode_id}/shot-videos
 POST   /api/v1/generate/episodes/{episode_id}/merge
 GET    /api/v1/generate/tasks/{record_id}/progress       # SSE，当前前端主要使用普通轮询
 
@@ -242,15 +244,15 @@ Celery 队列和 Docker Compose 服务对应关系：
 | --- | --- | --- |
 | `worker-llm` | `llm` | 剧本综合规划、分镜片段规划/细化、对话 Agent |
 | `worker-image` | `image` | 资产图片、兼容性分镜剧照接口 |
-| `worker-video` | `video` | 分镜视频 |
+| `worker-video` | `video` | 分镜视频；批量入口按片段创建链式任务 |
 | `worker-merge` | `merge` | 整集视频拼接 |
 
 解析剧本时报错时，优先看 `worker-llm`；图片生成看 `worker-image`；视频生成看 `worker-video`。
 
 ## 主题
 
-白色风格（#FFFFFF 背景），品牌绿 #0F8A52 保留。
-颜色 token 在 `tailwind.config.js` 中定义，可使用 `bg-bg`、`text-sub`、`border-line` 等。
+当前前端采用深色现代工作台风格：浅黑/中性色背景，科技绿作为主操作色，避免高饱和蓝青和过强霓虹。
+颜色 token 在 `tailwind.config.js` 和全局样式中定义，可使用 `bg-bg`、`text-sub`、`border-line` 等。
 
 ## 部署
 
@@ -300,14 +302,14 @@ ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker
 
 `docs/workflow-spec.md` 是目标工作流规范，当前代码已经实现主链路，但仍有差距：
 
-- 已实现：项目/用户隔离、剧本上传、原文索引、分集和资产记录、资产图、分镜视频、合片、任务记录、进度轮询、代码侧提示词配置、制品对话入口。
+- 已实现：项目/用户隔离、剧本上传、原文索引、分集和资产记录、资产图、单镜视频、按片段链式批量视频生成、合片、任务记录、进度轮询、代码侧提示词配置、制品对话入口。
 - 解析链路已经收敛为“原文索引 + 单次综合 JSONL 规划 + 后端归并派生”：`ScriptIndexer` 保留原文块和行号，`ScriptProductionPlanAgent` 一次输出 series / episodes / asset registry / ignore / warning 行，后端再回填 `Episode.script_excerpt` 并派生 `ProductionBlueprint`、`Episode`、`Asset`。
 - 这不是串行多 Agent 解析；多模块解析目前只作为后续演进选项，需等真实项目验证单次综合解析的瓶颈后再拆。
 - LLM 调用已写入 `llm_call_records`，可按 `scope`、项目、分集、镜头追踪输入/输出字符、token 用量和耗时。
 - 视频生成前 `ShotPromptAgent` 的最终提示词已加输入 hash 缓存；镜头、资产引用、台词和敏感词黑名单未变化时复用 `submitted_prompt`，避免重复调用 LLM。
 - 分镜片段细化阶段优先只传当前片段 `key_asset_ids` 对应资产，LLM 未给片段资产 id 时才回退本集候选资产。
-- 部分实现：短期版片段元数据、资产按需生成、连续性注入、参考图策略、敏感词重试、审核状态机。
-- 未完全实现：独立 beat/片段实体、镜头级资产绑定 schema、自动缺失资产检查、提交前校验器、片段预览、TTS 配音任务、视频生成百分比透传、任务恢复监控、队列满时的 queued 状态全链路。
+- 部分实现：短期版片段元数据、资产按需生成、连续性注入、参考图策略、片段内上一镜尾帧辅助、敏感词重试、审核状态机。
+- 未完全实现：独立 beat/片段实体、镜头级资产绑定 schema、自动缺失资产检查、提交前校验器、片段预览、TTS 配音任务、视频生成百分比透传、任务恢复监控、队列满时的 queued 状态全链路、Seedance 请求包持久化。
 
 ## 后续测试后再落地的优化方向
 
@@ -334,7 +336,7 @@ ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker
 
 ## 已知代码风险
 
-- `backend/app/routers/conversations.py` 中同一组 conversation 路由重复定义了一遍。当前 router 仍有全局登录依赖，但后半段缺少项目归属校验，后续应清理重复代码，只保留带 owner 校验的版本。
+- `backend/app/routers/conversations.py` 的重复路由已清理；后续重点是补齐会话触发生成任务的场景覆盖、提示词快照和流式响应。
 - `llm_service.chat_json()` 已有截断检测、JSON 修复和调用审计；下一步需要补 schema 校验、调用统计页和失败样例聚合。
 - 提示词当前由 `backend/app/prompts/llm_prompts.py` 代码常量提供，`PromptConfig` 数据库模型和 `seed_data.py` 属于残留/预留结构；在线编辑、版本回滚当前不生效。
 - 后端测试依赖需要在本机安装完整；当前测试依赖缺失时会出现 `ModuleNotFoundError: motor`。
