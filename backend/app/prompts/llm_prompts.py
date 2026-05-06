@@ -583,15 +583,17 @@ SHOT_CONTINUITY_REPAIR = {
 1. 相邻镜头：上一镜 end_state 必须能自然承接下一镜 start_state。
 2. 同一片段内：人物左右位置、视线方向、手中道具、服装、伤势、光线必须连续；除非 transition_type 明确换场。
 3. 人物资产：required_assets 必须选择与当前场景、剧情阶段、服装/伤势/道具状态匹配的资产，并补全结构化绑定字段；同一 asset_package 保持同一张脸。
-4. use_prev_last_frame：同一片段内连续动作、同场对话、视线/动作承接镜头应为 true；片段首镜、明显换场、时间跳跃应为 false。
-5. transition_type 必须从以下枚举选择：
+4. 场景锁定：同一片段同一场景内，下一镜不得无故从户外跳到车内/室内，或从室内跳到户外/战场；明显换场必须使用 black_gap 并写清 transition_in。
+5. 空间比例：人物、车辆、坦克、城门、建筑、手持道具必须处在同一真实透视关系里；禁止人物尺寸大于坦克/车辆/门/建筑，禁止道具忽大忽小。
+6. use_prev_last_frame：片段内连续动作、同场对话、视线/动作承接镜头应为 true；片段首镜、明显换场、时间跳跃应为 false。
+7. transition_type 必须从以下枚举选择：
    - hard_cut：动作点或视线点硬切，适合同场连续镜头
    - match_cut：动作、姿态、构图或道具匹配切
    - audio_bridge：上一镜声音/台词尾音/环境声延续到下一镜
    - crossfade：轻微叠化，适合情绪过渡或时间流逝
    - black_gap：明确时间跳跃、空间大幅转换、章节停顿
-6. 避免只写“切下一镜”；transition_in/out 必须说明动作、视线、声音、道具或空间如何承接。
-7. 台词镜 duration 要能承载 dialogues，中文约 6 字/秒；如果超出，请只调整 duration 到合理范围，不改台词。
+8. 避免只写“切下一镜”；transition_in/out 必须说明动作、视线、声音、道具或空间如何承接。
+9. 台词镜 duration 要能承载 dialogues，中文约 6 字/秒；如果超出，请只调整 duration 到合理范围，不改台词。
 
 输出 JSON 对象，保留原有 segments/shots 结构和所有字段，补全或修正 continuity 字段，并附 issues：
 {
@@ -698,6 +700,8 @@ SHOT_SEGMENT_DETAIL = {
 6. 每个镜头必须绑定出现的角色、场景、道具资产；required_assets 中 asset_id 必填，必须来自可用资产索引。
 7. 资产绑定不要复制资产长描述，不要输出图片 URL，不要输出资产提示词。只输出 asset_id 和镜头内使用要求。
 8. 同一角色不同造型资产属于同一人物资产包，必须保持同一张脸、同一骨相、同一五官比例；除非剧本明确面部变化，不能写成不同面孔。
+9. 每个镜头必须把当前场景作为空间锚点，保持人物站位、左右关系、前后层次、地面透视和道具比例；不得无故从户外跳到车内/室内，或从室内跳到户外/战场。
+10. 涉及坦克、车辆、城门、建筑等大型物体时，必须写清人物与大型物体的真实比例和空间关系；禁止人物比例大于大型物体，禁止道具尺寸忽大忽小。
 
 时长规则：
 - 单镜头上限为 {max_shot_duration} 秒，严禁所有镜头都写成固定时长。
@@ -705,12 +709,13 @@ SHOT_SEGMENT_DETAIL = {
 - 中文语速约 6-7 字/秒；每个台词镜对白总字数不要超过 duration × 6。
 - 对白过多时拆成多个台词镜或关系镜。
 
-description 必须包含：景别、机位方向、运镜方式、画面内容、角色站位、角色动作、角色表情。服装默认沿用资产，仅剧本明确换装时写服装变化。
+description 必须包含：景别、机位方向、运镜方式、画面内容、角色站位、角色动作、角色表情、人物与主要道具/载具/建筑的比例关系。服装默认沿用资产，仅剧本明确换装时写服装变化。
 
 转场字段规则：
 - transition_type 只能是 hard_cut、match_cut、audio_bridge、crossfade、black_gap。
 - 同场动作/视线承接用 hard_cut 或 match_cut；台词尾音/环境声延续用 audio_bridge；情绪或时间轻微过渡用 crossfade；明显时空跳跃才用 black_gap。
 - use_prev_last_frame：片段内连续动作/同场景承接镜填 true；片段首镜、明显换场、时间跳跃填 false。
+- 同一场景内不得用 hard_cut/crossfade 造成空间漂移；如果必须换到车内、室内、户外或另一地点，transition_type 必须为 black_gap，transition_in 必须写清换场动作或时间跳跃。
 
 dialogues 数组字段：speaker、text、emotion、delivery、action、expression。
 
@@ -718,6 +723,8 @@ required_assets 数组字段：asset_id、role_in_shot、reference_purpose、req
 role_in_shot 可用 speaker、listener、main_actor、background、scene、prop。
 人物 required_views 通常为 face、full_body；侧身/转身增加 side；场景和道具为 preview。
 说话人 speaking 为 true、muted 为 false；听者或背景人物如不说话，speaking 为 false、muted 为 true。
+screen_position 必须写具体空间位置，例如"画面左前景，距离坦克约3米，脚底与坦克履带在同一地面透视"；不要只写"左侧"或"按分镜"。
+continuity_requirement 必须包含当前镜头需要保持的场景锁定、人物站位、地面透视、道具尺寸和载具/建筑比例。
 
 只输出 JSON 对象，不要解释。顶层可以是 segment，也可以是 segments 数组，但只能包含当前片段。""",
     "user_prompt_template": "全剧风格：\n{series_prompt}\n\n第 {episode_number} 集《{episode_title}》\n当前片段规划：\n{segment_plan}\n\n当前片段剧本原文：\n{script_excerpt}\n\n连续性约束：\n{continuity_notes}\n\n上一片段/上一镜结尾状态：\n{previous_context}\n\n可用资产索引（required_assets 只引用 asset_id）：\n{asset_index}{feedback_section}",
@@ -752,6 +759,8 @@ SHOT_SCRIPT_GEN = {
 8. 每个镜头必须写清与前后镜的衔接、起始状态、结束状态、画面方向和连续性约束
 9. 每句台词必须写清人物台词、表情、动作、情绪和语气
 10. required_assets 必须输出结构化对象数组，不能只输出资产名字符串；name 必须完整匹配“可用资产列表”里的资产 name
+11. 每个镜头必须锁定当前场景空间、人物站位、地面透视和主要道具/载具/建筑比例；不得无故从户外跳到车内/室内，或从室内跳到户外/战场
+12. 涉及坦克、车辆、城门、建筑等大型物体时，必须写清人物与大型物体的真实比例和空间距离，禁止人物大于坦克/车辆/门/建筑
 
 时长规则：
 - {max_shot_duration} 秒只是单镜头上限，不是固定时长；严禁所有镜头都写成 {max_shot_duration} 秒
@@ -769,6 +778,7 @@ description 字段必须包含以下信息（不得省略）：
 - 机位方向：正面/侧面/背面/俯拍/仰拍等
 - 运镜方式：固定/推镜/拉镜/跟镜/摇镜/升降等，写明运动幅度和节奏感，如"缓推至近景"、"快速横摇跟随"
 - 画面内容（角色站位、空间关系）
+- 人物与主要道具/载具/建筑的真实比例关系，例如人物在坦克旁边的真实高度、车辆/城门/建筑相对人物的体量
 - 角色动作：具体肢体动作，如"缓缓抬头"、"猛地抓住对方手腕"、"背对镜头垂首"
 - 角色表情：具体神态，如"眼眶泛红强忍泪意"、"冷笑一声"、"神情空洞"
 - 服装说明：默认沿用初始化资产中该角色的服装描述（不必重复写出），仅当剧本明确要求换装时，在 description 末尾加注【服装变化：XXX换XXX】
@@ -780,8 +790,9 @@ description 字段必须包含以下信息（不得省略）：
 - start_state：本镜开始时人物站位、姿态、视线、道具、情绪和场景光线状态
 - end_state：本镜结束时人物站位、姿态、视线、道具、情绪和场景光线状态
 - screen_direction：画面方向和空间轴线，例如"李云湘画面左侧，谢风凌画面右侧，视线从左向右"
-- continuity_notes：本镜必须延续或禁止变化的硬规则，例如服装、伤势、道具、蒙眼布、站位、谁不能张嘴
+- continuity_notes：本镜必须延续或禁止变化的硬规则，例如服装、伤势、道具、蒙眼布、站位、空间地点、地面透视、载具/建筑/道具比例、谁不能张嘴
 - use_prev_last_frame：片段内连续动作/同场景承接镜填 true；片段首镜、明显换场、时间跳跃填 false
+- 非 black_gap 转场不得让场景在户外/室内/车内/战场之间漂移；如果剧本明确换场，transition_in 必须写清换场方式
 
 台词字段规则：
 - speaker：唯一说话人，必须是角色名
@@ -801,10 +812,10 @@ description 字段必须包含以下信息（不得省略）：
 - appearance_stage：当前造型/剧情阶段，必须与资产列表匹配
 - reference_purpose：identity / costume / scene_space / prop_detail / continuity
 - required_views：人物通常为 ["face","full_body"]；侧脸、转身、侧身镜头增加 "side"；场景/道具填 ["preview"]
-- screen_position：left / right / center / background 或中文位置描述
+- screen_position：left / right / center / background 或中文位置描述，必须包含前后层次、与场景/大型道具的距离和地面透视关系
 - action_requirement：该资产在本镜头中的动作要求
 - expression_requirement：该人物在本镜头中的表情眼神要求，非人物可留空
-- continuity_requirement：必须延续的服装、伤势、道具、站位、光线、空间关系
+- continuity_requirement：必须延续的服装、伤势、道具、站位、光线、空间地点、地面透视和比例关系
 - speaking：该角色本镜是否开口
 - muted：本镜中出现但不得开口的人物必须填 true
 
@@ -1047,7 +1058,8 @@ SHOT_VIDEO_GEN = {
 13. 台词表演与配音：必须保留台词原文，并写清每句台词对应的表情、动作、情绪、语气、口型同步和配音要求
 14. 音色一致性：必须按角色音色设定保持同一角色跨镜头声音一致
 15. 连续性约束：必须严格承接上一镜结尾状态、本镜起始状态和本镜结束状态
-16. 反向约束
+16. 空间与比例硬规则：人物站位、地面透视、场景地点、载具/建筑/道具尺寸必须稳定
+17. 反向约束
 
 视觉风格硬规则：
 - 所有镜头必须是写实电影短剧质感，像真实摄影机拍摄的真人、真实空间和真实道具
@@ -1055,10 +1067,19 @@ SHOT_VIDEO_GEN = {
 - 不要使用“超现实、梦境般、奇幻滤镜、动漫感、插画感、游戏CG、3D渲染”等表达
 - 人物皮肤保留自然纹理和毛孔，服装与道具必须有真实材质重量感
 
+空间与比例硬规则：
+- 当前绑定的场景资产是本镜唯一空间锚点；除非 transition_type 为 black_gap 且 transition_in 明确换场，否则不得从户外跳到车内/室内，或从室内跳到户外/战场
+- 所有人物、车辆、坦克、城门、建筑和道具必须共享同一个真实地面透视；人物脚底贴地，不漂浮，不在镜头中忽大忽小
+- 成年人物保持真实身高比例；坦克、车辆、城门、建筑等大型物体必须明显大于人物，禁止出现人比坦克/车辆/门/建筑还高
+- 手持道具必须保持手持尺寸；大型道具或载具保持真实体量，不得缩小成手持物，也不得让人物被错误放大
+- 严格延续 screen_direction、start_state、end_state 中的人物左右位置、前后层次、视线方向和与关键道具的距离关系
+- 如果上一镜尾帧与当前场景资产冲突，以当前场景资产和镜头资产契约为准；上一镜尾帧只辅助动作、站位、光线和情绪承接
+
 连续性要求：
 - 如果存在"上一镜尾帧辅助图"，只能把它当作动作、站位、光线和情绪承接参考
 - 不得因为上一镜尾帧而替代当前镜头绑定的角色资产和场景资产
 - 不得无理由改变人物左右位置、视线方向、手中道具、服装、伤势、蒙眼布和场景光线
+- 不得无理由改变空间地点、内外景关系、地面透视、人物相对大型道具/载具/建筑的比例
 - 如果本镜是片段首镜或转场镜，必须按 transition_in 写清换场方式，不要强行延续上一镜画面
 - 每个发声角色必须严格使用"角色音色设定"中的音色；不得忽高忽低、不得改变年龄感、不得把男性生成女性音色或把女性生成少女撒娇音
 - 只有 dialogues 中的 speaker 可以张嘴发声，其他角色必须保持闭嘴，只能做表情和动作反应

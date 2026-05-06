@@ -45,6 +45,81 @@ def _needs_side_reference(shot_description: str, transition_text: str = "") -> b
     return any(word in text for word in ("侧面", "侧脸", "侧身", "三分之二侧", "回头", "转身", "背身"))
 
 
+_LARGE_SCALE_KEYWORDS = (
+    "坦克",
+    "战车",
+    "装甲车",
+    "车辆",
+    "汽车",
+    "卡车",
+    "军车",
+    "马车",
+    "城门",
+    "大门",
+    "建筑",
+    "楼",
+    "桥",
+    "飞机",
+    "船",
+)
+_INTERIOR_KEYWORDS = ("车内", "室内", "舱内", "屋内", "房间", "帐内", "指挥车内")
+_EXTERIOR_KEYWORDS = ("户外", "室外", "野外", "战场", "街道", "城门", "院外", "山地", "公路")
+
+
+def _contains_any(text: str, keywords: tuple[str, ...]) -> bool:
+    return any(keyword in text for keyword in keywords)
+
+
+def build_spatial_scale_guardrails(
+    shot: Shot,
+    *,
+    has_scene: bool,
+    scene_names: list[str] | None = None,
+    prop_names: list[str] | None = None,
+) -> str:
+    """Build deterministic spatial and scale constraints for the final video prompt."""
+    scene_names = scene_names or []
+    prop_names = prop_names or []
+    shot_text = " ".join(
+        filter(
+            None,
+            [
+                getattr(shot, "description", ""),
+                getattr(shot, "transition_in", ""),
+                getattr(shot, "transition_out", ""),
+                getattr(shot, "start_state", ""),
+                getattr(shot, "end_state", ""),
+                getattr(shot, "screen_direction", ""),
+                getattr(shot, "continuity_notes", ""),
+                " ".join(scene_names),
+                " ".join(prop_names),
+            ],
+        )
+    )
+    transition_type = (getattr(shot, "transition_type", "") or "hard_cut").strip()
+    has_large_object = _contains_any(shot_text, _LARGE_SCALE_KEYWORDS)
+    mentions_scene_jump_risk = _contains_any(shot_text, _INTERIOR_KEYWORDS) or _contains_any(shot_text, _EXTERIOR_KEYWORDS)
+
+    scene_label = "、".join(dict.fromkeys(scene_names)) if scene_names else "当前分镜文字场景"
+    guardrails = [
+        "【空间与比例硬规则】",
+        f"- 场景锁定：本镜以{scene_label}作为空间锚点；不得无故改成其他地点、其他房间、车内/车外或完全不同空间。",
+        "- 地面透视锁定：人物、车辆、道具和建筑必须处在同一个可信地面/空间透视里，脚底贴地，不漂浮，不缩放跳变。",
+        "- 人物站位锁定：严格保持 screen_direction、start_state、end_state 中的左右位置、前后层次、视线方向和距离关系。",
+        "- 比例锁定：成年人按真实身高比例；门、建筑、车辆、坦克、马车等大型物体必须明显大于人物，禁止出现人比坦克/车门/建筑还高。",
+        "- 道具尺度锁定：手持道具保持手持尺寸，大型道具/载具保持真实尺度，不得在镜头中忽大忽小。",
+    ]
+    if not has_scene:
+        guardrails.append("- 风险提示：本镜未绑定场景资产，必须更严格按分镜文字锁定地点、光线和空间结构。")
+    if transition_type != "black_gap":
+        guardrails.append("- 空间跳变限制：除非 transition_type 为 black_gap 且 transition_in 明确写出换场，否则不得从户外跳到车内/室内，或从室内跳到户外/战场。")
+    if has_large_object:
+        guardrails.append("- 大型物体比例：涉及坦克、车辆、城门、建筑等大体量元素时，人物只能按真实比例站在旁边、前景或远处，不得被放大到超过大型物体。")
+    if mentions_scene_jump_risk:
+        guardrails.append("- 内外景一致：当前镜头一旦确定为户外/室内/车内/战场，整个视频时长内保持同一空间，不允许中途漂移到另一个空间。")
+    return "\n".join(guardrails)
+
+
 def _append_reference_image(
     *,
     reference_images: list[str],
@@ -89,6 +164,8 @@ class ShotReferenceBuilder:
         scene_parts: list[str] = []
         prop_parts: list[str] = []
         asset_contract_parts: list[str] = []
+        scene_names: list[str] = []
+        prop_names: list[str] = []
         voice_profile_parts: list[str] = []
         voice_profile_map: dict[str, str] = {}
         visible_character_names: list[str] = []
@@ -215,6 +292,7 @@ class ShotReferenceBuilder:
 
             elif asset.asset_type == AssetType.scene:
                 has_scene = True
+                scene_names.append(asset.name)
                 ref = _append_reference_image(
                     reference_images=reference_images,
                     reference_image_parts=reference_image_parts,
@@ -235,6 +313,7 @@ class ShotReferenceBuilder:
                 )
 
             elif asset.asset_type == AssetType.prop:
+                prop_names.append(asset.name)
                 ref = _append_reference_image(
                     reference_images=reference_images,
                     reference_image_parts=reference_image_parts,
@@ -287,11 +366,19 @@ class ShotReferenceBuilder:
         if reference_images and len(reference_images) >= 9 and len(reference_image_parts) >= 9:
             warnings.append("参考图已达到 Seedance 当前上限 9 张，后续资产参考可能被截断。")
 
+        spatial_scale_guardrails = build_spatial_scale_guardrails(
+            shot,
+            has_scene=has_scene,
+            scene_names=scene_names,
+            prop_names=prop_names,
+        )
+        asset_contract_parts.append(spatial_scale_guardrails)
+
         reference_image_block = "\n".join(reference_image_parts) if reference_image_parts else "无"
         direct_reference_section = (
             "【直接参考图片】\n"
             f"{reference_image_block}\n"
-            "生成时必须按上方图号直接参考请求体中的 reference_image。角色资产和场景资产是身份与空间锚点，上一镜尾帧如存在，只用于动作、站位、光线和情绪承接。"
+            "生成时必须按上方图号直接参考请求体中的 reference_image。角色资产和场景资产是身份、空间与真实比例锚点，上一镜尾帧如存在，只用于动作、站位、光线和情绪承接。"
             if reference_image_parts
             else "【直接参考图片】\n无可用参考图片"
         )

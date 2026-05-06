@@ -8,7 +8,7 @@ from app.celery_app import celery_app
 from app.tasks.base import run_async, finish_task_record
 
 logger = logging.getLogger(__name__)
-SHOT_VIDEO_PROMPT_CACHE_VERSION = "shot-video-prompt-v1"
+SHOT_VIDEO_PROMPT_CACHE_VERSION = "shot-video-prompt-v2"
 
 
 def _shot_prompt_payload(prompt_input, reference_images: list[str], blocked_words: list[str]) -> dict:
