@@ -763,7 +763,7 @@
 当前初始化解析不采用串行多 Agent，而是采用“原文索引 + 单次综合规划 + 后端归并派生”的折中生产方案：
 
 1. `ScriptIndexer` 先把原始剧本切成 `script_blocks`，保留行号、块类型、说话人和原文位置。
-2. `ScriptProductionPlanAgent` 一次输出 JSONL 蓝图行，包括 series、episode、character、character_variant、scene、scene_variant、prop、prop_variant、ignore 和 warning。
+2. `ScriptProductionPlanAgent` 一次输出 JSONL 蓝图行，包括 series、character、character_variant、scene、scene_variant、prop、prop_variant、episode、ignore 和 warning；资产注册表优先输出，episode 行保持极简，避免长剧本分集行挤掉场景/道具资产。
 3. `EpisodeMaterialBuilder` 由后端根据 start_block / end_block 回填 `Episode.script_excerpt`，保证对白不会在摘要阶段丢失。
 4. 后端把 JSONL 资产注册表归并为 `ProductionBlueprint`，再派生当前前端兼容的 `Episode` / `Asset` 记录。
 5. 资产图片提示词不再二次调用 LLM，而由确定性 `asset_prompt_builder` 根据资产字段生成最终提交给 Seedream 的提示词。

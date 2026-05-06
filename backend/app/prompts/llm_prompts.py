@@ -313,27 +313,30 @@ SCRIPT_PRODUCTION_PLAN = {
 9. 每个角色必须有可区分的脸部设计。face 写共享面部基准；distinctive_traits 写 3-5 个固定差异点，如脸型骨相、眉眼间距、鼻梁鼻头、嘴唇/下颌、肤色质感、发际线、痣疤胡须；avoid_similar_to 写最容易混淆的其他角色或排斥特征。
 10. 不生成最终图片提示词，只写短 prompt_seed；prompt_seed 只写正向视觉重点，不写禁止词列表或风格排斥清单。
 11. 人物 character_variant 必须写 look_lock：本阶段不可变化的发型/发际线、胡须或明确无胡须、服装颜色款式材质、领口/袖口/腰带等关键服装结构、配饰、伤势、随身道具。prompt_seed 可更短，但不得和 look_lock 矛盾。
-12. 每个字段都用短句。不要输出 script_excerpt，不要复述原文。
+12. 每个字段都用短句。不要输出 script_excerpt，不要复述原文；episode 行只写制作规划所需的最小元数据，不写每集详细分场或每集资产清单。
 13. 人物只输出主角、重要配角、关键反派、反复出现且有剧情功能的角色；无名士兵、通信兵、驾驶员、百姓、临时军官等功能性一次性角色不要建人物资产。
 14. 场景只输出跨集复用场景或强剧情功能核心场景；一次性过场、普通室内外、单场动作发生地不要建场景资产。
 15. 道具只输出贯穿多集或推动剧情的标志性道具；普通武器、普通装备、车辆、地图、报纸、粮食、旗帜等只在反复出现或成为剧情关键物时才建资产。
 16. 不要为每个资产包机械输出“常规状态”variant；但主要人物如果没有更具体阶段，必须至少保留一个基础造型 variant。
 17. 对不建资产的角色、场景、道具可输出 ignore 行说明原因；不要为了完整列举而输出资产行。
 18. 资产注册表是制作级关键资产清单，不是每集出场元素清单；宁可少而准，后续镜头提示词可直接描述一次性元素。
+19. 资产注册表必须在 episode 行之前完整输出。先输出角色、场景、道具及其必要 variant，再输出分集蓝图；不要等所有 episode 写完后才写场景/道具。
+20. episode 行必须压缩：summary 30 字内；beats 最多 3 条且每条 12 字内；hook 20 字内。若原文有显式分集边界，一集一行即可，核心是 number/title/start_block/end_block/estimated_duration。
+21. 如果输出预算紧张，优先保证 series、character、character_variant、scene、scene_variant、prop、prop_variant 完整；episode 行可以极简，因为后端会按原文块回填正文。
 
 JSONL 行类型：
 {"type":"series","series_prompt":"写实电影质感...","main_storyline":"短句","continuity_notes":"短句"}
-{"type":"episode","number":1,"title":"集标题","summary":"50字内","start_block":0,"end_block":12,"estimated_duration":120,"beats":["短句"],"hook":"短句"}
 {"type":"character","name":"角色名","package":"资产包","role":"短句","importance":"lead|supporting|functional|background","episodes":"1-12","face":"共享面部基准短句","distinctive_traits":["固定差异点"],"avoid_similar_to":["避免相似对象或特征"],"voice":"音色短句"}
 {"type":"character_variant","character":"角色名","name":"角色名-阶段","level":"must_build|recommended|optional|background","episodes":"1-3","scene":"适用场景","state":"造型/阶段","reason":"短句","look_lock":"发型、胡须、服装结构、配饰、伤势、道具锁定","prompt_seed":"写实电影质感短句"}
 {"type":"scene","name":"场景名","package":"场景包","importance":"core|recurring|functional|background","episodes":"1-12"}
 {"type":"scene_variant","scene":"场景名","name":"场景-状态","level":"must_build|recommended|optional|background","episodes":"1-3","state":"状态","reason":"短句","prompt_seed":"写实影视场景短句"}
 {"type":"prop","name":"道具名","package":"道具包","importance":"key|recurring|functional|background","episodes":"1-12","owner":"角色或无"}
 {"type":"prop_variant","prop":"道具名","name":"道具-状态","level":"must_build|recommended|optional|background","episodes":"1-3","state":"状态","owner":"角色或无","reason":"短句","prompt_seed":"写实道具摄影短句"}
+{"type":"episode","number":1,"title":"集标题","summary":"30字内","start_block":0,"end_block":12,"estimated_duration":120,"beats":["短句"],"hook":"短句"}
 {"type":"ignore","asset_type":"character|scene|prop","name":"名称","reason":"短句"}
 {"type":"warning","message":"需要人工注意的连续性点"}
 
-输出顺序：series -> episode lines -> character/character_variant lines -> scene/scene_variant lines -> prop/prop_variant lines -> ignore/warning lines。
+输出顺序：series -> character/character_variant lines -> scene/scene_variant lines -> prop/prop_variant lines -> episode lines -> ignore/warning lines。
 如果输出被截断，前面完整行也必须能独立成立。""",
     "user_prompt_template": "目标最低集数：{target_episodes}\n每集最短时长（秒）：{min_duration}\n补充说明：{parse_notes}\n\n建议分集边界（如有，优先遵守）：\n{suggested_ranges}\n\n原文块索引：\n{script_index}",
     "variables": ["script_index", "target_episodes", "min_duration", "parse_notes", "suggested_ranges"],

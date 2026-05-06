@@ -11,6 +11,7 @@ from app.services.prompt_service import render
 from app.tasks.llm_tasks import _jsonl_plan_from_text, _ranges_to_jsonable
 
 LogFn = Callable[[list[str], int], Awaitable[None]]
+SCRIPT_PRODUCTION_PLAN_MAX_TOKENS = 128000
 
 
 class ProductionBlueprintPlanner:
@@ -43,7 +44,7 @@ class ProductionBlueprintPlanner:
         raw = await self._chat_text_step(
             system_prompt,
             user_prompt,
-            max_tokens=12000,
+            max_tokens=SCRIPT_PRODUCTION_PLAN_MAX_TOKENS,
             timeout_seconds=240,
             label="script_production_plan",
             progress=45,

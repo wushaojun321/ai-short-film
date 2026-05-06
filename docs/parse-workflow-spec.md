@@ -50,17 +50,21 @@ Project.script_text
 `ProductionBlueprintPlanner` 只能输出 JSONL 行：
 
 - `series`
-- `episode`
 - `character`
 - `character_variant`
 - `scene`
 - `scene_variant`
 - `prop`
 - `prop_variant`
+- `episode`
 - `ignore`
 - `warning`
 
-每一行必须是完整 JSON 对象。即使输出被截断，前面完整行也应该可用。
+输出顺序固定为 `series -> character/character_variant -> scene/scene_variant -> prop/prop_variant -> episode -> ignore/warning`。资产注册表必须先于分集蓝图输出，避免长剧本显式分集过多时 episode 行耗尽输出预算，导致场景/道具缺失。
+
+每一行必须是完整 JSON 对象。即使输出被截断，前面完整行也应该可用。episode 行只保留 `number/title/summary/start_block/end_block/estimated_duration/beats/hook` 等最小元数据；正文和对白始终由后端按 block range 回填。
+
+当前 `script_production_plan` 的输出预算为 128000 token。这个值是本项目传给 LLM API 的 `max_tokens` 配置，不代表模型或 API 的硬上限。
 
 ## 兼容说明
 
