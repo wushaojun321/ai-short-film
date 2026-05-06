@@ -114,6 +114,9 @@ function Phase1({
         parse_notes: form.notes,
       });
       setDialogOpen(false);
+      if (!task.record_id) {
+        throw new Error("解析任务未返回任务记录 ID");
+      }
       onSubmit(task.record_id);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "提交失败，请重试");

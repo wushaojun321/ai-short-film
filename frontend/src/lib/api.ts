@@ -221,10 +221,23 @@ export interface ApiAsset {
   updated_at: string;
 }
 
-// generate 接口统一返回 { task_id, record_id }
+export interface ApiGenTaskRef {
+  task_id?: string | null;
+  record_id?: string | null;
+  shot_id?: string;
+  shot_code?: string;
+  queued?: boolean;
+  reason?: string;
+}
+
+// generate 接口统一返回 { task_id, record_id }；批量任务可附带 records
 export interface ApiGenResponse {
-  task_id: string;
-  record_id: string;
+  task_id?: string | null;
+  record_id?: string | null;
+  records?: ApiGenTaskRef[];
+  queued?: number;
+  skipped?: number;
+  reason?: string;
 }
 
 export interface ApiTaskRecord {

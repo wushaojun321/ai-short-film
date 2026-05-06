@@ -179,28 +179,86 @@ async def enqueue_episode_shot_videos(episode_id: PydanticObjectId, current_user
     if not project or project.owner_id != current_user.id:
         raise HTTPException(404, "Episode not found")
 
-    running = await TaskRecord.find_one(
-        TaskRecord.episode_id == episode.id,
-        TaskRecord.task_type == "gen_shot_video",
-        {"status": {"$in": ["pending", "running"]}},
-    )
-    if running:
-        return {"task_id": running.celery_task_id, "record_id": str(running.id), "skipped": True, "reason": "already running"}
-
-    from app.tasks.video_tasks import gen_episode_videos_task
+    from app.models.shot import ShotState
+    from app.tasks.video_tasks import gen_shot_video_task
     from datetime import datetime
 
-    task = gen_episode_videos_task.delay(str(episode_id))
-    record = TaskRecord(
-        celery_task_id=task.id,
-        task_type="gen_shot_video",
-        project_id=episode.project_id,
-        episode_id=episode.id,
-        status=TaskStatus.running,
-        started_at=datetime.utcnow(),
-    )
-    await record.insert()
-    return {"task_id": task.id, "record_id": str(record.id)}
+    shots = await Shot.find(Shot.episode_id == episode.id).sort("+order").to_list()
+    records: list[dict] = []
+    queued = 0
+    skipped = 0
+
+    for shot in shots:
+        if shot.video_url:
+            skipped += 1
+            continue
+
+        active_records = await TaskRecord.find(
+            TaskRecord.target_id == shot.id,
+            TaskRecord.task_type == "gen_shot_video",
+            {"status": {"$in": ["pending", "running"]}},
+        ).sort("-created_at").limit(1).to_list()
+        if active_records:
+            active = active_records[0]
+            records.append({
+                "task_id": active.celery_task_id,
+                "record_id": str(active.id),
+                "shot_id": str(shot.id),
+                "shot_code": shot.shot_code,
+                "queued": False,
+                "reason": "already running",
+            })
+            skipped += 1
+            continue
+
+        # 兼容旧的整集串行任务：当前正在 rendering 的镜头可能已经被旧任务接管，
+        # 不再重复排队，其余镜头可以继续逐个入队以使用 video worker 并发。
+        if shot.state == ShotState.rendering:
+            records.append({
+                "task_id": shot.generation_task_id,
+                "record_id": None,
+                "shot_id": str(shot.id),
+                "shot_code": shot.shot_code,
+                "queued": False,
+                "reason": "already rendering",
+            })
+            skipped += 1
+            continue
+
+        task = gen_shot_video_task.delay(str(shot.id))
+        await shot.set({
+            "state": ShotState.rendering,
+            "generation_task_id": task.id,
+        })
+        record = TaskRecord(
+            celery_task_id=task.id,
+            task_type="gen_shot_video",
+            project_id=episode.project_id,
+            episode_id=episode.id,
+            target_id=shot.id,
+            status=TaskStatus.running,
+            progress=0,
+            logs=[f"[video] 已加入批量生成队列：{shot.shot_code}"],
+            started_at=datetime.utcnow(),
+        )
+        await record.insert()
+        records.append({
+            "task_id": task.id,
+            "record_id": str(record.id),
+            "shot_id": str(shot.id),
+            "shot_code": shot.shot_code,
+            "queued": True,
+        })
+        queued += 1
+
+    first_record = next((item for item in records if item.get("record_id")), None)
+    return {
+        "task_id": first_record["task_id"] if first_record else None,
+        "record_id": first_record["record_id"] if first_record else None,
+        "records": records,
+        "queued": queued,
+        "skipped": skipped,
+    }
 
 
 # ── Episode merge ─────────────────────────────────────────────

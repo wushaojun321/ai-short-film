@@ -639,10 +639,11 @@ function StepVideos({
   }, [promptSheetOpen, submittedPrompt, shot?.prompt, shot?.id]);
 
   const watchVideoTask = (response: ApiGenResponse, task: Omit<WatchedVideoTask, "recordId">) => {
-    if (!response.record_id) return;
+    const recordId = response.record_id;
+    if (!recordId) return;
     setWatchedVideoTasks((prev) => {
-      if (prev.some((item) => item.recordId === response.record_id)) return prev;
-      return [...prev, { ...task, recordId: response.record_id }];
+      if (prev.some((item) => item.recordId === recordId)) return prev;
+      return [...prev, { ...task, recordId }];
     });
   };
 
@@ -693,7 +694,23 @@ function StepVideos({
     setLoadingIds((prev) => new Set([...prev, ...targets.map((s) => s.id)]));
     try {
       const response = await generateAPI.episodeShotVideos(episode.id);
-      watchVideoTask(response, { label: "批量视频生成", shotIds: targets.map((s) => s.id) });
+      const taskRefs = (response.records ?? []).filter((item) => item.record_id);
+      if (taskRefs.length > 0) {
+        taskRefs.forEach((item) => {
+          const targetShot = shots.find((s) => s.id === item.shot_id);
+          const targetIndex = targetShot ? shots.findIndex((s) => s.id === targetShot.id) : -1;
+          const targetLabel = targetIndex >= 0 ? shotNumberLabel(targetIndex) : (item.shot_code || "镜头");
+          watchVideoTask(
+            { task_id: item.task_id, record_id: item.record_id },
+            { label: `${targetLabel}视频生成`, shotId: item.shot_id }
+          );
+        });
+      } else {
+        watchVideoTask(response, { label: "批量视频生成", shotIds: targets.map((s) => s.id) });
+      }
+      if ((response.queued ?? taskRefs.length) === 0) {
+        setError(response.reason || "没有新的镜头入队，可能已有镜头正在生成或已生成。");
+      }
     } catch (e: unknown) {
       setError(errorMessage(e, "批量生成失败"));
       setLoadingIds((prev) => {
