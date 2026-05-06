@@ -41,6 +41,9 @@ class Asset(Document):
     character_name: str = ""
     asset_package: str = ""
     face_identity: str = ""
+    distinctive_traits: list[str] = Field(default_factory=list)
+    avoid_similar_to: list[str] = Field(default_factory=list)
+    look_lock: str = ""
     scene_scope: str = ""
     appearance_stage: str = ""
     view_requirements: str = ""

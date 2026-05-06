@@ -309,21 +309,22 @@ SCRIPT_PRODUCTION_PLAN = {
 5. 同一人物的不同阶段造型必须归入同一个 asset_package，共享 face_identity 和 voice_profile；除非剧本明确面部受伤、毁容、年龄跨度或伪装改变，否则不得改变面部基准。
 6. 人物/场景/道具 variant 只在剧情状态发生实质变化时创建；轻微情绪变化、普通路人、泛背景不要建资产。
 7. 主角、重要配角、关键反派不能被压缩成一个通用造型；如果跨场景/身份/服装/伤势/随身道具发生明显视觉变化，必须输出对应 character_variant，并标为 must_build 或 recommended。
-8. 不生成最终图片提示词，只写短 prompt_seed；prompt_seed 只写正向视觉重点，不写禁止词列表或风格排斥清单。
-9. 人物 character_variant 的 prompt_seed 必须写清本阶段锁定造型：发型/发际线、胡须或明确无胡须、服装颜色款式材质、领口/袖口/腰带等关键服装结构、配饰、伤势、随身道具；这些内容会用于三视图一致性，不要只写“常规状态/军装/便装”等泛词。
-10. 每个字段都用短句。不要输出 script_excerpt，不要复述原文。
-11. 人物只输出主角、重要配角、关键反派、反复出现且有剧情功能的角色；无名士兵、通信兵、驾驶员、百姓、临时军官等功能性一次性角色不要建人物资产。
-12. 场景只输出跨集复用场景或强剧情功能核心场景；一次性过场、普通室内外、单场动作发生地不要建场景资产。
-13. 道具只输出贯穿多集或推动剧情的标志性道具；普通武器、普通装备、车辆、地图、报纸、粮食、旗帜等只在反复出现或成为剧情关键物时才建资产。
-14. 不要为每个资产包机械输出“常规状态”variant；但主要人物如果没有更具体阶段，必须至少保留一个基础造型 variant。
-15. 对不建资产的角色、场景、道具可输出 ignore 行说明原因；不要为了完整列举而输出资产行。
-16. 资产注册表是制作级关键资产清单，不是每集出场元素清单；宁可少而准，后续镜头提示词可直接描述一次性元素。
+8. 每个角色必须有可区分的脸部设计。face 写共享面部基准；distinctive_traits 写 3-5 个固定差异点，如脸型骨相、眉眼间距、鼻梁鼻头、嘴唇/下颌、肤色质感、发际线、痣疤胡须；avoid_similar_to 写最容易混淆的其他角色或排斥特征。
+9. 不生成最终图片提示词，只写短 prompt_seed；prompt_seed 只写正向视觉重点，不写禁止词列表或风格排斥清单。
+10. 人物 character_variant 必须写 look_lock：本阶段不可变化的发型/发际线、胡须或明确无胡须、服装颜色款式材质、领口/袖口/腰带等关键服装结构、配饰、伤势、随身道具。prompt_seed 可更短，但不得和 look_lock 矛盾。
+11. 每个字段都用短句。不要输出 script_excerpt，不要复述原文。
+12. 人物只输出主角、重要配角、关键反派、反复出现且有剧情功能的角色；无名士兵、通信兵、驾驶员、百姓、临时军官等功能性一次性角色不要建人物资产。
+13. 场景只输出跨集复用场景或强剧情功能核心场景；一次性过场、普通室内外、单场动作发生地不要建场景资产。
+14. 道具只输出贯穿多集或推动剧情的标志性道具；普通武器、普通装备、车辆、地图、报纸、粮食、旗帜等只在反复出现或成为剧情关键物时才建资产。
+15. 不要为每个资产包机械输出“常规状态”variant；但主要人物如果没有更具体阶段，必须至少保留一个基础造型 variant。
+16. 对不建资产的角色、场景、道具可输出 ignore 行说明原因；不要为了完整列举而输出资产行。
+17. 资产注册表是制作级关键资产清单，不是每集出场元素清单；宁可少而准，后续镜头提示词可直接描述一次性元素。
 
 JSONL 行类型：
 {"type":"series","series_prompt":"写实电影质感...","main_storyline":"短句","continuity_notes":"短句"}
 {"type":"episode","number":1,"title":"集标题","summary":"50字内","start_block":0,"end_block":12,"estimated_duration":120,"beats":["短句"],"hook":"短句"}
-{"type":"character","name":"角色名","package":"资产包","role":"短句","importance":"lead|supporting|functional|background","episodes":"1-12","face":"共享面部基准短句","voice":"音色短句"}
-{"type":"character_variant","character":"角色名","name":"角色名-阶段","level":"must_build|recommended|optional|background","episodes":"1-3","scene":"适用场景","state":"造型/阶段","reason":"短句","prompt_seed":"写实电影质感短句"}
+{"type":"character","name":"角色名","package":"资产包","role":"短句","importance":"lead|supporting|functional|background","episodes":"1-12","face":"共享面部基准短句","distinctive_traits":["固定差异点"],"avoid_similar_to":["避免相似对象或特征"],"voice":"音色短句"}
+{"type":"character_variant","character":"角色名","name":"角色名-阶段","level":"must_build|recommended|optional|background","episodes":"1-3","scene":"适用场景","state":"造型/阶段","reason":"短句","look_lock":"发型、胡须、服装结构、配饰、伤势、道具锁定","prompt_seed":"写实电影质感短句"}
 {"type":"scene","name":"场景名","package":"场景包","importance":"core|recurring|functional|background","episodes":"1-12"}
 {"type":"scene_variant","scene":"场景名","name":"场景-状态","level":"must_build|recommended|optional|background","episodes":"1-3","state":"状态","reason":"短句","prompt_seed":"写实影视场景短句"}
 {"type":"prop","name":"道具名","package":"道具包","importance":"key|recurring|functional|background","episodes":"1-12","owner":"角色或无"}
@@ -349,12 +350,13 @@ ASSET_EXTRACT = {
 2. 同一人物的不同状态、不同场景造型必须归入同一个 asset_package；asset_package 通常等于角色本名。
 3. 同一 asset_package 内必须共享同一 face_identity，用于全局人脸一致性。face_identity 要描述脸型、骨相、五官比例、肤色、皮肤质感和标志性面部特征。
 4. 除非剧本明确出现毁容、面部受伤、年龄跨度、易容/伪装导致面部变化，否则同一 asset_package 不得改变 face_identity；如果确实变化，必须在 appearance_stage 和 description 中说明原因。
-5. 每个人物资产必须填写 character_name、asset_package、face_identity、scene_scope、appearance_stage、view_requirements、voice_profile。
+5. 每个人物资产必须填写 character_name、asset_package、face_identity、distinctive_traits、avoid_similar_to、look_lock、scene_scope、appearance_stage、view_requirements、voice_profile。
 6. view_requirements 固定包含“面部特写、全身形象、侧面视角”。
 7. prompt 必须是中文写实电影质感参考提示词：真实摄影基础、真实影视布光、真实材质、真实空间透视、细腻皮肤与织物细节、克制真实氛围；禁止超现实、梦境、动漫、插画、游戏CG、二次元、卡通、3D建模。
 8. prompt 必须明确写出“沿用同一人物资产包的共享面部基准”，同一角色不同造型只改变服装、妆发、伤势、道具和场景状态；不要要求三视图拼在同一张图里。
 9. 人物 prompt 必须写清本阶段锁定造型：发型/发际线、胡须或明确无胡须、服装颜色款式材质、领口/袖口/腰带等关键服装结构、配饰、伤势、随身道具；同一阶段的面部特写、全身、侧面会沿用这些锁定项。
-10. 场景只提取反复出现或对剧情功能重要的场景；道具只提取关键标志性道具。
+10. distinctive_traits 必须写 3-5 个不同于其他角色的可视面部差异点；avoid_similar_to 写容易混淆的角色或排斥特征，避免不同角色近似。
+11. 场景只提取反复出现或对剧情功能重要的场景；道具只提取关键标志性道具。
 
 输出 JSON 对象：
 {
@@ -365,6 +367,9 @@ ASSET_EXTRACT = {
         "character_name": "角色本名",
         "asset_package": "人物资产包，同一角色所有造型保持一致",
         "face_identity": "共享面部基准，同一人物资产包内保持一致",
+        "distinctive_traits": ["固定面部差异点"],
+        "avoid_similar_to": ["避免相似对象或特征"],
+        "look_lock": "本阶段发型、胡须、服装结构、配饰、伤势、道具锁定",
         "scene_scope": "适用场景",
         "appearance_stage": "剧情阶段/造型状态",
         "view_requirements": "面部特写、全身形象、侧面视角",

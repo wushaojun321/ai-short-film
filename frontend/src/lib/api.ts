@@ -205,6 +205,9 @@ export interface ApiAsset {
   character_name?: string;
   asset_package?: string;
   face_identity?: string;
+  distinctive_traits?: string[];
+  avoid_similar_to?: string[];
+  look_lock?: string;
   scene_scope?: string;
   appearance_stage?: string;
   view_requirements?: string;

@@ -11,6 +11,9 @@ class AssetCreate(BaseModel):
     character_name: str = ""
     asset_package: str = ""
     face_identity: str = ""
+    distinctive_traits: list[str] = Field(default_factory=list)
+    avoid_similar_to: list[str] = Field(default_factory=list)
+    look_lock: str = ""
     scene_scope: str = ""
     appearance_stage: str = ""
     view_requirements: str = ""
@@ -29,6 +32,9 @@ class AssetUpdate(BaseModel):
     character_name: Optional[str] = None
     asset_package: Optional[str] = None
     face_identity: Optional[str] = None
+    distinctive_traits: Optional[list[str]] = None
+    avoid_similar_to: Optional[list[str]] = None
+    look_lock: Optional[str] = None
     scene_scope: Optional[str] = None
     appearance_stage: Optional[str] = None
     view_requirements: Optional[str] = None

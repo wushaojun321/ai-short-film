@@ -123,6 +123,8 @@ def _known_character_packages(assets_data: dict) -> list[dict]:
             "asset_package": package,
             "character_name": item.get("character_name") or package,
             "face_identity": item.get("face_identity", ""),
+            "distinctive_traits": _as_str_list(item.get("distinctive_traits")),
+            "avoid_similar_to": _as_str_list(item.get("avoid_similar_to")),
             "voice_profile": item.get("voice_profile", ""),
         }
     return list(packages.values())
@@ -474,6 +476,8 @@ def _jsonl_plan_from_text(raw_text: str) -> tuple[dict, dict]:
                 "importance": "",
                 "reuse_scope": "",
                 "face_identity": "",
+                "distinctive_traits": [],
+                "avoid_similar_to": [],
                 "voice_profile": "",
                 "variants": [],
             }
@@ -588,17 +592,21 @@ def _jsonl_plan_from_text(raw_text: str) -> tuple[dict, dict]:
                 "importance": _text_value(item.get("importance"), character.get("importance")),
                 "reuse_scope": _text_value(item.get("episodes"), item.get("reuse_scope"), character.get("reuse_scope")),
                 "face_identity": _text_value(item.get("face"), item.get("face_identity"), character.get("face_identity")),
+                "distinctive_traits": _as_str_list(item.get("distinctive_traits")) or character.get("distinctive_traits", []),
+                "avoid_similar_to": _as_str_list(item.get("avoid_similar_to")) or character.get("avoid_similar_to", []),
                 "voice_profile": _text_value(item.get("voice"), item.get("voice_profile"), character.get("voice_profile")),
             })
         elif item_type == "character_variant":
             character = get_character(item.get("character") or item.get("character_name"), item.get("package") or item.get("asset_package"))
             state = _text_value(item.get("state"), item.get("appearance_stage"), "常规状态")
+            look_lock = _text_value(item.get("look_lock"), item.get("styling_lock"), item.get("style_lock"))
             character["variants"].append({
                 "name": _text_value(item.get("name"), f"{character['character_name']}-{state}"),
                 "asset_level": _text_value(item.get("level"), item.get("asset_level"), "recommended"),
                 "episode_range": _text_value(item.get("episodes"), item.get("episode_range")),
                 "scene_scope": _text_value(item.get("scene"), item.get("scene_scope")),
                 "appearance_stage": state,
+                "look_lock": look_lock,
                 "stage_change_reason": _text_value(item.get("reason"), item.get("stage_change_reason")),
                 "description": _text_value(item.get("reason"), item.get("description")),
                 "prompt_seed": _text_value(item.get("prompt_seed"), "写实电影质感人物定妆参考，真实摄影基础，真实影视布光。"),
@@ -687,6 +695,8 @@ def _character_bible_from_registry(characters: list[dict]) -> list[dict]:
                 item.get("face_identity"),
                 "写实电影人物面部基准，真实五官比例和自然皮肤质感，全剧保持一致",
             ),
+            "distinctive_traits": _as_str_list(item.get("distinctive_traits")),
+            "avoid_similar_to": _as_str_list(item.get("avoid_similar_to")),
             "voice_profile": _text_value(
                 item.get("voice_profile"),
                 item.get("voice_hint"),
@@ -713,6 +723,8 @@ def _character_variants_from_registry(characters: list[dict]) -> list[dict]:
             item.get("face_identity"),
             "写实电影人物面部基准，真实五官比例和自然皮肤质感，全剧保持一致",
         )
+        distinctive_traits = _as_str_list(item.get("distinctive_traits"))
+        avoid_similar_to = _as_str_list(item.get("avoid_similar_to"))
         voice_profile = _text_value(
             item.get("voice_profile"),
             item.get("voice_hint"),
@@ -746,11 +758,17 @@ def _character_variants_from_registry(characters: list[dict]) -> list[dict]:
                 item.get("prompt"),
                 f"{name}，沿用{asset_package}人物资产包共享面部基准，写实电影质感定妆参考照，真实摄影基础，真实影视布光。",
             )
+            look_lock = _text_value(variant.get("look_lock"), variant.get("styling_lock"), item.get("look_lock"))
+            if look_lock and look_lock not in prompt_seed:
+                prompt_seed = f"{prompt_seed} 造型锁定：{look_lock}。"
             _append_unique(variants, seen, key, {
                 "name": name,
                 "character_name": character_name,
                 "asset_package": asset_package,
                 "face_identity": face_identity,
+                "distinctive_traits": _as_str_list(variant.get("distinctive_traits")) or distinctive_traits,
+                "avoid_similar_to": _as_str_list(variant.get("avoid_similar_to")) or avoid_similar_to,
+                "look_lock": look_lock,
                 "voice_profile": voice_profile,
                 "scene_scope": scene_scope,
                 "appearance_stage": appearance_stage,
@@ -852,6 +870,9 @@ def _asset_inventory_from_blueprint(
             "character_name": item.get("character_name", ""),
             "asset_package": item.get("asset_package") or item.get("character_name", ""),
             "face_identity": item.get("face_identity", ""),
+            "distinctive_traits": _as_str_list(item.get("distinctive_traits")),
+            "avoid_similar_to": _as_str_list(item.get("avoid_similar_to")),
+            "look_lock": item.get("look_lock", ""),
             "voice_profile": item.get("voice_profile", ""),
             "scene_scope": item.get("scene_scope", ""),
             "appearance_stage": item.get("appearance_stage") or item.get("state", ""),
@@ -903,6 +924,9 @@ def _fallback_character_variants(character_bible: list[dict]) -> list[dict]:
             "character_name": character_name,
             "asset_package": item.get("asset_package") or character_name,
             "face_identity": item.get("face_identity", ""),
+            "distinctive_traits": _as_str_list(item.get("distinctive_traits")),
+            "avoid_similar_to": _as_str_list(item.get("avoid_similar_to")),
+            "look_lock": item.get("look_lock", ""),
             "voice_profile": item.get("voice_profile", ""),
             "scene_scope": "全剧常规场景",
             "appearance_stage": "常规状态",
@@ -936,6 +960,8 @@ def _fallback_character_bible_from_requirements(episodes: list[dict]) -> list[di
                 "role": item.get("role_in_episode", ""),
                 "arc": "",
                 "face_identity": "写实电影人物面部基准，真实五官比例和自然皮肤质感，全剧保持一致",
+                "distinctive_traits": [],
+                "avoid_similar_to": [],
                 "voice_profile": item.get("voice_hint", "自然真实人声，语气随剧情变化但音色保持一致"),
                 "allowed_changes": ["服装", "妆发", "伤势", "随身道具", "场景状态"],
                 "locked_traits": ["面部基准", "五官比例", "音色基准"],
@@ -1022,6 +1048,8 @@ def _fallback_assets_from_blocks(blocks) -> tuple[list[dict], list[dict], list[d
             "importance": "functional" if meta["count"] <= 1 else "supporting",
             "reuse_scope": episode_range,
             "face_identity": "写实电影人物面部基准，真实五官比例和自然皮肤质感，全剧保持一致",
+            "distinctive_traits": [],
+            "avoid_similar_to": [],
             "voice_profile": "自然真实人声，语气随剧情变化但音色保持一致",
             "allowed_changes": ["服装", "妆发", "伤势", "随身道具", "场景状态"],
             "locked_traits": ["面部基准", "五官比例", "音色基准"],
@@ -1032,6 +1060,9 @@ def _fallback_assets_from_blocks(blocks) -> tuple[list[dict], list[dict], list[d
             "character_name": name,
             "asset_package": name,
             "face_identity": "写实电影人物面部基准，真实五官比例和自然皮肤质感，全剧保持一致",
+            "distinctive_traits": [],
+            "avoid_similar_to": [],
+            "look_lock": "",
             "voice_profile": "自然真实人声，语气随剧情变化但音色保持一致",
             "scene_scope": "按原文主要出场场景",
             "appearance_stage": "常规状态",
@@ -1439,6 +1470,9 @@ async def _parse_script_async(celery_id: str, project_id: str):
                             a.get("asset_package") or a.get("character_name") or a.get("name", "")
                         ) if asset_type == AssetType.character else "",
                         face_identity=a.get("face_identity", "") if asset_type == AssetType.character else "",
+                        distinctive_traits=_as_str_list(a.get("distinctive_traits")) if asset_type == AssetType.character else [],
+                        avoid_similar_to=_as_str_list(a.get("avoid_similar_to")) if asset_type == AssetType.character else [],
+                        look_lock=a.get("look_lock", "") if asset_type == AssetType.character else "",
                         scene_scope=a.get("scene_scope", "") if asset_type == AssetType.character else "",
                         appearance_stage=a.get("appearance_stage", "") if asset_type == AssetType.character else "",
                         view_requirements=a.get("view_requirements", "面部特写、全身形象、侧面视角") if asset_type == AssetType.character else "",
@@ -1579,7 +1613,8 @@ def _as_str_list(value) -> list[str]:
     if isinstance(value, list):
         return [str(item).strip() for item in value if str(item).strip()]
     if isinstance(value, str):
-        return [part.strip() for part in value.replace("，", ",").split(",") if part.strip()]
+        normalized = value.replace("，", ",").replace("、", ",").replace("；", ",").replace(";", ",")
+        return [part.strip() for part in normalized.split(",") if part.strip()]
     return []
 
 

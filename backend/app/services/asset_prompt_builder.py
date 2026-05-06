@@ -21,15 +21,15 @@ ASSET_NEGATIVE_PROMPT = (
 CHARACTER_VIEW_SPECS = {
     "face": {
         "label": "面部特写",
-        "instruction": "本次只生成一张面部特写：胸口以上正面近景，五官、骨相、皮肤纹理、胡须/无胡须状态、发型发际线和眼神清晰，服装领口与肩部沿用本阶段造型，不拼接其他视角。仅按文字中的面部基准生成，不使用任何输入参考图。",
+        "instruction": "本次只生成一张面部特写：胸口以上正面近景，五官、骨相、皮肤纹理、胡须/无胡须状态、发型发际线和眼神清晰；服装领口、肩部材质、配饰和伤势必须沿用本阶段造型锁定，不重新设计衣服，不拼接其他视角。仅按文字中的面部基准生成，不使用任何输入参考图。",
     },
     "full_body": {
         "label": "全身正面",
-        "instruction": "本次只生成一张全身正面：从头到脚完整入画，发型、胡须/无胡须状态、服装、妆发、配饰、道具和身形比例清楚，脸部保持同一人物基准。仅按文字中的面部基准和阶段造型生成，不使用任何输入参考图。",
+        "instruction": "本次只生成一张全身正面：从头到脚完整入画，脸部保持同一人物基准；发型、胡须/无胡须状态、服装颜色款式材质、领口袖口腰带、配饰、道具和伤势必须与本阶段造型锁定完全一致，不换装、不换发型、不新增道具。仅按文字中的面部基准和阶段造型生成，不使用任何输入参考图。",
     },
     "side": {
         "label": "侧面视角",
-        "instruction": "本次只生成一张侧面或三分之二侧面：脸型轮廓、鼻梁、下颌线、发型、胡须/无胡须状态和服装侧面结构清楚，脸部身份和本阶段造型保持一致。仅按文字中的面部基准和阶段造型生成，不使用任何输入参考图。",
+        "instruction": "本次只生成一张侧面或三分之二侧面：脸型轮廓、鼻梁、下颌线、发型和胡须状态清楚；服装侧面结构、配饰、道具和伤势必须与面部特写、全身正面同一阶段造型锁定一致，不换成其他衣服或其他演员。仅按文字中的面部基准和阶段造型生成，不使用任何输入参考图。",
     },
 }
 
@@ -81,6 +81,20 @@ def _non_empty_parts(*parts: str | None) -> list[str]:
     return [part.strip() for part in parts if part and part.strip()]
 
 
+def _compact_list(values: Iterable[str] | None, *, item_limit: int = 44, max_items: int = 5, blocked_words: Iterable[str] = ()) -> list[str]:
+    if isinstance(values, str):
+        normalized = values.replace("，", ",").replace("、", ",").replace("；", ",").replace(";", ",")
+        values = [part.strip() for part in normalized.split(",") if part.strip()]
+    result: list[str] = []
+    for value in values or []:
+        text = _single_line(str(value), item_limit, blocked_words=blocked_words)
+        if text and text not in result:
+            result.append(text)
+        if len(result) >= max_items:
+            break
+    return result
+
+
 def _same_package(asset: Asset, other: Asset) -> bool:
     current = (asset.asset_package or asset.character_name or asset.name or "").strip()
     other_name = (other.asset_package or other.character_name or other.name or "").strip()
@@ -88,6 +102,8 @@ def _same_package(asset: Asset, other: Asset) -> bool:
 
 
 def _character_difference_note(asset: Asset, all_assets: list[Asset], blocked_words: Iterable[str]) -> str:
+    current_traits = _compact_list(getattr(asset, "distinctive_traits", []), blocked_words=blocked_words)
+    avoid = _compact_list(getattr(asset, "avoid_similar_to", []), blocked_words=blocked_words)
     notes: list[str] = []
     seen: set[str] = set()
     for other in all_assets:
@@ -99,24 +115,36 @@ def _character_difference_note(asset: Asset, all_assets: list[Asset], blocked_wo
         if not package or package in seen:
             continue
         seen.add(package)
-        identity = _single_line(other.face_identity or other.prompt, 70, blocked_words=blocked_words)
+        other_traits = _compact_list(getattr(other, "distinctive_traits", []), item_limit=30, max_items=3, blocked_words=blocked_words)
+        identity = "、".join(other_traits) or _single_line(other.face_identity or other.prompt, 70, blocked_words=blocked_words)
         notes.append(f"{package}（{identity or '独立面部基准'}）")
         if len(notes) >= 4:
             break
-    if not notes:
-        return "避免通用脸，当前角色要有独立可识别的脸型、五官比例和气质。"
-    return f"与其他角色保持可辨差异：{'；'.join(notes)}。"
+    parts = []
+    if current_traits:
+        parts.append(f"当前角色固定差异点：{'、'.join(current_traits)}")
+    if avoid:
+        parts.append(f"排斥相似项：{'、'.join(avoid)}")
+    if notes:
+        parts.append(f"与其他角色保持可辨差异：{'；'.join(notes)}")
+    if not parts:
+        parts.append("避免通用脸，当前角色要有独立可识别的脸型、五官比例、发际线、皮肤质感和气质")
+    return "。".join(parts) + "。"
 
 
 def _character_stage_lock(asset: Asset, base: str, blocked_words: Iterable[str]) -> str:
     face = _single_line(asset.face_identity, 150, blocked_words=blocked_words)
+    traits = "、".join(_compact_list(getattr(asset, "distinctive_traits", []), blocked_words=blocked_words))
+    look_lock = _single_line(getattr(asset, "look_lock", ""), 220, blocked_words=blocked_words)
     stage = _single_line(asset.appearance_stage, 80, blocked_words=blocked_words)
     scene = _single_line(asset.scene_scope, 80, blocked_words=blocked_words)
     styling = _single_line(base, 220, blocked_words=blocked_words)
     lock_parts = _non_empty_parts(
         f"面部基准={face}" if face else "",
+        f"面部差异点={traits}" if traits else "",
         f"阶段={stage}" if stage else "",
         f"场景={scene}" if scene else "",
+        f"造型锁定={look_lock}" if look_lock else "",
         f"造型={styling}" if styling else "",
     )
     lock_text = "；".join(lock_parts) or "沿用当前阶段的同一张脸、同一发型、同一服装和同一随身道具。"
@@ -149,12 +177,14 @@ def build_asset_positive_prompt(
         )
         scene = _single_line(asset.scene_scope or "按剧本主要场景", 90, blocked_words=blocked_words)
         stage = _single_line(asset.appearance_stage or "当前剧情阶段", 90, blocked_words=blocked_words)
+        look_lock = _single_line(getattr(asset, "look_lock", ""), 220, blocked_words=blocked_words)
         stage_lock = _character_stage_lock(asset, base, blocked_words)
         difference = _character_difference_note(asset, all_assets, blocked_words)
         parts = [
             f"竖屏9:16，写实电影人物定妆参考照，{name}。",
             f"角色资产包：{package}；同组所有造型沿用同一面部基准：{face}。",
             f"当前阶段：{stage}；适用场景：{scene}。",
+            f"本阶段造型硬锁定：{look_lock}。" if look_lock else "",
             f"造型重点：{base}。" if base else "",
             stage_lock,
             "真实演员摄影，影视布光，真实皮肤纹理、自然毛孔和真实织物材质，克制电影色调。",

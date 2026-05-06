@@ -159,6 +159,9 @@ export interface Asset {
   characterName?: string;
   assetPackage?: string;
   faceIdentity?: string;
+  distinctiveTraits?: string[];
+  avoidSimilarTo?: string[];
+  lookLock?: string;
   sceneScope?: string;
   appearanceStage?: string;
   viewRequirements?: string;
