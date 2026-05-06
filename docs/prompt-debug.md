@@ -51,7 +51,7 @@ docker compose logs -f worker-video
 **剧本解析（OpenRouter LLM）：**
 ```
 [init] 项目加载完成：xxx
-[init] 剧本长度：xxxx 字，目标集数：x
+[init] 剧本长度：xxxx 字，目标最低集数：x
 [map-reduce] 剧本超过阈值时会显示分段解析日志
 [prompt] Prompt 渲染完成，发送 LLM 请求…
 [error] Unterminated string starting at: line ...   # LLM 返回的 JSON 非法或被截断

@@ -2,6 +2,7 @@ from beanie import PydanticObjectId
 
 from app.parsing.blueprint_validator import BlueprintSchemaValidator
 from app.parsing.parse_report_builder import ParseReportBuilder
+from app.parsing.range_utils import extract_minimum_ranges_from_episode_plan
 from app.utils.script_indexer import build_script_blocks
 
 
@@ -21,6 +22,33 @@ def test_blueprint_validator_accepts_episode_block_ranges():
 
     assert len(result.planned_ranges) == 2
     assert not result.warnings
+
+
+def test_range_extraction_keeps_more_than_minimum_episodes():
+    project_id = PydanticObjectId()
+    blocks = build_script_blocks(project_id, "第1集\nA\n第2集\nB\n第3集\nC")
+    episodes = [
+        {"number": 1, "source_block_ranges": [{"start_block": 0, "end_block": 1}]},
+        {"number": 2, "source_block_ranges": [{"start_block": 2, "end_block": 3}]},
+        {"number": 3, "source_block_ranges": [{"start_block": 4, "end_block": 5}]},
+    ]
+
+    ranges = extract_minimum_ranges_from_episode_plan(episodes, blocks, minimum_count=2)
+
+    assert len(ranges) == 3
+    assert ranges[-1].end_block == len(blocks) - 1
+
+
+def test_range_extraction_rejects_less_than_minimum_episodes():
+    project_id = PydanticObjectId()
+    blocks = build_script_blocks(project_id, "第1集\nA\n第2集\nB")
+    episodes = [
+        {"number": 1, "source_block_ranges": [{"start_block": 0, "end_block": 1}]},
+    ]
+
+    ranges = extract_minimum_ranges_from_episode_plan(episodes, blocks, minimum_count=2)
+
+    assert ranges == []
 
 
 def test_blueprint_validator_warns_without_episodes():

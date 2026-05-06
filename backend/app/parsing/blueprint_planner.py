@@ -30,7 +30,7 @@ class ProductionBlueprintPlanner:
             PromptConfigScope.script_production_plan,
             {
                 "script_index": self.context_pack.script_index,
-                "target_episodes": self.context_pack.target_count,
+                "target_episodes": self.context_pack.minimum_count,
                 "min_duration": self.project.min_episode_duration,
                 "parse_notes": self.project.parse_notes or "",
                 "suggested_ranges": json.dumps(

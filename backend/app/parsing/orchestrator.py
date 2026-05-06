@@ -36,7 +36,7 @@ class ParseOrchestrator:
             self.record = await TaskRecord.find_one(TaskRecord.celery_task_id == self.celery_id)
             await self.log([
                 f"[init] 项目加载完成：{project.title}",
-                f"[init] 剧本长度：{len(project.script_text or '')} 字，目标集数：{project.target_episode_count}",
+                f"[init] 剧本长度：{len(project.script_text or '')} 字，目标最低集数：{project.target_episode_count}",
             ], 10)
 
             await self._clear_existing_outputs(project)
@@ -50,7 +50,7 @@ class ParseOrchestrator:
             validation = BlueprintSchemaValidator().validate(
                 plan,
                 context_pack.blocks,
-                context_pack.target_count,
+                context_pack.minimum_count,
             )
             for warning in validation.warnings:
                 await self.log([f"[blueprint][warn] {warning}"], 50)
@@ -63,7 +63,7 @@ class ParseOrchestrator:
                 plan=validation.plan,
                 planned_ranges=validation.planned_ranges,
                 explicit_ranges=context_pack.explicit_ranges,
-                target_count=context_pack.target_count,
+                minimum_count=context_pack.minimum_count,
                 continuity_notes=series.get("continuity_notes", ""),
             )
 

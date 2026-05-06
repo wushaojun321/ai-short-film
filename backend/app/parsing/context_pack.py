@@ -19,7 +19,7 @@ class ScriptContextPack:
     script_len: int
     blocks: list
     explicit_ranges: list
-    target_count: int
+    minimum_count: int
     script_index: str
     suggested_ranges: list
 
@@ -39,7 +39,7 @@ class ScriptContextPackBuilder:
         })
 
         explicit_ranges = explicit_episode_ranges(blocks)
-        target_count = project.target_episode_count or len(explicit_ranges) or 1
+        minimum_count = project.target_episode_count or len(explicit_ranges) or 1
         script_len = len(script_text)
         digest_limit = (
             min(max(script_len * 3, 22000), 140000)
@@ -52,7 +52,7 @@ class ScriptContextPackBuilder:
             script_len=script_len,
             blocks=blocks,
             explicit_ranges=explicit_ranges,
-            target_count=target_count,
+            minimum_count=minimum_count,
             script_index=script_index,
             suggested_ranges=explicit_ranges if explicit_ranges else [],
         )

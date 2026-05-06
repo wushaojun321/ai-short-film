@@ -446,8 +446,8 @@ async def render(scope: PromptConfigScope, variables: dict) -> tuple[str, str, d
 
 | scope | 用途 | 关键变量 |
 |-------|------|---------|
-| `script_parse` | 剧本整体解析，提取世界观/人物/情节线 | `script_text`, `target_episodes`, `min_duration`, `parse_notes` |
-| `episode_split` | 将剧本拆分为 N 集，输出结构化 JSON | `script_text`, `series_context`, `target_episodes` |
+| `script_parse` | 剧本整体解析，提取世界观/人物/情节线 | `script_text`, `target_episodes`（目标最低集数）, `min_duration`, `parse_notes` |
+| `episode_split` | 将剧本拆分为不少于 N 集，输出结构化 JSON | `script_text`, `series_context`, `target_episodes`（目标最低集数） |
 | `continuity_extract` | 从剧本中提取跨集连续性约束 | `episode_script`, `prev_episode_ending` |
 | `shot_script_gen` | 为单集生成完整分镜脚本 | `episode_script`, `continuity_notes`, `asset_list`, `series_style` |
 | `shot_script_edit` | 多轮对话修改分镜脚本 | `current_script`, `user_instruction` |

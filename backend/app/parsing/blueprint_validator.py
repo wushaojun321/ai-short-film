@@ -2,11 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from app.tasks.llm_tasks import (
-    _as_dict,
-    _as_list,
-    _extract_ranges_from_episode_plan,
-)
+from app.parsing.range_utils import extract_minimum_ranges_from_episode_plan
+from app.tasks.llm_tasks import _as_dict, _as_list
 
 
 @dataclass
@@ -19,7 +16,7 @@ class BlueprintValidationResult:
 class BlueprintSchemaValidator:
     """Validate the LLM blueprint enough for deterministic builders to run."""
 
-    def validate(self, plan: dict, blocks: list, target_count: int) -> BlueprintValidationResult:
+    def validate(self, plan: dict, blocks: list, minimum_count: int) -> BlueprintValidationResult:
         if not isinstance(plan, dict):
             plan = {}
 
@@ -32,9 +29,9 @@ class BlueprintSchemaValidator:
         if not episodes:
             warnings.append("蓝图缺少 episode 行，将使用后端原文边界兜底")
 
-        planned_ranges = _extract_ranges_from_episode_plan(episodes, blocks, target_count) if episodes else []
+        planned_ranges = extract_minimum_ranges_from_episode_plan(episodes, blocks, minimum_count) if episodes else []
         if episodes and not planned_ranges:
-            warnings.append("episode block 范围不完整或不可用，将使用原文边界兜底")
+            warnings.append("episode block 范围不足最低集数或不可用，将使用原文边界兜底")
 
         registry = _as_dict(plan.get("asset_registry"))
         if not registry:

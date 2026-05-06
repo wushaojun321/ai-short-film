@@ -29,19 +29,19 @@ class EpisodeMaterialBuilder:
         plan: dict,
         planned_ranges: list,
         explicit_ranges: list,
-        target_count: int,
+        minimum_count: int,
         continuity_notes: str,
     ) -> tuple[list[dict], list]:
         episodes_data = _as_list(plan.get("episodes"))
         source_ranges = await self._select_source_ranges(
             explicit_ranges=explicit_ranges,
             planned_ranges=planned_ranges,
-            target_count=target_count,
+            minimum_count=minimum_count,
         )
 
         created_eps = 0
         final_episodes: list[dict] = []
-        for idx, source_range in enumerate(source_ranges[:target_count], start=1):
+        for idx, source_range in enumerate(source_ranges, start=1):
             ep_data = (
                 episodes_data[idx - 1]
                 if idx - 1 < len(episodes_data) and isinstance(episodes_data[idx - 1], dict)
@@ -93,20 +93,21 @@ class EpisodeMaterialBuilder:
         await self.log([f"[episodes] 已按原文创建 {created_eps} 集"], 75)
         return final_episodes, source_ranges
 
-    async def _select_source_ranges(self, *, explicit_ranges: list, planned_ranges: list, target_count: int) -> list:
-        if explicit_ranges and len(explicit_ranges) == target_count:
-            await self.log(["[episodes] 使用剧本显式第X集边界，LLM 仅补充标题、概要和资产需求"], 55)
+    async def _select_source_ranges(self, *, explicit_ranges: list, planned_ranges: list, minimum_count: int) -> list:
+        minimum = max(minimum_count, 1)
+        if explicit_ranges and len(explicit_ranges) >= minimum:
+            await self.log(["[episodes] 使用剧本显式第X集边界，已按目标最低集数规则保留原文分集"], 55)
             return explicit_ranges
         if planned_ranges:
-            await self.log(["[episodes] 使用综合规划返回的 block 范围"], 55)
+            await self.log(["[episodes] 使用综合规划返回的 block 范围，已满足目标最低集数"], 55)
             return planned_ranges
 
-        grouped = _group_ranges(explicit_ranges, target_count)
-        source_ranges = grouped or explicit_ranges or fallback_even_ranges(self.blocks, target_count)
+        grouped = _group_ranges(explicit_ranges, minimum)
+        source_ranges = grouped or fallback_even_ranges(self.blocks, minimum)
         if explicit_ranges:
-            await self.log(["[episodes] 综合规划范围不完整，已按剧本显式第X集边界兜底"], 55)
+            await self.log(["[episodes] 原文显式分集少于目标最低集数，已按全文重新兜底切分"], 55)
         else:
-            await self.log(["[warn] 分集范围不完整，已使用后端原文块兜底切分"], 55)
+            await self.log(["[warn] 分集范围不足最低集数，已使用后端原文块兜底切分"], 55)
         return source_ranges
 
     @staticmethod

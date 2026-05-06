@@ -135,7 +135,7 @@ function ProjectCard({ project }: { project: Project }) {
           </div>
           <div className="rounded-xl border border-line/70 bg-elev/85 p-3 text-center min-h-[72px]">
             <div className="text-xl font-black text-text tabular-nums">{project.episodes || "—"}</div>
-            <div className="text-2xs text-muted mt-0.5">总集数</div>
+            <div className="text-2xs text-muted mt-0.5">最低集数</div>
           </div>
           <div className={cn(
             "rounded-xl border border-line/70 p-3 text-center min-h-[72px]",

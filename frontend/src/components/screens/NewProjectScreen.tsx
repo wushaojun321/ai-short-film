@@ -177,7 +177,7 @@ function Phase1({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>配置解析参数</DialogTitle>
-            <DialogDescription>AI 将根据以下参数拆解剧本，通常需要 10–30 秒。</DialogDescription>
+            <DialogDescription>AI 将根据以下参数拆解剧本，目标最低集数作为下限，通常需要 10–30 秒。</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             {error && (
@@ -187,7 +187,7 @@ function Phase1({
             )}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
               <div>
-                <label className="text-xs font-medium text-sub mb-1.5 block">目标集数</label>
+                <label className="text-xs font-medium text-sub mb-1.5 block">目标最低集数</label>
                 <Input type="number" value={form.episodeCount}
                   onChange={(e) => setForm({ ...form, episodeCount: e.target.value })} placeholder="8" />
               </div>

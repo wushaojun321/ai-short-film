@@ -15,7 +15,7 @@ from app.models.prompt_config import PromptConfigScope
 # =============================================================================
 # 【初始化阶段 - 剧本解析】
 # 用途：用户上传总剧本后，AI 深度解析，提取世界观/人物/情节线，输出分集草案和资产清单
-# 变量：script_text（原始剧本文本）, target_episodes（目标集数）,
+# 变量：script_text（原始剧本文本）, target_episodes（目标最低集数）,
 #       min_duration（每集最短时长秒）, parse_notes（用户补充说明）
 # 输出：JSON { series_prompt, episodes[], assets{ characters, scenes, props }, continuity_notes }
 #
@@ -167,7 +167,7 @@ SCRIPT_PARSE = {
 4. 所有资产 prompt 必须中文输出，禁止输出英文翻译版
 5. 人物资产不得使用"立绘"、"设定图"、"游戏角色"、"CG"、"二次元"、"动漫"、"卡通"等会诱导动画风格的词
 6. 禁止把同一角色的所有剧情阶段合并成一个人物资产；必须列出不同场景、不同阶段所需的人物造型资产""",
-    "user_prompt_template": "剧本内容：\n{script_text}\n\n目标集数：{target_episodes}\n每集最短时长（秒）：{min_duration}\n补充说明：{parse_notes}",
+    "user_prompt_template": "剧本内容：\n{script_text}\n\n目标最低集数：{target_episodes}\n每集最短时长（秒）：{min_duration}\n补充说明：{parse_notes}",
     "variables": ["script_text", "target_episodes", "min_duration", "parse_notes"],
 }
 
@@ -220,7 +220,7 @@ SCRIPT_MAP = {
 
 # 用途：将解析后的剧本拆分为 N 集，生成结构化分集列表供用户审核
 # 变量：script_text（剧本文本）, series_context（剧集背景/世界观）,
-#       target_episodes（目标集数）
+#       target_episodes（目标最低集数）
 # 输出：JSON 分集列表，每集含 number/title/summary/word_count/estimated_duration
 # =============================================================================
 EPISODE_SPLIT = {
@@ -271,7 +271,7 @@ EPISODE_SPLIT = {
     }
   ]
 }""",
-    "user_prompt_template": "全剧规划：\n{series_context}\n\n目标集数：{target_episodes}\n每集最短时长（秒）：{min_duration}\n补充说明：{parse_notes}\n\n建议分集边界（如有，优先遵守）：\n{suggested_ranges}\n\n原文块索引：\n{script_index}",
+    "user_prompt_template": "全剧规划：\n{series_context}\n\n目标最低集数：{target_episodes}\n每集最短时长（秒）：{min_duration}\n补充说明：{parse_notes}\n\n建议分集边界（如有，优先遵守）：\n{suggested_ranges}\n\n原文块索引：\n{script_index}",
     "variables": ["script_index", "series_context", "target_episodes", "min_duration", "parse_notes", "suggested_ranges"],
 }
 
@@ -290,7 +290,7 @@ SERIES_PLAN = {
   "main_storyline": "主线推进摘要",
   "continuity_notes": "全局连续性约束，包括人物关系、服装阶段、关键伤势/道具/地点变化"
 }""",
-    "user_prompt_template": "目标集数：{target_episodes}\n每集最短时长（秒）：{min_duration}\n补充说明：{parse_notes}\n\n原文块索引：\n{script_index}",
+    "user_prompt_template": "目标最低集数：{target_episodes}\n每集最短时长（秒）：{min_duration}\n补充说明：{parse_notes}\n\n原文块索引：\n{script_index}",
     "variables": ["script_index", "target_episodes", "min_duration", "parse_notes"],
 }
 
@@ -304,21 +304,22 @@ SCRIPT_PRODUCTION_PLAN = {
 核心原则：
 1. 输出必须是 JSONL：每一行都是一个完整 JSON 对象；不要输出 Markdown、解释、数组外壳或大 JSON 对象。
 2. 分集正文不要改写、压缩或重写；只输出 start_block/end_block，后端会按 block_index 回填原文。
-3. 如果原文索引已有 episode_header 或建议分集边界，优先沿用原始集边界。
-4. 资产不是越多越好。不要按数量硬裁剪，而是按“剧情必要性、复用价值、镜头识别度、状态变化原因”分层。
-5. 同一人物的不同阶段造型必须归入同一个 asset_package，共享 face_identity 和 voice_profile；除非剧本明确面部受伤、毁容、年龄跨度或伪装改变，否则不得改变面部基准。
-6. 人物/场景/道具 variant 只在剧情状态发生实质变化时创建；轻微情绪变化、普通路人、泛背景不要建资产。
-7. 主角、重要配角、关键反派不能被压缩成一个通用造型；如果跨场景/身份/服装/伤势/随身道具发生明显视觉变化，必须输出对应 character_variant，并标为 must_build 或 recommended。
-8. 每个角色必须有可区分的脸部设计。face 写共享面部基准；distinctive_traits 写 3-5 个固定差异点，如脸型骨相、眉眼间距、鼻梁鼻头、嘴唇/下颌、肤色质感、发际线、痣疤胡须；avoid_similar_to 写最容易混淆的其他角色或排斥特征。
-9. 不生成最终图片提示词，只写短 prompt_seed；prompt_seed 只写正向视觉重点，不写禁止词列表或风格排斥清单。
-10. 人物 character_variant 必须写 look_lock：本阶段不可变化的发型/发际线、胡须或明确无胡须、服装颜色款式材质、领口/袖口/腰带等关键服装结构、配饰、伤势、随身道具。prompt_seed 可更短，但不得和 look_lock 矛盾。
-11. 每个字段都用短句。不要输出 script_excerpt，不要复述原文。
-12. 人物只输出主角、重要配角、关键反派、反复出现且有剧情功能的角色；无名士兵、通信兵、驾驶员、百姓、临时军官等功能性一次性角色不要建人物资产。
-13. 场景只输出跨集复用场景或强剧情功能核心场景；一次性过场、普通室内外、单场动作发生地不要建场景资产。
-14. 道具只输出贯穿多集或推动剧情的标志性道具；普通武器、普通装备、车辆、地图、报纸、粮食、旗帜等只在反复出现或成为剧情关键物时才建资产。
-15. 不要为每个资产包机械输出“常规状态”variant；但主要人物如果没有更具体阶段，必须至少保留一个基础造型 variant。
-16. 对不建资产的角色、场景、道具可输出 ignore 行说明原因；不要为了完整列举而输出资产行。
-17. 资产注册表是制作级关键资产清单，不是每集出场元素清单；宁可少而准，后续镜头提示词可直接描述一次性元素。
+3. target_episodes 表示目标最低集数，不是必须精确等于的集数；如果原文显式分集或剧情节奏自然需要更多集，可以输出更多 episode 行，但不得少于该数。
+4. 如果原文索引已有 episode_header 或建议分集边界，优先沿用原始集边界。
+5. 资产不是越多越好。不要按数量硬裁剪，而是按“剧情必要性、复用价值、镜头识别度、状态变化原因”分层。
+6. 同一人物的不同阶段造型必须归入同一个 asset_package，共享 face_identity 和 voice_profile；除非剧本明确面部受伤、毁容、年龄跨度或伪装改变，否则不得改变面部基准。
+7. 人物/场景/道具 variant 只在剧情状态发生实质变化时创建；轻微情绪变化、普通路人、泛背景不要建资产。
+8. 主角、重要配角、关键反派不能被压缩成一个通用造型；如果跨场景/身份/服装/伤势/随身道具发生明显视觉变化，必须输出对应 character_variant，并标为 must_build 或 recommended。
+9. 每个角色必须有可区分的脸部设计。face 写共享面部基准；distinctive_traits 写 3-5 个固定差异点，如脸型骨相、眉眼间距、鼻梁鼻头、嘴唇/下颌、肤色质感、发际线、痣疤胡须；avoid_similar_to 写最容易混淆的其他角色或排斥特征。
+10. 不生成最终图片提示词，只写短 prompt_seed；prompt_seed 只写正向视觉重点，不写禁止词列表或风格排斥清单。
+11. 人物 character_variant 必须写 look_lock：本阶段不可变化的发型/发际线、胡须或明确无胡须、服装颜色款式材质、领口/袖口/腰带等关键服装结构、配饰、伤势、随身道具。prompt_seed 可更短，但不得和 look_lock 矛盾。
+12. 每个字段都用短句。不要输出 script_excerpt，不要复述原文。
+13. 人物只输出主角、重要配角、关键反派、反复出现且有剧情功能的角色；无名士兵、通信兵、驾驶员、百姓、临时军官等功能性一次性角色不要建人物资产。
+14. 场景只输出跨集复用场景或强剧情功能核心场景；一次性过场、普通室内外、单场动作发生地不要建场景资产。
+15. 道具只输出贯穿多集或推动剧情的标志性道具；普通武器、普通装备、车辆、地图、报纸、粮食、旗帜等只在反复出现或成为剧情关键物时才建资产。
+16. 不要为每个资产包机械输出“常规状态”variant；但主要人物如果没有更具体阶段，必须至少保留一个基础造型 variant。
+17. 对不建资产的角色、场景、道具可输出 ignore 行说明原因；不要为了完整列举而输出资产行。
+18. 资产注册表是制作级关键资产清单，不是每集出场元素清单；宁可少而准，后续镜头提示词可直接描述一次性元素。
 
 JSONL 行类型：
 {"type":"series","series_prompt":"写实电影质感...","main_storyline":"短句","continuity_notes":"短句"}
@@ -334,7 +335,7 @@ JSONL 行类型：
 
 输出顺序：series -> episode lines -> character/character_variant lines -> scene/scene_variant lines -> prop/prop_variant lines -> ignore/warning lines。
 如果输出被截断，前面完整行也必须能独立成立。""",
-    "user_prompt_template": "目标集数：{target_episodes}\n每集最短时长（秒）：{min_duration}\n补充说明：{parse_notes}\n\n建议分集边界（如有，优先遵守）：\n{suggested_ranges}\n\n原文块索引：\n{script_index}",
+    "user_prompt_template": "目标最低集数：{target_episodes}\n每集最短时长（秒）：{min_duration}\n补充说明：{parse_notes}\n\n建议分集边界（如有，优先遵守）：\n{suggested_ranges}\n\n原文块索引：\n{script_index}",
     "variables": ["script_index", "target_episodes", "min_duration", "parse_notes", "suggested_ranges"],
 }
 

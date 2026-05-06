@@ -45,6 +45,8 @@ Project.script_text
 
 ## LLM 输出边界
 
+解析请求中的 `target_episodes` 表示目标最低集数，不是精确目标。若原文显式分集或 LLM 蓝图自然规划出更多集，后端会保留更多集；只有规划结果少于该下限时，才按原文块兜底补足到最低集数。
+
 `ProductionBlueprintPlanner` 只能输出 JSONL 行：
 
 - `series`
