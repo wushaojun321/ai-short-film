@@ -161,18 +161,18 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
         />
 
         <div className="flex-1 overflow-y-auto">
-          <div className={cn("mx-auto px-3 sm:px-5 lg:px-7", isVideoStep ? "max-w-7xl py-3 sm:py-4" : "max-w-6xl py-5 sm:py-7")}>
-            <div className={cn("page-panel tech-border", isVideoStep ? "mb-3 p-4 sm:mb-4 sm:p-5" : "mb-5 p-4 sm:mb-7 sm:p-6")}>
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className={cn("mx-auto px-3 sm:px-5 lg:px-6", isVideoStep ? "max-w-[1320px] py-2" : "max-w-6xl py-5 sm:py-7")}>
+            <div className={cn("page-panel tech-border", isVideoStep ? "mb-2 p-3" : "mb-5 p-4 sm:mb-7 sm:p-6")}>
+              <div className={cn("flex flex-col xl:flex-row xl:items-start xl:justify-between", isVideoStep ? "gap-3" : "gap-4")}>
                 <div className="min-w-0">
-                  <p className="section-title mb-2">Episode Workspace</p>
-                  <h2 className="break-words text-xl font-black text-text sm:text-2xl">
+                  {!isVideoStep && <p className="section-title mb-2">Episode Workspace</p>}
+                  <h2 className={cn("break-words font-black text-text", isVideoStep ? "text-lg sm:text-xl" : "text-xl sm:text-2xl")}>
                     第 {activeEpisode.number} 集 · {activeEpisode.title}
                   </h2>
                   {activeEpisode.summary && (
-                    <p className="text-base text-sub mt-2">{activeEpisode.summary}</p>
+                    <p className={cn("text-sub mt-1.5", isVideoStep ? "line-clamp-1 text-sm" : "text-base")}>{activeEpisode.summary}</p>
                   )}
-                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted">
+                  <div className={cn("flex flex-wrap items-center gap-2 text-xs font-semibold text-muted", isVideoStep ? "mt-2" : "mt-3")}>
                     <span className="rounded-lg bg-soft px-2.5 py-1">原文 {sourceLineRange}</span>
                     <span className="rounded-lg bg-soft px-2.5 py-1">对白 {activeEpisode.dialogueCount ?? 0}</span>
                     {activeEpisode.sourceIntegrity && (
@@ -184,7 +184,7 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
                       </span>
                     )}
                   </div>
-                  {activeEpisode.scriptExcerpt && (
+                  {activeEpisode.scriptExcerpt && !isVideoStep && (
                     <p
                       className={cn(
                         "text-sm text-muted mt-3 cursor-pointer hover:text-sub transition-colors whitespace-pre-wrap",
@@ -196,10 +196,10 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
                     </p>
                   )}
                 </div>
-                <div className="mobile-action-grid w-full shrink-0 xl:ml-4 xl:w-auto">
+                <div className={cn("mobile-action-grid w-full shrink-0 xl:ml-4 xl:w-auto", isVideoStep && "xl:self-center")}>
                   {activeEpisode.scriptExcerpt && (
                     <Button
-                      size="default"
+                      size={isVideoStep ? "sm" : "default"}
                       variant="outline"
                       className="w-full items-center gap-2 sm:w-auto"
                       onClick={() => setScriptSheetOpen(true)}
@@ -209,7 +209,7 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
                     </Button>
                   )}
                   <Button
-                      size="default"
+                    size={isVideoStep ? "sm" : "default"}
                     variant="outline"
                     className="w-full items-center gap-2 sm:w-auto"
                     onClick={() => navigate(`/projects/${project.id}?view=assets`)}
@@ -217,19 +217,19 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
                     <Images className="w-3.5 h-3.5" />
                     资产库
                   </Button>
-                  <div className="toolbar w-full justify-between gap-4 text-right sm:w-auto">
+                  <div className={cn("toolbar w-full justify-between text-right sm:w-auto", isVideoStep ? "gap-3 px-2 py-1.5" : "gap-4")}>
                     {displayDuration > 0 && (
                       <div>
-                        <div className="text-lg font-black text-text">
+                        <div className={cn("font-black text-text", isVideoStep ? "text-base" : "text-lg")}>
                           {displayDurationText}
                         </div>
-                        <div className="text-xs font-semibold text-muted">{displayDurationLabel}</div>
+                        <div className="text-[11px] font-semibold text-muted">{displayDurationLabel}</div>
                       </div>
                     )}
                     {activeEpisode.shots.length > 0 && (
                       <div>
-                        <div className="text-lg font-black text-text">{activeEpisode.shots.length}</div>
-                        <div className="text-xs font-semibold text-muted">分镜数</div>
+                        <div className={cn("font-black text-text", isVideoStep ? "text-base" : "text-lg")}>{activeEpisode.shots.length}</div>
+                        <div className="text-[11px] font-semibold text-muted">分镜数</div>
                       </div>
                     )}
                   </div>

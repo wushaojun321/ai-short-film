@@ -844,15 +844,15 @@ function StepVideos({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {error && (
-        <div className="rounded-xl border border-danger/20 bg-danger-soft p-3">
+        <div className="rounded-xl border border-danger/20 bg-danger-soft px-3 py-2">
           <p className="text-xs text-danger">{error}</p>
         </div>
       )}
 
       {hasUngenerated && (
-        <div className="status-banner status-banner-info flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="status-banner status-banner-info flex flex-col items-stretch gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-xs text-sub">
             {ensureAllActive
               ? `正在持续补齐本集镜头，剩余 ${pendingMissingCount} 个待生成`
@@ -883,15 +883,13 @@ function StepVideos({
       />
       )}
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {/* 中央预览 */}
         {shot && (
-          <div className="studio-work-area tech-border p-3 sm:p-4">
-            <div className="grid items-start gap-4 lg:grid-cols-[minmax(120px,1fr)_minmax(260px,420px)_minmax(190px,240px)]">
-              <div className="hidden lg:block" />
-
+          <div className="studio-work-area tech-border p-2.5 sm:p-3">
+            <div className="grid items-start gap-3 lg:grid-cols-[minmax(280px,1fr)_minmax(160px,210px)]">
               <div className="min-w-0">
-                <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-line bg-elev px-3 py-2">
+                <div className="mb-2 flex items-center justify-between gap-3 rounded-xl border border-line bg-elev px-3 py-1.5">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-text">{selectedShotLabel}</p>
                     <p className="text-xs text-muted">
@@ -903,7 +901,7 @@ function StepVideos({
                     {shotBusy ? "生成中" : shotWarn ? "异常" : shotApproved ? "已通过" : shot.videoUrl ? "已生成" : "待生成"}
                   </Badge>
                 </div>
-                <div className="relative mx-auto mb-3 flex aspect-[9/16] w-full max-w-[300px] items-center justify-center overflow-hidden rounded-2xl border border-line bg-black shadow-lg sm:max-w-[360px] lg:h-[clamp(320px,46vh,560px)] lg:w-auto lg:max-w-full">
+                <div className="relative mx-auto mb-2 flex aspect-[9/16] w-full max-w-[300px] items-center justify-center overflow-hidden rounded-2xl border border-line bg-black shadow-lg sm:max-w-[360px] lg:h-[clamp(380px,58vh,650px)] lg:w-auto lg:max-w-full">
                   {(loadingIds.has(shot.id) || shot.state === "rendering") ? (
                     <div className="flex flex-col items-center gap-2">
                       <Loader2 className="w-8 h-8 text-warn animate-spin" />
@@ -934,25 +932,25 @@ function StepVideos({
                   )}
                 </div>
 
-                <p className="rounded-xl bg-elev px-3 py-2 text-xs text-sub text-center leading-relaxed line-clamp-2">{shot.description}</p>
+                <p className="rounded-xl bg-elev px-3 py-1.5 text-xs text-sub text-center leading-relaxed line-clamp-1">{shot.description}</p>
                 {(shotWarn || shot.continuityDirty) && (
-                  <p className="mt-2 rounded-xl border border-warn/20 bg-warn-soft px-3 py-2 text-xs text-warn">
+                  <p className="mt-1.5 rounded-xl border border-warn/20 bg-warn-soft px-3 py-1.5 text-xs text-warn line-clamp-2">
                     {shotWarn ? shotWarningText(shot) : (shot.continuityDirtyReason || "依赖的上一镜尾帧已变化，建议重新生成本镜头。")}
                   </p>
                 )}
               </div>
 
-              <div className="lg:pt-[56px]">
-                <div className="rounded-2xl border border-line bg-panel/90 p-2.5 shadow-xs">
+              <div className="lg:pt-[44px]">
+                <div className="rounded-2xl border border-line bg-panel/90 p-2 shadow-xs">
                   <button
                     onClick={() => setPromptSheetOpen(true)}
-                    className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-line px-2 py-2 text-xs text-muted transition-colors hover:border-brand/30 hover:bg-brand-soft hover:text-brand"
+                    className="mb-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-line px-2 py-1.5 text-xs text-muted transition-colors hover:border-brand/30 hover:bg-brand-soft hover:text-brand"
                   >
                     <FileText className="w-3.5 h-3.5" />编辑最终提交提示词
                   </button>
 
                   {!shotBusy ? (
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-1.5">
                       <Button
                         size="sm"
                         variant={shot.videoUrl ? "outline" : "default"}

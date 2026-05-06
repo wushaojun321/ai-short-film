@@ -50,14 +50,14 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
   };
 
   return (
-    <aside className="sticky top-16 z-30 flex w-full shrink-0 flex-col border-b border-line bg-panel/95 shadow-card backdrop-blur-xl lg:z-auto lg:h-[calc(100vh-64px)] lg:w-72 lg:border-b-0 lg:border-r">
+    <aside className="sticky top-16 z-30 flex w-full shrink-0 flex-col border-b border-line bg-panel/95 shadow-card backdrop-blur-xl lg:z-auto lg:h-[calc(100vh-64px)] lg:w-56 lg:border-b-0 lg:border-r">
       {/* 顶部标题 */}
-      <div className="flex items-center justify-between gap-3 border-b border-line bg-elev/70 px-3 py-3 lg:block lg:px-5 lg:py-5">
+      <div className="flex items-center justify-between gap-3 border-b border-line bg-elev/70 px-3 py-3 lg:block lg:px-3.5 lg:py-3.5">
         <div className="flex items-center gap-2.5">
-          <Film className="w-4 h-4 text-brand lg:w-5 lg:h-5" />
-          <h3 className="text-sm font-black text-text uppercase tracking-widest">分集列表</h3>
+          <Film className="w-4 h-4 text-brand" />
+          <h3 className="text-xs font-black text-text uppercase tracking-widest">分集列表</h3>
         </div>
-        <div className="flex shrink-0 gap-3 lg:mt-4 lg:gap-4">
+        <div className="flex shrink-0 gap-3 lg:mt-3 lg:gap-3">
           <div className="flex items-center gap-1 text-xs text-muted">
             <div className="w-1.5 h-1.5 rounded-full bg-success" />
             <span className="tabular-nums font-medium text-success">{counts.completed}</span>
@@ -75,7 +75,7 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
 
       {/* 分集列表 */}
       <div className="scroll-shadow-x min-h-0 flex-1 overflow-x-auto lg:overflow-y-auto lg:overflow-x-hidden lg:[mask-image:none]">
-        <div className="flex gap-2 px-3 py-3 lg:block">
+        <div className="flex gap-2 px-3 py-3 lg:block lg:px-2.5 lg:py-2.5">
           {episodes.map((ep) => {
             const isActive = ep.id === activeEpisodeId;
             const cfg = statusConfig[ep.status];
@@ -85,7 +85,7 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
                 key={ep.id}
                 onClick={() => handleSelect(ep.id)}
                 className={cn(
-                  "min-h-[68px] min-w-[148px] text-left px-3 py-3 rounded-2xl flex items-center gap-2.5 border lg:mb-2 lg:w-full lg:min-w-0 lg:px-4 lg:py-3.5 lg:gap-3",
+                  "min-h-[64px] min-w-[148px] text-left px-3 py-3 rounded-2xl flex items-center gap-2.5 border lg:mb-1.5 lg:min-h-[52px] lg:w-full lg:min-w-0 lg:rounded-xl lg:px-2.5 lg:py-2.5 lg:gap-2",
                   "transition-all duration-150 group",
                   isActive
                     ? "bg-brand-soft border-brand/35 shadow-brand"
@@ -96,13 +96,13 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
 
                 <div className="flex-1 min-w-0">
                   <div className={cn(
-                    "text-xs font-black leading-tight lg:text-sm",
+                    "text-xs font-black leading-tight",
                     isActive ? "text-text" : "text-sub"
                   )}>
                     第 {ep.number} 集
                   </div>
                   <div className={cn(
-                    "text-xs leading-tight mt-1 truncate lg:text-sm",
+                    "text-xs leading-tight mt-1 truncate",
                     isActive ? "text-sub" : "text-muted",
                     ep.status === "not_started" && "italic text-muted"
                   )}>
@@ -123,8 +123,8 @@ export default function EpisodeSidebar({ projectId, episodes, activeEpisodeId }:
       </div>
 
       {/* 底部汇总 */}
-      <div className="hidden px-5 py-4 border-t border-line bg-elev/70 lg:block">
-        <div className="text-sm text-muted text-center">
+      <div className="hidden px-3 py-2.5 border-t border-line bg-elev/70 lg:block">
+        <div className="text-xs text-muted text-center">
           共 <span className="font-bold text-text tabular-nums">{episodes.length}</span> 集
           · <span className="text-success font-bold tabular-nums">{counts.completed}</span> 完成
         </div>

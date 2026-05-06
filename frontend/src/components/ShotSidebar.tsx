@@ -56,16 +56,16 @@ export default function ShotSidebar({ projectId, episode, activeShotId }: ShotSi
   };
 
   return (
-    <aside className="hidden w-80 shrink-0 border-r border-line bg-base/88 shadow-card backdrop-blur-xl lg:flex lg:h-[calc(100vh-64px)] lg:flex-col">
-      <div className="border-b border-line bg-elev/70 px-4 py-4">
+    <aside className="hidden w-64 shrink-0 border-r border-line bg-base/88 shadow-card backdrop-blur-xl xl:w-72 lg:flex lg:h-[calc(100vh-64px)] lg:flex-col">
+      <div className="border-b border-line bg-elev/70 px-3 py-3">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-black uppercase tracking-[0.22em] text-muted">Shot Index</span>
-          <span className="text-sm font-black tabular-nums text-text">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted">Shot Index</span>
+          <span className="text-xs font-black tabular-nums text-text">
             {activeShotIndex + 1} / {episode.shots.length}
           </span>
         </div>
-        <div className="mt-2 min-w-0">
-          <p className="truncate text-sm font-black text-text">第 {episode.number} 集</p>
+        <div className="mt-1.5 min-w-0">
+          <p className="truncate text-xs font-black text-text">第 {episode.number} 集</p>
           <p className="mt-1 truncate text-xs text-sub">{episode.title || "待规划"}</p>
         </div>
       </div>
@@ -76,21 +76,21 @@ export default function ShotSidebar({ projectId, episode, activeShotId }: ShotSi
         role="listbox"
         aria-label="镜头列表"
         onKeyDown={handleShotKeyDown}
-        className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-3 py-4 focus:outline-none focus:ring-2 focus:ring-brand/40"
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-2.5 py-3 focus:outline-none focus:ring-2 focus:ring-brand/40"
       >
         {buildShotGroups(episode.shots).map((group, groupIdx) => (
-          <section key={group.key} className="rounded-2xl border border-line bg-panel/80 p-3 shadow-inner">
-            <div className="mb-3 border-l-2 border-brand pl-3">
-              <div className="flex items-center gap-2 text-sm font-black text-text">
-                <Layers className="h-4 w-4 text-brand" />
+          <section key={group.key} className="rounded-xl border border-line bg-panel/80 p-2.5 shadow-inner">
+            <div className="mb-2 border-l-2 border-brand pl-2">
+              <div className="flex items-center gap-1.5 text-xs font-black text-text">
+                <Layers className="h-3.5 w-3.5 text-brand" />
                 <span className="truncate">{segmentTitle(group, groupIdx)}</span>
               </div>
               {group.segmentFunction && (
-                <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted">{group.segmentFunction}</p>
+                <p className="mt-0.5 line-clamp-1 text-[11px] leading-relaxed text-muted">{group.segmentFunction}</p>
               )}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {group.items.map(({ shot, index }) => {
                 const isShotActive = shot.id === effectiveShotId;
                 const isGenerating = shot.state === "rendering";
@@ -105,7 +105,7 @@ export default function ShotSidebar({ projectId, episode, activeShotId }: ShotSi
                     aria-selected={isShotActive}
                     onClick={() => handleSelectShot(shot.id)}
                     className={cn(
-                      "flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-all",
+                      "flex w-full items-center gap-2 rounded-xl border px-2 py-2 text-left transition-all",
                       isShotActive
                         ? "border-brand/70 bg-brand-soft shadow-brand"
                         : isWarning
@@ -113,23 +113,23 @@ export default function ShotSidebar({ projectId, episode, activeShotId }: ShotSi
                           : "border-transparent bg-elev/50 hover:border-line hover:bg-soft"
                     )}
                   >
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-line bg-soft">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line bg-soft">
                       {isGenerating ? (
-                        <Loader2 className="h-5 w-5 animate-spin text-warn" />
+                        <Loader2 className="h-4 w-4 animate-spin text-warn" />
                       ) : isWarning ? (
-                        <AlertTriangle className="h-5 w-5 text-warn" />
+                        <AlertTriangle className="h-4 w-4 text-warn" />
                       ) : isDone ? (
-                        <Play className="h-4 w-4 text-success" />
+                        <Play className="h-3.5 w-3.5 text-success" />
                       ) : (
-                        <Film className="h-5 w-5 text-muted" />
+                        <Film className="h-4 w-4 text-muted" />
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-black text-text">{shotNumberLabel(index)}</span>
-                        <span className="shrink-0 text-xs font-semibold text-muted">{shot.duration}s</span>
+                        <span className="truncate text-xs font-black text-text">{shotNumberLabel(index)}</span>
+                        <span className="shrink-0 text-[11px] font-semibold text-muted">{shot.duration}s</span>
                       </div>
-                      <p className="mt-1 truncate text-xs text-muted">
+                      <p className="mt-0.5 truncate text-[11px] text-muted">
                         {shot.shotFunction || shot.description || shot.shotCode}
                       </p>
                     </div>
