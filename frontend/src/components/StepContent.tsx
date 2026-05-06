@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   CheckCircle2, RefreshCw, Loader2, Play, Volume2,
-  Film, Layers, Clock, Tag, Edit3, Check, FileText, MessageCircle, History, RotateCcw, AlertTriangle,
+  Film, Layers, Clock, Tag, Edit3, Check, FileText, MessageCircle, History, RotateCcw, AlertTriangle, Images,
 } from "lucide-react";
 import AgentDialog from "@/components/AgentDialog";
 import { Sheet } from "@/components/ui/sheet";
@@ -551,6 +551,7 @@ function StepVideos({
   episode, projectId, isPast,
 }: { episode: EpisodeDetail; projectId: string; isPast?: boolean }) {
   const { cosUrl } = useCos();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const shots = episode.shots;
   const shotParam = searchParams.get("shot");
@@ -564,6 +565,7 @@ function StepVideos({
   // 本地 loading 状态
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
   const [agentTarget, setAgentTarget] = useState<string | null>(null);
+  const [scriptSheetOpen, setScriptSheetOpen] = useState(false);
   const [promptSheetOpen, setPromptSheetOpen] = useState(false);
   const [historySheetOpen, setHistorySheetOpen] = useState(false);
   const [videoPromptDraft, setVideoPromptDraft] = useState("");
@@ -617,6 +619,17 @@ function StepVideos({
     || watchedVideoTasks.length > 0
     || loadingIds.size > 0
     || shots.some((s) => s.state === "rendering");
+  const sourceLineRange = episode.sourceStartLine && episode.sourceEndLine
+    ? `L${episode.sourceStartLine}-${episode.sourceEndLine}`
+    : "未索引";
+  const shotTotalDuration = shots.reduce((sum, item) => sum + (item.duration || 0), 0);
+  const displayDuration = shotTotalDuration > 0 ? shotTotalDuration : episode.estimatedDuration;
+  const displayDurationText = `${Math.floor(displayDuration / 60)}:${(displayDuration % 60).toString().padStart(2, "0")}`;
+  const displayDurationLabel = shotTotalDuration > 0 ? "分镜总时长" : "预估时长";
+  const approvalNotReady = shots.length === 0 || shots.some((s) => !s.videoUrl || loadingIds.has(s.id) || s.state === "rendering");
+  const generationText = hasUngenerated
+    ? `${missingVideoCount} 个分镜尚未生成视频${warningShotCount > 0 ? ` · ${warningShotCount} 个异常` : ""}`
+    : "本集镜头视频已全部生成";
 
   useEffect(() => {
     if (!promptSheetOpen) return;
@@ -851,37 +864,115 @@ function StepVideos({
         </div>
       )}
 
-      {hasUngenerated && (
-        <div className="status-banner status-banner-info flex flex-col items-stretch gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-xs text-sub">
-            {ensureAllActive
-              ? `正在持续补齐本集镜头，剩余 ${pendingMissingCount} 个待生成`
-              : `${missingVideoCount} 个分镜尚未生成视频`}
-            {warningShotCount > 0 ? ` · ${warningShotCount} 个异常` : ""}
-          </span>
-          <Button size="sm" className="w-full sm:w-auto" onClick={handleBatchGenerate} disabled={activeVideoWork || ensureAllActive}>
-            {activeVideoWork || ensureAllActive ? (
-              <><Loader2 className="w-3.5 h-3.5 animate-spin" />生成中… {episode.taskProgress["gen_shot_video"] ? `${episode.taskProgress["gen_shot_video"]}%` : ""}</>
-            ) : (
-              <><Play className="w-3.5 h-3.5" />生成所有镜头</>
+      <div className="page-panel tech-border px-3 py-2.5 sm:px-4">
+        <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="min-w-0 break-words text-lg font-black text-text sm:text-xl">
+                第 {episode.number} 集 · {episode.title}
+              </h2>
+              <Badge
+                variant={allApproved ? "success" : hasUngenerated ? "warning" : "outline"}
+                className="shrink-0"
+              >
+                {allApproved ? "已完成" : hasUngenerated ? "制作中" : "待审批"}
+              </Badge>
+            </div>
+            {episode.summary && (
+              <p className="mt-1 line-clamp-1 text-xs text-sub">{episode.summary}</p>
             )}
-          </Button>
-        </div>
-      )}
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold text-muted">
+              <span className="rounded-md bg-soft px-2 py-0.5">原文 {sourceLineRange}</span>
+              <span className="rounded-md bg-soft px-2 py-0.5">对白 {episode.dialogueCount ?? 0}</span>
+              {episode.sourceIntegrity && (
+                <span className={cn(
+                  "rounded-md px-2 py-0.5",
+                  episode.sourceIntegrity === "original" ? "bg-brand-soft text-brand" : "bg-warn/10 text-warn"
+                )}>
+                  {episode.sourceIntegrity === "original" ? "原文完整" : episode.sourceIntegrity}
+                </span>
+              )}
+              <span className={cn(
+                "rounded-md px-2 py-0.5",
+                hasUngenerated ? "bg-warn/10 text-warn" : "bg-brand-soft text-brand"
+              )}>
+                {ensureAllActive ? `持续补齐中 · 剩余 ${pendingMissingCount}` : generationText}
+              </span>
+            </div>
+          </div>
 
-      {/* 只有至少有一个视频已生成，才显示审批进度条 */}
-      {shots.some((s) => s.videoUrl) && (
-      <ApprovalBar
-        approved={approvedCount}
-        total={shots.length}
-        onApproveAll={handleApproveAll}
-        allApproved={allApproved}
-        approving={approving}
-        notReady={shots.length === 0 || shots.some((s) => !s.videoUrl || loadingIds.has(s.id) || s.state === "rendering")}
-        notReadyTip="所有分镜视频生成完成后方可审批"
-        compact
-      />
-      )}
+          <div className="grid w-full gap-2 sm:grid-cols-[auto_auto_auto] xl:w-auto xl:items-center">
+            {episode.scriptExcerpt && (
+              <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => setScriptSheetOpen(true)}>
+                <FileText className="h-3.5 w-3.5" />查看剧本
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => navigate(`/projects/${projectId}?view=assets`)}
+            >
+              <Images className="h-3.5 w-3.5" />资产库
+            </Button>
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-line bg-elev px-3 py-1.5 text-right sm:min-w-[128px]">
+              {displayDuration > 0 && (
+                <div>
+                  <div className="text-base font-black leading-none text-text">{displayDurationText}</div>
+                  <div className="mt-0.5 text-[10px] font-semibold text-muted">{displayDurationLabel}</div>
+                </div>
+              )}
+              <div>
+                <div className="text-base font-black leading-none text-text">{shots.length}</div>
+                <div className="mt-0.5 text-[10px] font-semibold text-muted">分镜数</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-2 grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <div>
+            <div className="mb-1 flex items-center justify-between text-[11px] font-semibold">
+              <span className="text-muted">审批进度</span>
+              <span className={cn("tabular-nums", allApproved ? "text-success" : "text-text")}>
+                {approvedCount} / {shots.length}
+              </span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-line">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-signal to-success transition-all duration-500"
+                style={{ width: shots.length > 0 ? `${(approvedCount / shots.length) * 100}%` : "0%" }}
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[300px]">
+            <Button size="sm" onClick={handleBatchGenerate} disabled={activeVideoWork || ensureAllActive || !hasUngenerated}>
+              {activeVideoWork || ensureAllActive ? (
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" />生成中… {episode.taskProgress["gen_shot_video"] ? `${episode.taskProgress["gen_shot_video"]}%` : ""}</>
+              ) : hasUngenerated ? (
+                <><Play className="h-3.5 w-3.5" />生成所有镜头</>
+              ) : (
+                <><CheckCircle2 className="h-3.5 w-3.5" />已生成全部镜头</>
+              )}
+            </Button>
+            <Button
+              size="sm"
+              variant={allApproved ? "secondary" : "outline"}
+              onClick={handleApproveAll}
+              disabled={allApproved || approving || approvalNotReady}
+            >
+              {approving ? (
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" />提交中…</>
+              ) : allApproved ? (
+                <><Check className="h-3.5 w-3.5" />已全部通过</>
+              ) : (
+                <><CheckCircle2 className="h-3.5 w-3.5" />全部审批通过</>
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
 
       <div className="space-y-2">
         {/* 中央预览 */}
@@ -902,13 +993,13 @@ function StepVideos({
                   </Badge>
                 </div>
                 <div className="relative mx-auto mb-2 flex aspect-[9/16] w-full max-w-[300px] items-center justify-center overflow-hidden rounded-2xl border border-line bg-black shadow-lg sm:max-w-[360px] lg:h-[clamp(380px,58vh,650px)] lg:w-auto lg:max-w-full">
-                  {(loadingIds.has(shot.id) || shot.state === "rendering") ? (
+                  {shot.videoUrl ? (
+                    <LazyVideo src={cosUrl(shot.videoUrl)} className="w-full h-full object-contain rounded-2xl" />
+                  ) : (loadingIds.has(shot.id) || shot.state === "rendering") ? (
                     <div className="flex flex-col items-center gap-2">
                       <Loader2 className="w-8 h-8 text-warn animate-spin" />
                       <p className="text-xs text-muted">视频生成中…</p>
                     </div>
-                  ) : shot.videoUrl ? (
-                    <LazyVideo src={cosUrl(shot.videoUrl)} className="w-full h-full object-contain rounded-2xl" />
                   ) : (
                     <div className="text-center">
                       <Film className="w-10 h-10 text-line mx-auto mb-2" />
@@ -924,6 +1015,10 @@ function StepVideos({
                   {shotWarn ? (
                     <div className="pointer-events-none absolute left-2 top-2 flex items-center gap-1 rounded-full bg-warn/95 px-2 py-1 text-[11px] font-medium text-white shadow-sm">
                       <AlertTriangle className="h-3 w-3" />生成异常
+                    </div>
+                  ) : shotBusy && shot.videoUrl ? (
+                    <div className="pointer-events-none absolute left-2 top-2 flex items-center gap-1 rounded-full bg-warn/95 px-2 py-1 text-[11px] font-medium text-white shadow-sm">
+                      <Loader2 className="h-3 w-3 animate-spin" />正在生成新版
                     </div>
                   ) : shot.continuityDirty && shot.videoUrl && (
                     <div className="pointer-events-none absolute left-2 top-2 rounded-full bg-warn/95 px-2 py-1 text-[11px] font-medium text-white shadow-sm">
@@ -985,6 +1080,19 @@ function StepVideos({
         )}
 
       </div>
+
+      <Sheet
+        open={scriptSheetOpen}
+        onClose={() => setScriptSheetOpen(false)}
+        title={`第 ${episode.number} 集《${episode.title}》· 原始剧本`}
+        width="sm:w-[560px]"
+      >
+        {episode.scriptExcerpt && (
+          <pre className="text-xs text-text leading-relaxed whitespace-pre-wrap font-sans">
+            {episode.scriptExcerpt}
+          </pre>
+        )}
+      </Sheet>
 
       <Sheet
         open={promptSheetOpen}

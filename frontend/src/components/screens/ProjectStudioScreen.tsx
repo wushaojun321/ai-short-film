@@ -162,80 +162,79 @@ export default function ProjectStudioScreen({ project, onProjectUpdate }: Projec
 
         <div className="flex-1 overflow-y-auto">
           <div className={cn("mx-auto px-3 sm:px-5 lg:px-6", isVideoStep ? "max-w-[1320px] py-2" : "max-w-6xl py-5 sm:py-7")}>
-            <div className={cn("page-panel tech-border", isVideoStep ? "mb-2 p-3" : "mb-5 p-4 sm:mb-7 sm:p-6")}>
-              <div className={cn("flex flex-col xl:flex-row xl:items-start xl:justify-between", isVideoStep ? "gap-3" : "gap-4")}>
-                <div className="min-w-0">
-                  {!isVideoStep && <p className="section-title mb-2">Episode Workspace</p>}
-                  <h2 className={cn("break-words font-black text-text", isVideoStep ? "text-lg sm:text-xl" : "text-xl sm:text-2xl")}>
-                    第 {activeEpisode.number} 集 · {activeEpisode.title}
-                  </h2>
-                  {activeEpisode.summary && (
-                    <p className={cn("text-sub mt-1.5", isVideoStep ? "line-clamp-1 text-sm" : "text-base")}>{activeEpisode.summary}</p>
-                  )}
-                  <div className={cn("flex flex-wrap items-center gap-2 text-xs font-semibold text-muted", isVideoStep ? "mt-2" : "mt-3")}>
-                    <span className="rounded-lg bg-soft px-2.5 py-1">原文 {sourceLineRange}</span>
-                    <span className="rounded-lg bg-soft px-2.5 py-1">对白 {activeEpisode.dialogueCount ?? 0}</span>
-                    {activeEpisode.sourceIntegrity && (
-                      <span className={cn(
-                        "rounded-lg px-2.5 py-1",
-                        activeEpisode.sourceIntegrity === "original" ? "bg-brand-soft text-brand" : "bg-warn/10 text-warn"
-                      )}>
-                        {activeEpisode.sourceIntegrity === "original" ? "原文完整" : activeEpisode.sourceIntegrity}
-                      </span>
+            {!isVideoStep && (
+              <div className="page-panel tech-border mb-5 p-4 sm:mb-7 sm:p-6">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="min-w-0">
+                    <p className="section-title mb-2">Episode Workspace</p>
+                    <h2 className="break-words text-xl font-black text-text sm:text-2xl">
+                      第 {activeEpisode.number} 集 · {activeEpisode.title}
+                    </h2>
+                    {activeEpisode.summary && (
+                      <p className="text-base text-sub mt-1.5">{activeEpisode.summary}</p>
+                    )}
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted">
+                      <span className="rounded-lg bg-soft px-2.5 py-1">原文 {sourceLineRange}</span>
+                      <span className="rounded-lg bg-soft px-2.5 py-1">对白 {activeEpisode.dialogueCount ?? 0}</span>
+                      {activeEpisode.sourceIntegrity && (
+                        <span className={cn(
+                          "rounded-lg px-2.5 py-1",
+                          activeEpisode.sourceIntegrity === "original" ? "bg-brand-soft text-brand" : "bg-warn/10 text-warn"
+                        )}>
+                          {activeEpisode.sourceIntegrity === "original" ? "原文完整" : activeEpisode.sourceIntegrity}
+                        </span>
+                      )}
+                    </div>
+                    {activeEpisode.scriptExcerpt && (
+                      <p
+                        className="text-sm text-muted mt-3 cursor-pointer hover:text-sub transition-colors whitespace-pre-wrap line-clamp-2"
+                        onClick={() => setScriptSheetOpen(true)}
+                      >
+                        {activeEpisode.scriptExcerpt}
+                      </p>
                     )}
                   </div>
-                  {activeEpisode.scriptExcerpt && !isVideoStep && (
-                    <p
-                      className={cn(
-                        "text-sm text-muted mt-3 cursor-pointer hover:text-sub transition-colors whitespace-pre-wrap",
-                        isVideoStep ? "line-clamp-1" : "line-clamp-2"
-                      )}
-                      onClick={() => setScriptSheetOpen(true)}
-                    >
-                      {activeEpisode.scriptExcerpt}
-                    </p>
-                  )}
-                </div>
-                <div className={cn("mobile-action-grid w-full shrink-0 xl:ml-4 xl:w-auto", isVideoStep && "xl:self-center")}>
-                  {activeEpisode.scriptExcerpt && (
+                  <div className="mobile-action-grid w-full shrink-0 xl:ml-4 xl:w-auto">
+                    {activeEpisode.scriptExcerpt && (
+                      <Button
+                        size="default"
+                        variant="outline"
+                        className="w-full items-center gap-2 sm:w-auto"
+                        onClick={() => setScriptSheetOpen(true)}
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        查看剧本
+                      </Button>
+                    )}
                     <Button
-                      size={isVideoStep ? "sm" : "default"}
+                      size="default"
                       variant="outline"
                       className="w-full items-center gap-2 sm:w-auto"
-                      onClick={() => setScriptSheetOpen(true)}
+                      onClick={() => navigate(`/projects/${project.id}?view=assets`)}
                     >
-                      <FileText className="w-3.5 h-3.5" />
-                      查看剧本
+                      <Images className="w-3.5 h-3.5" />
+                      资产库
                     </Button>
-                  )}
-                  <Button
-                    size={isVideoStep ? "sm" : "default"}
-                    variant="outline"
-                    className="w-full items-center gap-2 sm:w-auto"
-                    onClick={() => navigate(`/projects/${project.id}?view=assets`)}
-                  >
-                    <Images className="w-3.5 h-3.5" />
-                    资产库
-                  </Button>
-                  <div className={cn("toolbar w-full justify-between text-right sm:w-auto", isVideoStep ? "gap-3 px-2 py-1.5" : "gap-4")}>
-                    {displayDuration > 0 && (
-                      <div>
-                        <div className={cn("font-black text-text", isVideoStep ? "text-base" : "text-lg")}>
-                          {displayDurationText}
+                    <div className="toolbar w-full justify-between gap-4 text-right sm:w-auto">
+                      {displayDuration > 0 && (
+                        <div>
+                          <div className="text-lg font-black text-text">
+                            {displayDurationText}
+                          </div>
+                          <div className="text-[11px] font-semibold text-muted">{displayDurationLabel}</div>
                         </div>
-                        <div className="text-[11px] font-semibold text-muted">{displayDurationLabel}</div>
-                      </div>
-                    )}
-                    {activeEpisode.shots.length > 0 && (
-                      <div>
-                        <div className={cn("font-black text-text", isVideoStep ? "text-base" : "text-lg")}>{activeEpisode.shots.length}</div>
-                        <div className="text-[11px] font-semibold text-muted">分镜数</div>
-                      </div>
-                    )}
+                      )}
+                      {activeEpisode.shots.length > 0 && (
+                        <div>
+                          <div className="text-lg font-black text-text">{activeEpisode.shots.length}</div>
+                          <div className="text-[11px] font-semibold text-muted">分镜数</div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
             <StepContent
               step={activeStep}
