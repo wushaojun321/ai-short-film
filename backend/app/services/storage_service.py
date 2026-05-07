@@ -157,13 +157,30 @@ async def upload_file(
 
 async def upload_from_url(source_url: str, object_key: str) -> str:
     """Download a URL and re-upload to COS (for expiring Seedream URLs)."""
+    import asyncio
     import httpx
-    # 火山引擎图片链接是国内地址，不走代理
-    async with httpx.AsyncClient(proxy=None) as http:
-        resp = await http.get(source_url, follow_redirects=True, timeout=120)
-        resp.raise_for_status()
-        content_type = resp.headers.get("content-type", "application/octet-stream")
-        data = resp.content
+
+    timeout = httpx.Timeout(900.0, connect=60.0, read=900.0, write=60.0, pool=60.0)
+    last_error: Exception | None = None
+    for attempt in range(1, 4):
+        try:
+            # 火山引擎图片/视频链接是国内地址，不走代理；视频文件偶发慢读，给足读取时间并重试。
+            async with httpx.AsyncClient(proxy=None, timeout=timeout) as http:
+                resp = await http.get(source_url, follow_redirects=True)
+                resp.raise_for_status()
+                content_type = resp.headers.get("content-type", "application/octet-stream")
+                data = resp.content
+            break
+        except Exception as exc:
+            last_error = exc
+            if attempt >= 3:
+                name = exc.__class__.__name__
+                detail = str(exc) or name
+                raise RuntimeError(f"download source URL failed after 3 attempts: {detail}") from exc
+            await asyncio.sleep(2 * attempt)
+    else:
+        name = last_error.__class__.__name__ if last_error else "UnknownError"
+        raise RuntimeError(f"download source URL failed: {name}")
 
     client = _get_client()
     client.put_object(

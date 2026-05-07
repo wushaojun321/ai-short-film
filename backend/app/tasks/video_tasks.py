@@ -11,6 +11,10 @@ logger = logging.getLogger(__name__)
 SHOT_VIDEO_PROMPT_CACHE_VERSION = "shot-video-prompt-v2"
 
 
+def _exception_message(exc: Exception) -> str:
+    return str(exc) or exc.__class__.__name__
+
+
 def _shot_prompt_payload(prompt_input, reference_images: list[str], blocked_words: list[str]) -> dict:
     try:
         prompt_data = prompt_input.model_dump(mode="json")
@@ -100,7 +104,7 @@ async def _gen_shot_video_chain_async(celery_id: str, shot_ids: list[str], chain
                 await _gen_shot_video_async(celery_id, shot_id, manage_record=False, progress_record=record)
                 completed += 1
             except Exception as e:
-                error_text = str(e) or "未知错误"
+                error_text = _exception_message(e)
                 followup_log = f"[video-chain][warn] {shot.shot_code} 生成失败，已标记异常并继续后续镜头：{error_text}"
                 failed.append({
                     "shot_id": shot_id,
@@ -499,7 +503,7 @@ async def _gen_shot_video_async(
         try:
             shot = await Shot.get(PydanticObjectId(shot_id))
             if shot:
-                error_text = str(e) or "未知错误"
+                error_text = _exception_message(e)
                 await shot.set({
                     "state": ShotState.review_failed,
                     "review_comment": f"视频生成失败：{error_text}",

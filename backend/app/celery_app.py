@@ -2,6 +2,8 @@
 from celery import Celery
 from app.config import settings
 
+VISIBILITY_TIMEOUT_SECONDS = 6 * 60 * 60
+
 celery_app = Celery(
     "ai_short_film",
     broker=settings.redis_url,
@@ -21,6 +23,7 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
     task_acks_late=True,
+    broker_transport_options={"visibility_timeout": VISIBILITY_TIMEOUT_SECONDS},
     worker_prefetch_multiplier=1,
     task_routes={
         "app.tasks.llm.*": {"queue": "llm"},
