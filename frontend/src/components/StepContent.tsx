@@ -626,6 +626,7 @@ function StepVideos({
   const historySourceShot = historyShotDetail?.id === shot?.id ? historyShotDetail : shot;
   const selectedShotLabel = shot ? shotNumberLabel(selected) : "镜头";
   const submittedPrompt = promptSourceShot?.submittedPrompt;
+  const displayedVideoPrompt = submittedPrompt || promptSourceShot?.prompt || shot?.description || "";
   const shotBusy = !!shot && (loadingIds.has(shot.id) || shot.state === "rendering");
   const shotWarn = isShotWarning(shot);
   const shotApproved = !!shot && (isPast || (!!shot.videoUrl && shot.state === "approved"));
@@ -902,6 +903,11 @@ function StepVideos({
         prompt: videoPromptDraft,
         submitted_prompt: videoPromptDraft,
       } as never);
+      setPromptShotDetail((prev) => (
+        prev?.id === shot.id
+          ? { ...prev, prompt: videoPromptDraft, submittedPrompt: videoPromptDraft }
+          : { ...shot, prompt: videoPromptDraft, submittedPrompt: videoPromptDraft }
+      ));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "保存提示词失败");
     } finally {
@@ -1044,9 +1050,9 @@ function StepVideos({
         {/* 中央预览 */}
         {shot && (
           <div className="studio-work-area tech-border p-2.5 sm:p-3">
-            <div className="grid items-start gap-3 lg:grid-cols-[minmax(280px,1fr)_minmax(160px,210px)]">
-              <div className="min-w-0">
-                <div className="mb-2 flex items-center justify-between gap-3 rounded-xl border border-line bg-elev px-3 py-1.5">
+            <div className="grid items-start gap-3 lg:grid-cols-[minmax(220px,320px)_minmax(280px,1fr)_minmax(160px,210px)]">
+              <div className="min-w-0 space-y-2">
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-line bg-elev px-3 py-1.5">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-text">{selectedShotLabel}</p>
                     <p className="text-xs text-muted">
@@ -1058,7 +1064,34 @@ function StepVideos({
                     {shotBusy ? "生成中" : shotWarn ? "异常" : shotApproved ? "已通过" : shot.videoUrl ? "已生成" : "待生成"}
                   </Badge>
                 </div>
-                <div className="relative mx-auto mb-2 flex aspect-[9/16] w-full max-w-[300px] items-center justify-center overflow-hidden rounded-2xl border border-line bg-black shadow-lg sm:max-w-[360px] lg:h-[clamp(380px,58vh,650px)] lg:w-auto lg:max-w-full">
+
+                <button
+                  type="button"
+                  onClick={handleOpenVideoPrompt}
+                  className="block w-full rounded-xl border border-line bg-elev px-3 py-2 text-left transition-colors hover:border-brand/40 hover:bg-brand-soft focus:outline-none focus:ring-2 focus:ring-brand/40"
+                  aria-label={`${selectedShotLabel}最终提交提示词`}
+                >
+                  <span className="flex items-center justify-between gap-2 text-xs font-semibold text-text">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      {loadingPromptDetail ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-brand" /> : <FileText className="h-3.5 w-3.5 shrink-0 text-brand" />}
+                      <span className="truncate">最终提交提示词</span>
+                    </span>
+                    <Edit3 className="h-3.5 w-3.5 shrink-0 text-muted" />
+                  </span>
+                  <span className="mt-2 block max-h-[28rem] overflow-hidden text-xs leading-relaxed text-sub">
+                    {displayedVideoPrompt || "暂无提示词"}
+                  </span>
+                </button>
+
+                {(shotWarn || shot.continuityDirty) && (
+                  <p className="rounded-xl border border-warn/20 bg-warn-soft px-3 py-1.5 text-xs text-warn line-clamp-3">
+                    {shotWarn ? shotWarningText(shot) : (shot.continuityDirtyReason || "依赖的上一镜尾帧已变化，建议重新生成本镜头。")}
+                  </p>
+                )}
+              </div>
+
+              <div className="min-w-0">
+                <div className="relative mx-auto flex aspect-[9/16] w-full max-w-[300px] items-center justify-center overflow-hidden rounded-2xl border border-line bg-black shadow-lg sm:max-w-[360px] lg:h-[clamp(380px,58vh,650px)] lg:w-auto lg:max-w-full">
                   {shot.videoUrl ? (
                     <LazyVideo src={cosUrl(shot.videoUrl)} className="w-full h-full object-contain rounded-2xl" />
                   ) : (loadingIds.has(shot.id) || shot.state === "rendering") ? (
@@ -1092,25 +1125,10 @@ function StepVideos({
                     </div>
                   )}
                 </div>
-
-                <p className="rounded-xl bg-elev px-3 py-1.5 text-xs text-sub text-center leading-relaxed line-clamp-1">{shot.description}</p>
-                {(shotWarn || shot.continuityDirty) && (
-                  <p className="mt-1.5 rounded-xl border border-warn/20 bg-warn-soft px-3 py-1.5 text-xs text-warn line-clamp-2">
-                    {shotWarn ? shotWarningText(shot) : (shot.continuityDirtyReason || "依赖的上一镜尾帧已变化，建议重新生成本镜头。")}
-                  </p>
-                )}
               </div>
 
-              <div className="lg:pt-[44px]">
+              <div>
                 <div className="rounded-2xl border border-line bg-panel/90 p-2 shadow-xs">
-                  <button
-                    onClick={handleOpenVideoPrompt}
-                    className="mb-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-line px-2 py-1.5 text-xs text-muted transition-colors hover:border-brand/30 hover:bg-brand-soft hover:text-brand"
-                  >
-                    {loadingPromptDetail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
-                    编辑最终提交提示词
-                  </button>
-
                   {!shotBusy ? (
                     <div className="grid grid-cols-2 gap-1.5">
                       <Button
