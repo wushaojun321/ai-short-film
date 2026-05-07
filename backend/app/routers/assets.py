@@ -3,6 +3,7 @@ from beanie import PydanticObjectId
 from app.models.project import Project
 from app.schemas.asset import AssetCreate, AssetUpdate
 from app.services import asset_service
+from app.services.project_task_cleanup import get_active_parse_record
 from app.deps import get_current_user, get_owned_project
 
 router = APIRouter(prefix="/projects/{project_id}/assets", tags=["assets"], dependencies=[Depends(get_current_user)])
@@ -74,6 +75,8 @@ async def request_regen(asset_id: PydanticObjectId, project: Project = Depends(g
     asset = await asset_service.get_asset(asset_id)
     if not asset or asset.project_id != project.id:
         raise HTTPException(404, "Asset not found")
+    if await get_active_parse_record(project.id):
+        raise HTTPException(409, "项目正在解析剧本，请等待解析完成后再生成资产图片")
 
     from app.models.asset import AssetStatus
     from app.models.task_record import TaskRecord, TaskStatus

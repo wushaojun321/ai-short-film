@@ -57,11 +57,14 @@ async def generate_asset_image(asset_id: str, prompt_override: str | None = None
     from beanie import PydanticObjectId
     from app.models.asset import Asset, AssetStatus
     from app.models.task_record import TaskRecord, TaskStatus
+    from app.services.project_task_cleanup import get_active_parse_record
     from app.tasks.image_tasks import gen_asset_image_task
 
     asset = await Asset.get(PydanticObjectId(asset_id))
     if not asset:
         return {"error": f"Asset {asset_id} not found"}
+    if await get_active_parse_record(asset.project_id):
+        return {"error": "项目正在解析剧本，请等待解析完成后再生成资产图片。"}
 
     if asset.status in (AssetStatus.queued, AssetStatus.generating):
         return {

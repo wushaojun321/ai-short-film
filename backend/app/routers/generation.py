@@ -12,8 +12,18 @@ from app.models.asset import Asset
 from app.models.task_record import TaskRecord, TaskStatus
 from app.schemas.project import ParseScriptRequest
 from app.deps import get_current_user, get_owned_project
+from app.services.project_task_cleanup import (
+    cancel_project_generation_tasks,
+    get_active_parse_record,
+)
 
 router = APIRouter(prefix="/generate", tags=["generation"], dependencies=[Depends(get_current_user)])
+
+
+async def _ensure_project_not_parsing(project_id: PydanticObjectId):
+    active_parse = await get_active_parse_record(project_id)
+    if active_parse:
+        raise HTTPException(409, "项目正在解析剧本，请等待解析完成后再开始生成任务")
 
 
 # ── Script parsing ────────────────────────────────────────────
@@ -25,6 +35,21 @@ async def enqueue_parse_script(
 ):
     if not project.script_text:
         raise HTTPException(400, "Script not uploaded yet")
+
+    active_parse = await get_active_parse_record(project.id)
+    if active_parse:
+        return {
+            "task_id": active_parse.celery_task_id,
+            "record_id": str(active_parse.id),
+            "skipped": True,
+            "reason": "parse already running",
+        }
+
+    await cancel_project_generation_tasks(
+        project.id,
+        reason="用户重新提交剧本解析，已停止旧生成任务",
+        terminate_workers=True,
+    )
 
     await project.set({
         "target_episode_count": data.target_episodes,
@@ -63,6 +88,7 @@ async def enqueue_shot_script(
     project = await Project.get(episode.project_id)
     if not project or project.owner_id != current_user.id:
         raise HTTPException(404, "Episode not found")
+    await _ensure_project_not_parsing(project.id)
 
     from app.tasks.llm_tasks import gen_shot_script_task
     from datetime import datetime
@@ -91,6 +117,7 @@ async def enqueue_asset_image(asset_id: PydanticObjectId, current_user=Depends(g
     project = await Project.get(asset.project_id)
     if not project or project.owner_id != current_user.id:
         raise HTTPException(404, "Asset not found")
+    await _ensure_project_not_parsing(project.id)
 
     if asset.status in (AssetStatus.queued, AssetStatus.generating):
         return {"task_id": None, "record_id": None, "skipped": True, "reason": "already queued or generating"}
@@ -124,6 +151,7 @@ async def enqueue_shot_image(shot_id: PydanticObjectId, current_user=Depends(get
     project = await Project.get(shot.project_id)
     if not project or project.owner_id != current_user.id:
         raise HTTPException(404, "Shot not found")
+    await _ensure_project_not_parsing(project.id)
 
     from app.tasks.image_tasks import gen_shot_image_task
     from datetime import datetime
@@ -152,6 +180,7 @@ async def enqueue_shot_video(shot_id: PydanticObjectId, current_user=Depends(get
     project = await Project.get(shot.project_id)
     if not project or project.owner_id != current_user.id:
         raise HTTPException(404, "Shot not found")
+    await _ensure_project_not_parsing(project.id)
 
     from app.tasks.video_tasks import gen_shot_video_task
     from datetime import datetime
@@ -178,6 +207,7 @@ async def enqueue_episode_shot_videos(episode_id: PydanticObjectId, current_user
     project = await Project.get(episode.project_id)
     if not project or project.owner_id != current_user.id:
         raise HTTPException(404, "Episode not found")
+    await _ensure_project_not_parsing(project.id)
 
     from app.models.shot import ShotState
     from app.tasks.video_tasks import gen_shot_video_chain_task
@@ -318,6 +348,7 @@ async def enqueue_merge(episode_id: PydanticObjectId, current_user=Depends(get_c
     project = await Project.get(episode.project_id)
     if not project or project.owner_id != current_user.id:
         raise HTTPException(404, "Episode not found")
+    await _ensure_project_not_parsing(project.id)
 
     shots = await Shot.find(Shot.episode_id == episode.id).sort("+order").to_list()
     if not shots:

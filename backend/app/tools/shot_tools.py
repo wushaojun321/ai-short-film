@@ -94,11 +94,14 @@ async def generate_shot_image(shot_id: str, prompt_override: str | None = None) 
     from beanie import PydanticObjectId
     from app.models.shot import Shot, ShotState
     from app.models.task_record import TaskRecord, TaskStatus
+    from app.services.project_task_cleanup import get_active_parse_record
     from app.tasks.image_tasks import gen_shot_image_task
 
     shot = await Shot.get(PydanticObjectId(shot_id))
     if not shot:
         return {"error": f"Shot {shot_id} not found"}
+    if await get_active_parse_record(shot.project_id):
+        return {"error": "项目正在解析剧本，请等待解析完成后再生成分镜图片。"}
 
     if prompt_override:
         await shot.set({"prompt": prompt_override})
@@ -118,7 +121,7 @@ async def generate_shot_image(shot_id: str, prompt_override: str | None = None) 
 
     await shot.set({
         "state": ShotState.generating,
-        "generation_task_id": str(record.id),
+        "generation_task_id": celery_task.id,
     })
 
     return {
@@ -135,11 +138,14 @@ async def generate_shot_video(shot_id: str) -> dict:
     from beanie import PydanticObjectId
     from app.models.shot import Shot, ShotState
     from app.models.task_record import TaskRecord, TaskStatus
+    from app.services.project_task_cleanup import get_active_parse_record
     from app.tasks.video_tasks import gen_shot_video_task
 
     shot = await Shot.get(PydanticObjectId(shot_id))
     if not shot:
         return {"error": f"Shot {shot_id} not found"}
+    if await get_active_parse_record(shot.project_id):
+        return {"error": "项目正在解析剧本，请等待解析完成后再生成分镜视频。"}
 
     celery_task = gen_shot_video_task.delay(shot_id)
 
@@ -156,7 +162,7 @@ async def generate_shot_video(shot_id: str) -> dict:
 
     await shot.set({
         "state": ShotState.rendering,
-        "generation_task_id": str(record.id),
+        "generation_task_id": celery_task.id,
     })
 
     return {

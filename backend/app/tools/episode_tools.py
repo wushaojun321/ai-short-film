@@ -42,11 +42,14 @@ async def gen_shot_script(episode_id: str, feedback: str, max_shot_duration: int
     from beanie import PydanticObjectId
     from app.models.episode import Episode
     from app.models.task_record import TaskRecord, TaskStatus
+    from app.services.project_task_cleanup import get_active_parse_record
     from app.tasks.llm_tasks import gen_shot_script_task
 
     episode = await Episode.get(PydanticObjectId(episode_id))
     if not episode:
         return {"error": f"Episode {episode_id} not found"}
+    if await get_active_parse_record(episode.project_id):
+        return {"error": "项目正在解析剧本，请等待解析完成后再重新生成分镜脚本。"}
 
     celery_task = gen_shot_script_task.delay(episode_id, max_shot_duration, feedback)
 

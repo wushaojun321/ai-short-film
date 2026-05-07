@@ -15,6 +15,7 @@ from app.parsing.context_pack import ScriptContextPackBuilder
 from app.parsing.continuity_seed_builder import ContinuitySeedBuilder
 from app.parsing.episode_builder import EpisodeMaterialBuilder
 from app.parsing.parse_report_builder import ParseReportBuilder
+from app.services.project_task_cleanup import cancel_project_generation_tasks
 from app.tasks.base import finish_task_record
 from app.tasks.llm_tasks import _as_dict
 
@@ -38,6 +39,23 @@ class ParseOrchestrator:
                 f"[init] 项目加载完成：{project.title}",
                 f"[init] 剧本长度：{len(project.script_text or '')} 字，目标最低集数：{project.target_episode_count}",
             ], 10)
+
+            cleanup = await cancel_project_generation_tasks(
+                project.id,
+                reason="剧本重新解析开始，已停止旧分集/资产/镜头生成任务",
+                exclude_celery_task_ids=[self.celery_id],
+                terminate_workers=True,
+            )
+            if cleanup["cancelled_tasks"] or cleanup["updated_assets"] or cleanup["updated_shots"]:
+                msg = (
+                    "[cleanup] 已停止旧生成任务："
+                    f"{cleanup['cancelled_tasks']} 个任务、"
+                    f"{cleanup['updated_assets']} 个资产状态、"
+                    f"{cleanup['updated_shots']} 个镜头状态"
+                )
+                if cleanup.get("revoke_error"):
+                    msg += f"；worker撤销失败：{cleanup['revoke_error']}"
+                await self.log([msg], 12)
 
             await self._clear_existing_outputs(project)
 
