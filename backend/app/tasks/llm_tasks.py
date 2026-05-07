@@ -1836,7 +1836,8 @@ async def _gen_shot_script_async(celery_id: str, episode_id: str, max_shot_durat
         # 同时回退步骤到 storyboard_script，等用户重新审批后再推进
         is_regen = episode.current_step != EpisodeStep.storyboard_script
         if is_regen:
-            await episode.set({"current_step": EpisodeStep.storyboard_script})
+            from app.services.episode_service import invalidate_final_video
+            await invalidate_final_video(episode.id, target_step=EpisodeStep.storyboard_script)
         await Shot.find(Shot.episode_id == episode.id).delete()
 
         # Create shots — supports the new segments[].shots structure and the old flat formats.

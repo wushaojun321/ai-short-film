@@ -138,6 +138,7 @@ async def generate_shot_video(shot_id: str) -> dict:
     from beanie import PydanticObjectId
     from app.models.shot import Shot, ShotState
     from app.models.task_record import TaskRecord, TaskStatus
+    from app.services.episode_service import invalidate_final_video
     from app.services.project_task_cleanup import get_active_parse_record
     from app.tasks.video_tasks import gen_shot_video_task
 
@@ -147,6 +148,7 @@ async def generate_shot_video(shot_id: str) -> dict:
     if await get_active_parse_record(shot.project_id):
         return {"error": "项目正在解析剧本，请等待解析完成后再生成分镜视频。"}
 
+    await invalidate_final_video(shot.episode_id)
     celery_task = gen_shot_video_task.delay(shot_id)
 
     record = TaskRecord(

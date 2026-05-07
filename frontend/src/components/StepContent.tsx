@@ -1388,18 +1388,26 @@ function StepMerge({
         </div>
       )}
 
-      {done ? (
-        <div className="text-center">
-          <CheckCircle2 className="w-12 h-12 text-brand mx-auto mb-3" />
-          <p className="font-medium text-text">合并完成！</p>
-          <p className="text-sm text-sub mt-1">可前往「完成」步骤查看成片。</p>
-        </div>
-      ) : merging ? (
+      {merging ? (
         <div>
           <div className="h-2 bg-soft rounded-full overflow-hidden mb-2">
             <div className="h-full bg-brand transition-all duration-500 rounded-full" style={{ width: `${progress}%` }} />
           </div>
           <p className="text-xs text-center text-muted">合并中 {progress}%</p>
+        </div>
+      ) : done ? (
+        <div className="text-center">
+          <CheckCircle2 className="w-12 h-12 text-brand mx-auto mb-3" />
+          <p className="font-medium text-text">合并完成！</p>
+          <p className="text-sm text-sub mt-1">可前往「完成」步骤查看成片。</p>
+          {!canMerge && (
+            <div className="mt-4 rounded-xl border border-warn/20 bg-warn-soft px-3 py-2 text-center">
+              <p className="text-xs text-warn">{mergeBlockedText}</p>
+            </div>
+          )}
+          <Button className="mt-5" variant="outline" onClick={handleMerge} disabled={!canMerge}>
+            <RefreshCw className="h-4 w-4" />重新合成
+          </Button>
         </div>
       ) : (
         <div className="space-y-4">
@@ -1433,12 +1441,14 @@ function StepDone({ episode, projectId }: { episode: EpisodeDetail; projectId: s
   const unresolvedShots = episode.shots.filter((shot) => !shot.videoUrl || shot.state !== "approved").length;
   const repairStep: EpisodeStep = unresolvedShots > 0 ? "storyboard_videos" : "merge";
 
-  const goToRepairStep = () => {
+  const goToStep = (targetStep: EpisodeStep) => {
     const params = new URLSearchParams(searchParams);
     params.set("episode", episode.id);
-    params.set("step", repairStep);
+    params.set("step", targetStep);
     navigate(`/projects/${projectId}?${params.toString()}`);
   };
+
+  const goToRepairStep = () => goToStep(repairStep);
 
   const handleDownloadFinalVideo = async () => {
     if (!episode.finalVideoUrl || downloading) return;
@@ -1523,13 +1533,21 @@ function StepDone({ episode, projectId }: { episode: EpisodeDetail; projectId: s
       )}
 
       {episode.finalVideoUrl ? (
-        <Button onClick={handleDownloadFinalVideo} disabled={downloading}>
-          {downloading ? (
-            <><Loader2 className="h-4 w-4 animate-spin" />准备下载…</>
-          ) : (
-            <><Download className="h-4 w-4" />下载成片</>
-          )}
-        </Button>
+        <div className="grid gap-2 sm:grid-cols-3">
+          <Button variant="outline" onClick={() => goToStep("storyboard_videos")}>
+            <RefreshCw className="h-4 w-4" />调整镜头
+          </Button>
+          <Button variant="outline" onClick={() => goToStep("merge")}>
+            <Film className="h-4 w-4" />重新合成
+          </Button>
+          <Button onClick={handleDownloadFinalVideo} disabled={downloading}>
+            {downloading ? (
+              <><Loader2 className="h-4 w-4 animate-spin" />准备下载…</>
+            ) : (
+              <><Download className="h-4 w-4" />下载成片</>
+            )}
+          </Button>
+        </div>
       ) : (
         <Button onClick={goToRepairStep}>
           {unresolvedShots > 0 ? "返回分镜视频" : "返回合并"}

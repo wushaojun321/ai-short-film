@@ -183,8 +183,10 @@ async def enqueue_shot_video(shot_id: PydanticObjectId, current_user=Depends(get
     await _ensure_project_not_parsing(project.id)
 
     from app.tasks.video_tasks import gen_shot_video_task
+    from app.services.episode_service import invalidate_final_video
     from datetime import datetime
 
+    await invalidate_final_video(shot.episode_id)
     task = gen_shot_video_task.delay(str(shot_id))
     record = TaskRecord(
         celery_task_id=task.id,
@@ -210,6 +212,7 @@ async def enqueue_episode_shot_videos(episode_id: PydanticObjectId, current_user
     await _ensure_project_not_parsing(project.id)
 
     from app.models.shot import ShotState
+    from app.services.episode_service import invalidate_final_video
     from app.tasks.video_tasks import gen_shot_video_chain_task
     from datetime import datetime
 
@@ -289,6 +292,7 @@ async def enqueue_episode_shot_videos(episode_id: PydanticObjectId, current_user
             skipped += 1
             continue
 
+        await invalidate_final_video(episode.id)
         segment_label = chain[0].segment_code or f"EP{episode.number:02d}"
         task = gen_shot_video_chain_task.delay([str(shot.id) for shot in chain], segment_label)
         for shot in chain:

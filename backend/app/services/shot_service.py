@@ -1,6 +1,7 @@
 from beanie import PydanticObjectId
 from app.models.shot import Shot, ShotState
-from app.models.episode import Episode
+from app.models.episode import Episode, EpisodeStep
+from app.services.episode_service import invalidate_final_video
 from app.schemas.shot import ShotCreate, ShotUpdate
 
 
@@ -37,6 +38,7 @@ async def review_shot(shot: Shot, approved: bool, comment: str | None = None) ->
         updates["state"] = ShotState.review_failed
         if comment:
             updates["review_comment"] = comment
+        await invalidate_final_video(shot.episode_id, target_step=EpisodeStep.storyboard_videos)
     await shot.set(updates)
     return shot
 
@@ -46,6 +48,7 @@ async def restore_shot_version(shot: Shot, version: str) -> Shot:
     if not selected:
         raise ValueError("Shot version not found")
 
+    await invalidate_final_video(shot.episode_id, target_step=EpisodeStep.storyboard_videos)
     await shot.set({
         "video_url": selected.video_url,
         "last_frame_url": selected.last_frame_url,

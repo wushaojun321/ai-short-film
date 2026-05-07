@@ -2,6 +2,7 @@ from beanie import PydanticObjectId
 from app.models.episode import Episode, EpisodeStatus, EpisodeStep, STEP_ORDER
 from app.models.project import Project
 from app.schemas.episode import EpisodeCreate, EpisodeUpdate
+from datetime import datetime
 
 
 def _has_final_video(episode: Episode) -> bool:
@@ -75,5 +76,28 @@ async def set_step(episode: Episode, step: EpisodeStep) -> Episode:
             updates["status"] = EpisodeStatus.in_progress
     elif episode.status in (EpisodeStatus.not_started, EpisodeStatus.completed):
         updates["status"] = EpisodeStatus.in_progress
+    await episode.set(updates)
+    return episode
+
+
+async def invalidate_final_video(
+    episode_id: PydanticObjectId,
+    *,
+    target_step: EpisodeStep = EpisodeStep.storyboard_videos,
+) -> Episode | None:
+    """Mark an episode final video stale after its shots/storyboard changed."""
+    episode = await Episode.get(episode_id)
+    if not episode:
+        return None
+
+    updates: dict = {"status": EpisodeStatus.in_progress, "updated_at": datetime.utcnow()}
+    if episode.final_video_url:
+        updates["final_video_url"] = None
+
+    current_idx = STEP_ORDER.index(episode.current_step) if episode.current_step in STEP_ORDER else -1
+    target_idx = STEP_ORDER.index(target_step) if target_step in STEP_ORDER else current_idx
+    if current_idx < 0 or current_idx > target_idx or episode.status == EpisodeStatus.completed:
+        updates["current_step"] = target_step
+
     await episode.set(updates)
     return episode

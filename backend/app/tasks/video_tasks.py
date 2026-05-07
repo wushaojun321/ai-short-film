@@ -64,6 +64,7 @@ async def _gen_shot_video_chain_async(celery_id: str, shot_ids: list[str], chain
     from app.models.shot import Shot, ShotState
     from app.models.task_record import TaskRecord
     from app.tasks.base import finish_task_record
+    from app.services.episode_service import invalidate_final_video
 
     record = await TaskRecord.find_one(TaskRecord.celery_task_id == celery_id)
     total = len(shot_ids)
@@ -92,6 +93,7 @@ async def _gen_shot_video_chain_async(celery_id: str, shot_ids: list[str], chain
                         "logs": (record.logs or []) + [f"[video-chain] {shot.shot_code} 已有视频，跳过"],
                     })
                 continue
+            await invalidate_final_video(shot.episode_id)
 
             if record:
                 await record.set({
@@ -220,12 +222,15 @@ async def _gen_shot_video_async(
     from app.models.shot import Shot, ShotState
     from app.models.task_record import TaskRecord
     from app.services import video_service
+    from app.services.episode_service import invalidate_final_video
     from app.services.shot_reference_builder import ShotReferenceBuilder, fallback_voice_profile
 
     try:
         shot = await Shot.get(PydanticObjectId(shot_id))
         if not shot:
             raise ValueError("Shot not found")
+
+        await invalidate_final_video(shot.episode_id)
 
         # Mark as rendering immediately so frontend shows loading, and clear previous generation warning.
         await shot.set({
