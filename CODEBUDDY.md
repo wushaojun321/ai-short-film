@@ -256,28 +256,28 @@ Celery 队列和 Docker Compose 服务对应关系：
 
 ## 部署
 
-服务器通过 `ssh root@42.193.144.175` 访问，使用 Docker Compose 部署，代码在 `/root/ai-short-film`。
+服务器通过 `ssh root@YOUR_SERVER_IP` 访问，使用 Docker Compose 部署，代码在 `/root/ai-short-film`。
 
 > **部署注意**：所有 worker 容器共享后端 Python 代码。模型、枚举、任务、服务、提示词等代码有任何变更时，必须 build 并重启对应 worker。只重启 `api` 或 `frontend` 不会更新 `worker-llm`、`worker-image`、`worker-video`、`worker-merge` 的代码。
 
 ```bash
 # 标准部署流程（代码已推到 gitee 后执行）
-ssh root@42.193.144.175 "cd /root/ai-short-film && ./scripts/update-server.sh"
+ssh root@YOUR_SERVER_IP "cd /root/ai-short-film && ./scripts/update-server.sh"
 
 # 只重建/重启部分服务
-ssh root@42.193.144.175 "cd /root/ai-short-film && SERVICES='api worker-llm worker-video' ./scripts/update-server.sh"
+ssh root@YOUR_SERVER_IP "cd /root/ai-short-film && SERVICES='api worker-llm worker-video' ./scripts/update-server.sh"
 
 # 仅重启不重新 build（只改环境变量或临时重启时）
-ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose restart"
+ssh root@YOUR_SERVER_IP "cd /root/ai-short-film && docker compose restart"
 
 # 查看服务状态
-ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose ps"
+ssh root@YOUR_SERVER_IP "cd /root/ai-short-film && docker compose ps"
 
 # 查看日志
-ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f api"
-ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-llm"
-ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-image"
-ssh root@42.193.144.175 "cd /root/ai-short-film && docker compose logs -f worker-video"
+ssh root@YOUR_SERVER_IP "cd /root/ai-short-film && docker compose logs -f api"
+ssh root@YOUR_SERVER_IP "cd /root/ai-short-film && docker compose logs -f worker-llm"
+ssh root@YOUR_SERVER_IP "cd /root/ai-short-film && docker compose logs -f worker-image"
+ssh root@YOUR_SERVER_IP "cd /root/ai-short-film && docker compose logs -f worker-video"
 ```
 
 > **容器代码不会自动更新**：`git pull` 只更新宿主机文件，`docker compose restart` 只重启旧镜像里的进程。代码变更必须重新 build。

@@ -1,7 +1,7 @@
 # 提示词调试指南
 
 > 服务器连接方式、部署命令见 [CODEBUDDY.md 部署章节](../CODEBUDDY.md#部署)。
-> 本文档中所有命令均在**服务器上**执行（先 `ssh root@42.193.144.175` 登录，再 `cd /root/ai-short-film`）。
+> 本文档中所有命令均在**服务器上**执行（先 `ssh root@YOUR_SERVER_IP` 登录，再 `cd /root/ai-short-film`）。
 
 ## 工作流概述
 
